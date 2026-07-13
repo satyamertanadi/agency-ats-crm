@@ -1,0 +1,19 @@
+export type Organization = { id: string; name: string; slug: string; base_currency: string; timezone: string }
+export type Membership = { id: string; organization_id: string; status: string; organizations: Organization }
+export type Candidate = {
+  id: string; organization_id: string; full_name: string; current_company: string | null; current_position: string | null;
+  location: string | null; linkedin_url: string | null; status: string; source: string | null; availability: string | null;
+  owner_member_id: string | null; created_at: string; candidate_private_details?: CandidatePrivate | CandidatePrivate[] | null
+}
+export type CandidatePrivate = { email: string | null; phone: string | null; current_salary: number | null; expected_salary: number | null; salary_currency: string | null; consent_status: string }
+export type Company = { id: string; organization_id: string; name: string; industry: string | null; location: string | null; website: string | null; account_status: string; business_development_stage: string; updated_at: string }
+export type Contact = { id: string; organization_id: string; company_id: string; full_name: string; position: string | null; email: string | null; phone: string | null; contact_status: string; next_follow_up_at: string | null; companies?: Pick<Company,'id'|'name'> | null }
+export type Job = { id: string; organization_id: string; company_id: string; pipeline_id: string | null; title: string; location: string | null; priority: string; status: string; currency: string | null; placement_fee_percentage: number | null; opened_at: string | null; updated_at: string; companies?: Pick<Company,'id'|'name'> | null }
+export type PipelineStage = { id: string; pipeline_id: string; name: string; stage_key: string; stage_type: string; position: number; color: string | null }
+export type JobCandidate = { id: string; job_id: string; candidate_id: string; current_stage_id: string; updated_at: string; candidates?: Candidate | null; pipeline_stages?: PipelineStage | null }
+export type Task = { id: string; title: string; description: string | null; status: string; priority: string; due_at: string | null; owner_member_id: string | null; created_at: string }
+export type Placement = { id: string; candidate_id: string; job_id: string; company_id: string; start_date: string; salary: number; placement_fee: number; currency: string; guarantee_ends_on: string; status: string; candidates?: Pick<Candidate,'full_name'> | null; jobs?: Pick<Job,'title'> | null; companies?: Pick<Company,'name'> | null }
+export type Interview = {id:string;job_candidate_id:string;interview_type:string|null;stage_label:string|null;starts_at:string;ends_at:string;timezone:string;location:string|null;meeting_url:string|null;status:string;job_candidates?:{candidates?:Pick<Candidate,'full_name'>|null;jobs?:Pick<Job,'title'>|null}|null}
+export type Offer = {id:string;job_candidate_id:string;salary:number;currency:string;offered_at:string;start_date:string|null;status:string;notes:string|null;job_candidates?:{candidates?:Pick<Candidate,'full_name'>|null;jobs?:Pick<Job,'title'>|null}|null}
+export type PublicReview = { package: { id:string; title:string; message:string|null; job_title:string; company_name:string; recipient_name:string|null; expires_at:string }; candidates: PublicSubmission[] }
+export type PublicSubmission = { submission_id:string; candidate_name:string; current_company:string|null; current_position:string|null; location:string|null; linkedin_url:string|null; portfolio_url:string|null; candidate_summary:string; recruiter_comments:string|null; suitability_assessment:string|null; relevant_experience:string|null; expected_salary:number|null; currency:string|null; notice_period:string|null; availability:string|null; motivation:string|null; relocation_willingness:string|null; interview_availability:string|null; feedback:{decision:string;comments:string|null;reviewer_name:string|null;updated_at:string}|null }

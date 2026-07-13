@@ -1,0 +1,11 @@
+node_modules/
+.tmp/
+dist/
+.env
+.env.local
+.vercel/
+coverage/
+playwright-report/
+test-results/
+supabase/.temp/
+*.log

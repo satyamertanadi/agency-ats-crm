@@ -1,0 +1,20 @@
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation,useQuery,useQueryClient } from '@tanstack/react-query'
+import { Check,Plus } from 'lucide-react'
+import type { z } from 'zod'
+import { useOrganization } from '../../app/OrganizationProvider'
+import { useAuth } from '../../app/AuthProvider'
+import { taskSchema } from '../core/schemas'
+import { completeTask,createTask,listTasks } from '../core/repository'
+import { Button } from '../../shared/ui/Button'
+import { Field,Input,Select,Textarea } from '../../shared/ui/Field'
+import { Modal } from '../../shared/ui/Modal'
+import { Badge,Page,Panel } from '../../shared/ui/Page'
+import { EmptyState,ErrorState,LoadingState } from '../../shared/ui/States'
+import { Table } from '../../shared/ui/Table'
+import { formatDate } from '../../shared/lib/format'
+
+type FormData=z.infer<typeof taskSchema>
+export function TasksPage(){const {organization}=useOrganization();const {user}=useAuth();const cache=useQueryClient();const [open,setOpen]=useState(false);const query=useQuery({queryKey:['tasks',organization?.id],enabled:Boolean(organization),queryFn:()=>listTasks(organization!.id)});const form=useForm<FormData>({resolver:zodResolver(taskSchema),defaultValues:{title:'',description:'',priority:'normal',due_at:''}});const refresh=()=>cache.invalidateQueries({queryKey:['tasks',organization?.id]});const create=useMutation({mutationFn:(data:FormData)=>createTask(organization!.id,user!.id,data),onSuccess:async()=>{setOpen(false);form.reset();await refresh()}});const complete=useMutation({mutationFn:completeTask,onSuccess:refresh});return <Page title="Tasks" eyebrow="Next actions" description="Owned follow-ups and reminders across recruitment delivery and client work." actions={<Button onClick={()=>setOpen(true)}><Plus size={15}/>Add task</Button>}><Panel>{query.isLoading?<LoadingState/>:query.error?<ErrorState error={query.error}/>:query.data?.length===0?<EmptyState title="No tasks" description="Capture the next action before it slips."/>:<Table headers={['Task','Priority','Due','Status','Action']}>{query.data?.map((task)=><tr key={task.id}><td><strong>{task.title}</strong><span>{task.description||''}</span></td><td><Badge tone={task.priority==='urgent'?'bad':task.priority==='high'?'warn':'neutral'}>{task.priority}</Badge></td><td>{formatDate(task.due_at)}</td><td><Badge tone={task.status==='completed'?'good':'neutral'}>{task.status}</Badge></td><td>{task.status!=='completed'&&<Button variant="secondary" onClick={()=>complete.mutate(task.id)}><Check size={14}/>Complete</Button>}</td></tr>)}</Table>}</Panel><Modal title="Create task" open={open} onClose={()=>setOpen(false)}><form className="stack" onSubmit={form.handleSubmit((data)=>create.mutate(data))}><Field label="Title" error={form.formState.errors.title?.message}><Input {...form.register('title')}/></Field><Field label="Description"><Textarea {...form.register('description')}/></Field><Field label="Priority"><Select {...form.register('priority')}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></Select></Field><Field label="Due"><Input type="datetime-local" {...form.register('due_at')}/></Field>{create.error&&<p className="form-error" role="alert">{create.error.message}</p>}<div className="form-actions"><Button type="button" variant="quiet" onClick={()=>setOpen(false)}>Cancel</Button><Button disabled={create.isPending}>Create task</Button></div></form></Modal></Page>}
