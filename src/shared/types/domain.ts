@@ -1,4 +1,4 @@
-export type Organization = { id: string; name: string; slug: string; base_currency: string; timezone: string; primary_color?:string;logo_path?:string|null;logo_url?:string|null }
+export type Organization = { id: string; name: string; slug: string; base_currency: string; timezone: string; seat_limit: number; primary_color?:string;logo_path?:string|null;logo_url?:string|null }
 export type Membership = { id: string; organization_id: string; user_id?:string; status: string; organizations: Organization }
 export type Candidate = {
   id: string; organization_id: string; full_name: string; current_company: string | null; current_position: string | null;
@@ -21,7 +21,7 @@ export type Offer = {id:string;job_candidate_id:string;salary:number;currency:st
 export type PublicReview = { package: { id:string; title:string; message:string|null; job_title:string; company_name:string; recipient_name:string|null; expires_at:string }; candidates: PublicSubmission[];documents?:Array<{id:string;filename:string;mimeType:string;url:string}> }
 export type PublicSubmission = { submission_id:string; candidate_name:string; current_company:string|null; current_position:string|null; location:string|null; linkedin_url:string|null; portfolio_url:string|null; candidate_summary:string; recruiter_comments:string|null; suitability_assessment:string|null; relevant_experience:string|null; expected_salary:number|null; currency:string|null; notice_period:string|null; availability:string|null; motivation:string|null; relocation_willingness:string|null; interview_availability:string|null; feedback:{decision:string;comments:string|null;reviewer_name:string|null;updated_at:string}|null }
 
-export type TeamMember={id:string;organization_id:string;user_id:string;job_title:string|null;status:'active'|'suspended'|'invited';profiles:{full_name?:string;email?:string}|null;member_roles?:Array<{roles:{id:string;name:string;role_key:string}|null}>}
+export type TeamMember={id:string;organization_id:string;user_id:string;job_title:string|null;status:'active'|'suspended'|'invited';is_vendor_support:boolean;profiles:{full_name?:string;email?:string}|null;member_roles?:Array<{roles:{id:string;name:string;role_key:string}|null}>}
 export type Role={id:string;name:string;role_key:string;is_system:boolean;role_permissions?:Array<{permission_key:string}>}
 export type OrganizationInvitation={id:string;email:string;role_id:string;expires_at:string;accepted_at:string|null;revoked_at:string|null;delivery_status:string;last_sent_at:string|null;roles?:{name:string}|null}
 export type CalendarConnection={id:string;organization_id:string;member_id:string;google_email:string;calendar_id:string;status:'connected'|'reauthorization_required'|'disconnected'|'error';connected_at:string;last_synced_at:string|null;last_error:string|null}
