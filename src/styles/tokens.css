@@ -93,6 +93,10 @@
   --color-bronze-dark: #755027;
   --color-bronze-light: #d5b27f;
   --color-bronze-soft: #f3eadc;
+  /* Warm metallic gradient stops, shared by the brand mark and the avatar fallback. Previously
+     three near-identical one-offs: #f4efe1 / #d9c5a3 / #d8c9ac. */
+  --color-parchment: #f4efe1;
+  --color-sand: #d9c5a3;
 
   /* One editorial dark green. Was typed three times with typos: #16372c / #15372c / #15392c. */
   --color-forest: #15372c;
