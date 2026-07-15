@@ -1,21 +1,17 @@
 # Agency ATS CRM
 
-An organization-isolated applicant tracking system and recruitment CRM for agencies and headhunters. This repository is independent from Rascal Talent Hub and uses no RTH production data or credentials.
-
-## Stack
-
-Vite, React 19, strict TypeScript, React Router 7, Tailwind CSS 4, Supabase/PostgreSQL, TanStack Query, React Hook Form, Zod, Vitest, and Playwright.
+An organization-isolated applicant tracking system and recruitment CRM for a six-consultant headhunting agency. The pilot build uses invitation-only Google identity, Supabase/PostgreSQL authorization, one-way ATS-to-Google Calendar synchronization, controlled Excel/CSV migration, Resend delivery, and private document storage.
 
 ## Local setup
 
-1. Copy `.env.example` to `.env.local` and supply the local Supabase anon key.
-2. Run `npm install`.
-3. Start Docker Desktop, then run `supabase start` and `supabase db reset`.
+Requirements: Node.js 22, Docker Desktop, and Supabase CLI.
+
+1. Copy `.env.example` to `.env.local` and set the local publishable/anonymous key printed by `supabase status`.
+2. Run `npm ci`.
+3. Run `supabase start` and `supabase db reset`.
 4. Run `npm run dev`.
 
-The seed creates two isolated agencies and recruitment data. Local role accounts include `owner@northstar.local`, `manager@northstar.local`, `consultant@northstar.local`, `sourcer@northstar.local`, `bd@northstar.local`, `finance@northstar.local`, `readonly@northstar.local`, and `owner@rival.local`. Their local-only password is `LocalTest!123`; never use these credentials outside local development.
-
-The new project must receive its own Supabase, Vercel, Sentry, and secret-store resources. Do not paste RTH production credentials into this repository.
+This repository uses local Supabase ports `55320`-`55329` so it can run beside another default Supabase project. The local seed contains development-only password users; production must set `VITE_ALLOW_PASSWORD_AUTH=false`, disable public signup in Supabase, and never load `supabase/seed.sql`.
 
 ## Verification
 
@@ -28,4 +24,10 @@ npm run build
 npm run test:e2e
 ```
 
-See `docs/` for architecture, schema, security, product scope, roadmap, testing, and feature status.
+`npm run test:rls` requires `SUPABASE_URL` and `SUPABASE_ANON_KEY` from the active local stack. CI provisions a clean database, verifies migrations and generated types, and supplies these values automatically.
+
+## Production boundary
+
+Code-level pilot capabilities are implemented, but a commercial launch still requires client-specific Google/Resend credentials, separate staging and production projects, backup/restore evidence, migration rehearsal and reconciliation, client UAT, and the release checklist in [docs/pilot-release-checklist.md](docs/pilot-release-checklist.md).
+
+The pilot explicitly excludes Gmail inbox sync, two-way Calendar sync, autonomous AI decisions, job boards, and subscription billing.
