@@ -149,18 +149,22 @@
 .icon-button:hover {
   background: var(--color-canvas-deep);
 }
+/* `position:sticky; top:var(--topbar-height)` was removed rather than fixed: the toolbar's
+   nearest scroll container is .panel, which is `overflow:hidden` and therefore never scrolls,
+   so the sticky never engaged. It was a lie in the stylesheet, plus a z-index and a
+   backdrop-filter paying for a blur that never composited against anything. */
 .toolbar {
-  position: sticky;
-  top: var(--topbar-height);
-  z-index: 8;
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: 13px 15px;
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--color-line);
-  background: rgba(255, 254, 250, 0.94);
-  backdrop-filter: blur(10px);
+  background: var(--color-surface-soft);
 }
+/* The toolbar IS the search surface. Previously .search-box's input carried its own white
+   background and its own border inside a toolbar that already had a background and a border --
+   a bordered white box inside a bordered white bar, which read as an empty second bar stacked
+   above the real one. One row, one border; the focus ring moves to the wrapper. */
 .search-box {
   display: flex;
   align-items: center;
@@ -168,9 +172,21 @@
   max-width: 480px;
   flex: 1;
   color: var(--color-muted);
+  border-radius: var(--radius-sm);
+  transition: box-shadow var(--motion-fast);
+}
+.search-box:focus-within {
+  color: var(--color-ink);
+  box-shadow: var(--focus);
 }
 .search-box .input {
-  padding-left: 8px;
+  padding-left: var(--space-1);
+  background: transparent;
+  border-color: transparent;
+}
+.search-box .input:focus {
+  border-color: transparent;
+  box-shadow: none;
 }
 .input {
   width: 100%;
@@ -351,14 +367,19 @@ tbody tr {
 tbody tr:hover {
   background: var(--color-surface-soft);
 }
-td strong,
-td span {
+/* The two-line table cell: <td><strong>Title</strong><span>sub-line</span></td>.
+   Scoped with :not([class]) so it only claims UNCLASSED children. Without it these rules also
+   hit <span class="badge">, which Badge renders as a direct child of <td> -- so scoping to
+   `td > span` would not have helped -- and the badge was forced to fight back with
+   `display:inline-flex !important; font-size:... !important`. Those are now gone. */
+td strong:not([class]),
+td span:not([class]) {
   display: block;
 }
-td span {
+td span:not([class]) {
   font-size: var(--text-xs);
   color: var(--color-muted);
-  margin-top: 2px;
+  margin-top: var(--space-05);
 }
 .table-sticky thead th {
   position: sticky;
@@ -369,12 +390,12 @@ td span {
   border-bottom: 0;
 }
 .badge {
-  display: inline-flex !important;
+  display: inline-flex;
   align-items: center;
   width: max-content;
   border-radius: var(--radius-pill);
-  padding: 4px 8px;
-  font-size: var(--text-2xs) !important;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-2xs);
   line-height: 1.1;
   font-weight: var(--weight-semibold);
   text-transform: capitalize;

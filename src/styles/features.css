@@ -690,14 +690,32 @@
   justify-content: space-between;
   gap: var(--space-4);
 }
+/* Both rows wrap their label pair in a bare <div><strong>name</strong><span>email</span></div>.
+   Without this the two run inline with no separator -- Settings literally rendered
+   "Satya Berdikarisatyaberdikari778@gmail.com". The .list-row pattern got this right; these two
+   were simply missed. */
+.team-access-row > div,
+.finance-row > div {
+  display: grid;
+  gap: var(--space-05);
+  min-width: 0;
+}
+.team-access-row > div > span,
+.finance-row > div > span {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
 .delivery-row > div:first-child {
   max-width: 62%;
 }
 .delivery-row .table-actions {
   justify-content: flex-end;
 }
+/* No longer needs !important: it was fighting the unscoped `td span{color:muted}` rule, which is
+   now `td span:not([class])` and leaves classed spans alone. */
 .overdue-text {
-  color: var(--color-danger) !important;
+  color: var(--color-danger);
   font-weight: var(--weight-semibold);
 }
 .date-range {

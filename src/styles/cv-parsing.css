@@ -99,8 +99,10 @@
 .cv-review .warning-box p {
   margin: 4px 0 0;
 }
+/* The !important here was fighting the browser's default h3 margin, which base.css now zeroes
+   globally. Redundant either way -- this selector already outranks the UA stylesheet. */
 .cv-section-title h3 {
-  margin: 0 !important;
+  margin: 0;
 }
 .cv-repeat-card {
   display: grid;
