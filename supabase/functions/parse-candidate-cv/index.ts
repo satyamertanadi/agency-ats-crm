@@ -1,7 +1,7 @@
 import mammoth from 'npm:mammoth@1.9.1'
 import {Buffer} from 'node:buffer'
 import {FunctionError,requireUser} from '../_shared/auth.ts'
-import {json,log,requestId} from '../_shared/http.ts'
+import {corsHeaders,json,log,requestId} from '../_shared/http.ts'
 import {candidateCvJsonSchema,type CvExtraction} from '../_shared/cv-schema.ts'
 
 declare const EdgeRuntime:{waitUntil(promise:Promise<unknown>):void}
@@ -15,7 +15,7 @@ const pdfMime='application/pdf'
 const docxMime='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
 Deno.serve(async(request)=>{
-  if(request.method==='OPTIONS')return new Response('ok',{headers:{'Access-Control-Allow-Origin':Deno.env.get('APP_ORIGIN')||'http://127.0.0.1:5173','Access-Control-Allow-Headers':'authorization,content-type,x-request-id,x-worker-secret'}})
+  if(request.method==='OPTIONS')return new Response('ok',{headers:corsHeaders(request)})
   const requestID=requestId(request)
   try{
     const input=await request.json() as Input
