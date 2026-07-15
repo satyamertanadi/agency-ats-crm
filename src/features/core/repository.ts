@@ -66,7 +66,7 @@ export async function searchWorkspace(organizationId:string,query:string){const 
 
 export async function dashboardSummary(organizationId:string){
   const now=new Date().toISOString();const soon=new Date(Date.now()+7*86400000).toISOString()
-  const [jobs,candidates,tasks,interviews,offers,placements,activities]=await Promise.all([
+  const [jobs,candidates,tasks,interviews,offers,placements,activities,companies,contacts,pipelineEntries,members,settings]=await Promise.all([
     supabase.from('jobs').select('id',{count:'exact',head:true}).eq('organization_id',organizationId).eq('status','open').is('deleted_at',null),
     supabase.from('candidates').select('id',{count:'exact',head:true}).eq('organization_id',organizationId).is('deleted_at',null),
     supabase.from('tasks').select('id,title,due_at,priority').eq('organization_id',organizationId).in('status',['open','in_progress']).lt('due_at',now).order('due_at').limit(8),
@@ -74,9 +74,27 @@ export async function dashboardSummary(organizationId:string){
     supabase.from('offers').select('id',{count:'exact',head:true}).eq('organization_id',organizationId).in('status',['draft','presented']),
     supabase.from('placements').select('placement_fee,currency').eq('organization_id',organizationId).gte('created_at',new Date(new Date().getFullYear(),0,1).toISOString()),
     supabase.from('activities').select('id,activity_type,subject,summary,occurred_at').eq('organization_id',organizationId).order('occurred_at',{ascending:false}).limit(8),
+    supabase.from('companies').select('id',{count:'exact',head:true}).eq('organization_id',organizationId).is('deleted_at',null),
+    supabase.from('contacts').select('id',{count:'exact',head:true}).eq('organization_id',organizationId).is('deleted_at',null),
+    supabase.from('job_candidates').select('id',{count:'exact',head:true}).eq('organization_id',organizationId),
+    supabase.from('organization_members').select('id',{count:'exact',head:true}).eq('organization_id',organizationId).eq('status','active'),
+    supabase.from('organization_settings').select('settings').eq('organization_id',organizationId).maybeSingle(),
   ])
-  for(const result of [jobs,candidates,tasks,interviews,offers,placements,activities])if(result.error)fail(result.error,'Could not load dashboard')
-  return {activeJobs:jobs.count??0,candidates:candidates.count??0,overdueTasks:tasks.data??[],interviews:interviews.count??0,offers:offers.count??0,placements:placements.data??[],activities:activities.data??[]}
+  for(const result of [jobs,candidates,tasks,interviews,offers,placements,activities,companies,contacts,pipelineEntries,members,settings])if(result.error)fail(result.error,'Could not load dashboard')
+  const setupDismissedAt=(settings.data?.settings as {setup_dismissed_at?:string}|null)?.setup_dismissed_at??null
+  return {activeJobs:jobs.count??0,candidates:candidates.count??0,overdueTasks:tasks.data??[],interviews:interviews.count??0,offers:offers.count??0,placements:placements.data??[],activities:activities.data??[],
+    companies:companies.count??0,contacts:contacts.count??0,pipelineEntries:pipelineEntries.count??0,members:members.count??0,setupDismissedAt}
+}
+
+// Merges rather than replaces: `settings` is shared jsonb, so a blind write would clobber
+// unrelated keys. Only the owner can reach this (organization.manage), so the read-modify-write
+// window is not contended.
+export async function dismissSetupChecklist(organizationId:string){
+  const {data,error:readError}=await supabase.from('organization_settings').select('settings').eq('organization_id',organizationId).maybeSingle()
+  if(readError)fail(readError,'Could not update setup preferences')
+  const current=(data?.settings as Record<string,unknown>|null)??{}
+  const {error}=await supabase.from('organization_settings').update({settings:{...current,setup_dismissed_at:new Date().toISOString()},updated_at:new Date().toISOString()}).eq('organization_id',organizationId)
+  if(error)fail(error,'Could not hide the setup guide')
 }
 
 export async function listMembers(organizationId:string){const {data,error}=await supabase.from('organization_members').select('id,user_id,job_title,status,profiles:user_id(full_name,email)').eq('organization_id',organizationId).order('joined_at');if(error)fail(error,'Could not load team');return data??[]}
