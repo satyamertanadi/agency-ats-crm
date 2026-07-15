@@ -27,17 +27,17 @@
   color: var(--color-accent);
 }
 .kpi p {
-  font-size: 0.64rem;
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.055em;
   color: var(--color-muted);
   margin: 0 0 4px;
-  font-weight: 750;
+  font-weight: var(--weight-medium);
 }
 .kpi strong {
   font-family: var(--font-editorial);
-  font-size: 1.35rem;
-  font-weight: 620;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
   letter-spacing: -0.025em;
 }
 .kpi-alert {
@@ -77,14 +77,14 @@
 }
 .dashboard-hero h2 {
   font-family: var(--font-editorial);
-  font-weight: 500;
-  font-size: 1.75rem;
+  font-weight: var(--weight-medium);
+  font-size: var(--text-3xl);
   line-height: 1.1;
   margin: 5px 0;
 }
 .dashboard-hero > div > p:last-child {
   color: #aec2b9;
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   margin: 0;
 }
 .dashboard-hero .eyebrow {
@@ -110,12 +110,12 @@
   border-radius: 50%;
   background: var(--color-accent-soft);
   color: var(--color-accent);
-  font-weight: 800;
+  font-weight: var(--weight-semibold);
 }
 .dashboard-clear p {
   margin: 3px 0 0;
   color: var(--color-muted);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
 }
 .kpi-grid-muted .kpi {
   opacity: 0.72;
@@ -125,14 +125,14 @@
 }
 .kpi-grid-muted .kpi strong {
   color: var(--color-muted);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 .kpi-grid-muted .kpi-alert {
   opacity: 1;
 }
 .kpi-grid-muted .kpi-alert strong {
   color: inherit;
-  font-weight: 620;
+  font-weight: var(--weight-semibold);
 }
 .setup-checklist .panel-body {
   padding: 0;
@@ -171,18 +171,18 @@
   min-width: 0;
 }
 .setup-step-body strong {
-  font-size: 0.76rem;
+  font-size: var(--text-base);
 }
 .setup-step-body p {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   line-height: 1.5;
 }
 .setup-step-state {
   color: var(--color-muted);
-  font-size: 0.66rem;
-  font-weight: 750;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
 .setup-step-done .setup-step-marker {
@@ -192,7 +192,7 @@
 }
 .setup-step-done .setup-step-body strong {
   color: var(--color-muted);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .setup-step-blocked {
   opacity: 0.55;
@@ -265,19 +265,19 @@
   color: var(--color-muted);
 }
 .activity-heading strong {
-  font-size: 0.74rem;
+  font-size: var(--text-base);
   color: var(--color-ink);
 }
 .activity-body p {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .activity-body small {
   color: var(--color-muted);
-  font-size: 0.65rem;
+  font-size: var(--text-xs);
 }
 .list {
   display: grid;
@@ -289,7 +289,7 @@
   gap: 14px;
   padding: 13px 17px;
   border-bottom: 1px solid #eceae2;
-  font-size: 0.74rem;
+  font-size: var(--text-sm);
 }
 .list-row:last-child {
   border-bottom: 0;
@@ -301,7 +301,7 @@
 .list-row span,
 .list-row time {
   color: var(--color-muted);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
 }
 .clickable-row {
   transition:
@@ -315,7 +315,7 @@
 }
 .record-link {
   color: var(--color-accent);
-  font-weight: 750;
+  font-weight: var(--weight-semibold);
 }
 .record-link:hover {
   text-decoration: underline;
@@ -354,8 +354,8 @@
 }
 .auth-product-title {
   font-family: var(--font-editorial);
-  font-size: clamp(3rem, 5vw, 5.4rem);
-  font-weight: 470;
+  font-size: var(--text-5xl);
+  font-weight: var(--weight-regular);
   line-height: 0.92;
   letter-spacing: -0.055em;
   margin: 15px 0 25px;
@@ -365,7 +365,7 @@
   max-width: 560px;
   color: #b7c7bf;
   line-height: 1.7;
-  font-size: 0.9rem;
+  font-size: var(--text-md);
 }
 .auth-card {
   padding: clamp(56px, 12vh, 120px) clamp(36px, 5vw, 72px);
@@ -376,15 +376,15 @@
 }
 .auth-card h1 {
   font-family: var(--font-editorial);
-  font-size: 2rem;
-  font-weight: 580;
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-medium);
   margin: 0;
   letter-spacing: -0.035em;
 }
 .auth-card > p {
   color: var(--color-muted);
   margin: 8px 0 28px;
-  font-size: 0.8rem;
+  font-size: var(--text-base);
   line-height: 1.6;
 }
 .auth-links {
@@ -392,14 +392,14 @@
   justify-content: space-between;
   margin-top: 18px;
   color: var(--color-accent);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
 }
 .auth-divider {
   display: flex;
   align-items: center;
   gap: 10px;
   color: var(--color-muted);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   margin: 17px 0;
 }
 .auth-divider::before,
@@ -431,7 +431,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 7px 5px 12px;
-  font-size: 0.73rem;
+  font-size: var(--text-sm);
 }
 .candidate-card {
   background: var(--color-surface);
@@ -455,12 +455,12 @@
   cursor: grabbing;
 }
 .candidate-card strong {
-  font-size: 0.75rem;
+  font-size: var(--text-base);
 }
 .candidate-card span {
   display: block;
   color: var(--color-muted);
-  font-size: 0.66rem;
+  font-size: var(--text-xs);
   margin-top: 4px;
 }
 .kanban-over {
@@ -481,8 +481,8 @@
 }
 .review-header h1 {
   font-family: var(--font-editorial);
-  font-size: 2.5rem;
-  font-weight: 500;
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-medium);
   margin: 5px 0;
 }
 .review-grid {
@@ -502,7 +502,7 @@
 }
 .review-card h2 {
   font-family: var(--font-editorial);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   margin: 0;
 }
 .decision-row {
@@ -523,8 +523,8 @@
   color: var(--color-accent-hover);
   padding: 8px 11px;
   border-radius: 8px;
-  font-size: 0.72rem;
-  font-weight: 750;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
 }
 .mapping-grid {
   display: grid;
@@ -564,8 +564,8 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 0.72rem;
-  font-weight: 550;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
 }
 .tag-list {
   display: flex;
@@ -581,8 +581,8 @@
   background: var(--color-accent-soft);
   color: var(--color-accent-hover);
   padding: 6px 10px;
-  font-size: 0.68rem;
-  font-weight: 750;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
 }
 .tag-chip button {
   border: 0;
@@ -590,7 +590,7 @@
   color: inherit;
   cursor: pointer;
   padding: 0;
-  font-size: 15px;
+  font-size: var(--text-sm);
   line-height: 1;
 }
 .settings-list {
@@ -606,7 +606,7 @@
 .settings-list p {
   margin: 4px 0 0;
   color: var(--color-muted);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
 }
 .settings-list p svg {
   vertical-align: middle;
@@ -620,11 +620,11 @@
 }
 .settings-section-heading h2 {
   font-family: var(--font-editorial);
-  font-size: 1.2rem;
+  font-size: var(--text-xl);
   margin: 0;
 }
 .settings-section-heading p {
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   color: var(--color-muted);
   margin: 2px 0 0;
 }
@@ -649,7 +649,7 @@
   display: grid;
   place-items: center;
   color: #fff;
-  font-weight: 800;
+  font-weight: var(--weight-semibold);
   overflow: hidden;
 }
 .brand-preview img {
@@ -661,7 +661,7 @@
   display: grid;
 }
 .brand-preview small {
-  font-size: 0.67rem;
+  font-size: var(--text-xs);
   color: var(--color-muted);
 }
 .color-field {
@@ -698,7 +698,7 @@
 }
 .overdue-text {
   color: var(--color-danger) !important;
-  font-weight: 750;
+  font-weight: var(--weight-semibold);
 }
 .date-range {
   align-items: flex-end;
@@ -711,7 +711,7 @@
 }
 .success-box a {
   color: var(--color-accent-hover);
-  font-weight: 800;
+  font-weight: var(--weight-semibold);
 }
 .modal section {
   border-top: 1px solid var(--color-line);
@@ -719,7 +719,7 @@
 }
 .modal section h3 {
   font-family: var(--font-editorial);
-  font-size: 1rem;
+  font-size: var(--text-lg);
   margin: 0 0 10px;
 }
 .chart-grid {
@@ -736,6 +736,6 @@
 }
 .chart-card .recharts-text {
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: var(--text-2xs);
   fill: var(--color-muted);
 }

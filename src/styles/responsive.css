@@ -131,7 +131,7 @@
     margin-left: auto;
   }
   .page-header h1 {
-    font-size: 1.85rem;
+    font-size: var(--text-3xl);
   }
   .review-grid {
     grid-template-columns: 1fr;
