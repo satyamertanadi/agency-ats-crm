@@ -1,0 +1,22 @@
+{
+  "rules": {
+    "color-no-hex": true,
+    "declaration-property-value-disallowed-list": {
+      "font-size": ["/px$/", "/rem$/", "/em$/"],
+      "font-weight": ["/^[0-9]+$/"],
+      "border-radius": ["/^[0-9]+px$/"]
+    }
+  },
+  "ignoreFiles": [
+    "src/styles/tokens.css",
+    "src/features/styleguide/styleguide.css",
+    "dist/**",
+    "node_modules/**"
+  ],
+  "overrides": [
+    {
+      "files": ["src/styles/base.css"],
+      "rules": { "color-no-hex": null }
+    }
+  ]
+}

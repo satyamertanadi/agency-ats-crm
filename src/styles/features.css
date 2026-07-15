@@ -1,6 +1,8 @@
+/* minmax raised 140 -> 160px: the labels are now 12px with --tracking-caps (they were 10.24px at
+   .055em), so they need the extra room. See responsive.css for the 4-up and 3-up steps. */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  grid-template-columns: repeat(6, minmax(160px, 1fr));
   gap: var(--space-3);
 }
 .kpi {
@@ -15,7 +17,9 @@
   box-shadow: var(--shadow-xs);
   overflow: hidden;
 }
-.kpi::after {
+/* The bronze underline is an accent, so it accents ONE thing. On all six KPIs it was noise
+   pretending to be emphasis -- if everything is accented, nothing is. */
+.kpi:first-child::after {
   content: "";
   position: absolute;
   inset: auto 0 0;
@@ -422,8 +426,9 @@
   background: var(--color-canvas-deep);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
-  min-height: 430px;
-  padding: 10px;
+  /* was an arbitrary 430px; vh keeps the columns proportional to the viewport instead */
+  min-height: 60vh;
+  padding: var(--space-3);
   scroll-snap-align: start;
 }
 .kanban-column > header {
@@ -446,9 +451,10 @@
     transform var(--motion-fast),
     border-color var(--motion-fast);
 }
+/* No translateY on hover: this card is draggable, and a card that lifts on mere hover fights the
+   drag affordance and reads as fidgety when you sweep across a column. Shadow + border is enough. */
 .candidate-card:hover {
   box-shadow: var(--shadow-sm);
-  transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--color-line-strong) 85%, var(--color-ink));
 }
 .candidate-card:active {
