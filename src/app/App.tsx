@@ -27,6 +27,15 @@ const SearchPage=lazy(()=>import('../features/search/SearchPage').then((module)=
 const SettingsPage=lazy(()=>import('../features/settings/SettingsPage').then((module)=>({default:module.SettingsPage})))
 const ReportsPage=lazy(()=>import('../features/reports/ReportsPage').then((module)=>({default:module.ReportsPage})))
 const ImportsPage=lazy(()=>import('../features/imports/ImportsPage').then((module)=>({default:module.ImportsPage})))
+// Dev-only design system specimen. The DEV guard must wrap the import() itself, not just the
+// <Route>: a top-level lazy(()=>import(...)) is emitted as a chunk by Rollup whether or not the
+// route is reachable, so guarding only the route still ships the page. With the ternary, Vite
+// folds DEV to false and the dead branch -- and its dynamic import -- is tree-shaken away.
+// Asserted by the "styleguide is not reachable in production" test in smoke.spec.ts, which runs
+// against a real production build.
+const StyleguidePage=import.meta.env.DEV
+  ?lazy(()=>import('../features/styleguide/StyleguidePage').then((module)=>({default:module.StyleguidePage})))
+  :()=>null
 
 function Protected(){const {user,loading}=useAuth();const {memberships,loading:orgLoading}=useOrganization();const location=useLocation();if(loading||orgLoading)return <LoadingState label="Opening workspace…"/>;if(!user)return <Navigate to={`/login?next=${encodeURIComponent(location.pathname+location.search)}`} replace/>;if(memberships.length===0)return <Navigate to={env.allowSelfServiceOnboarding?'/onboarding':'/access-pending'} replace/>;return <AppShell/>}
 function WorkspaceIndex(){const {organization}=useOrganization();return <Navigate to={`/app/${organization?.slug||'workspace'}/dashboard`} replace/>}
@@ -34,5 +43,6 @@ function WorkspaceIndex(){const {organization}=useOrganization();return <Navigat
 export function App(){return <Suspense fallback={<LoadingState label="Loading view…"/>}><Routes>
   <Route path="/login" element={<LoginPage/>}/><Route path="/signup" element={<SignupPage/>}/><Route path="/reset-password" element={<ResetPasswordPage/>}/><Route path="/onboarding" element={<OnboardingPage/>}/><Route path="/access-pending" element={<AccessPendingPage/>}/><Route path="/invite/:token" element={<InvitePage/>}/><Route path="/review/:token" element={<PublicReviewPage/>}/>
   <Route element={<Protected/>}><Route path="/app" element={<WorkspaceIndex/>}/><Route path="/app/:organizationSlug"><Route index element={<Navigate to="dashboard" replace/>}/><Route path="dashboard" element={<DashboardPage/>}/><Route path="candidates" element={<CandidatesPage/>}/><Route path="candidates/:candidateId" element={<CandidateDetailPage/>}/><Route path="companies" element={<CompaniesPage/>}/><Route path="companies/:companyId" element={<CompanyDetailPage/>}/><Route path="contacts" element={<ContactsPage/>}/><Route path="contacts/:contactId" element={<ContactDetailPage/>}/><Route path="jobs" element={<JobsPage/>}/><Route path="jobs/:jobId" element={<JobDetailPage/>}/><Route path="jobs/:jobId/pipeline" element={<PipelinePage/>}/><Route path="submissions" element={<SubmissionsPage/>}/><Route path="delivery" element={<DeliveryPage/>}/><Route path="placements" element={<PlacementsPage/>}/><Route path="tasks" element={<TasksPage/>}/><Route path="search" element={<SearchPage/>}/><Route path="reports" element={<ReportsPage/>}/><Route path="imports" element={<ImportsPage/>}/><Route path="settings" element={<SettingsPage/>}/></Route></Route>
+  {import.meta.env.DEV&&<Route path="/styleguide" element={<StyleguidePage/>}/>}
   <Route path="*" element={<Navigate to="/app" replace/>}/>
 </Routes></Suspense>}

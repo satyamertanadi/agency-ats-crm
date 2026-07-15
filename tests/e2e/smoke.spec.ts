@@ -18,6 +18,15 @@ test('self-service signup is not exposed',async({page})=>{
   await expect(page.getByRole('button',{name:'Continue with Google'})).toBeVisible()
 })
 
+// This suite runs against `npm run preview` -- a production build -- so it is the real assertion
+// that the dev-only design system specimen never ships. import.meta.env.DEV folds to false and
+// Rollup drops the chunk, leaving the `*` catch-all to redirect to /login.
+test('the design system styleguide is not reachable in production',async({page})=>{
+  await page.goto('/styleguide')
+  await expect(page).toHaveURL(/\/login/)
+  await expect(page.locator('.sg-masthead')).toHaveCount(0)
+})
+
 test('invalid public review fails without revealing candidate data',async({page})=>{
   await page.route('**/functions/v1/public-review**',async(route)=>route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({error:{message:'This review link is unavailable.'}})}))
   await page.goto(`/review/${'invalid-token-value-that-is-long-enough-000'}`)

@@ -1,0 +1,203 @@
+/* Styleguide chrome only. Deliberately NOT part of src/styles/ -- this file styles the specimen
+   page itself, never the product, and it is imported only by the dev-only StyleguidePage so it
+   never reaches a production bundle. Uses tokens where they exist so the specimen dogfoods them. */
+
+.sg {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 40px 24px 96px;
+}
+.sg-masthead {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--color-line);
+  margin-bottom: 8px;
+}
+.sg-masthead h1 {
+  font-family: var(--font-editorial);
+  margin: 4px 0;
+}
+.sg-masthead > p:last-child {
+  color: var(--color-muted);
+  margin: 0;
+}
+.sg-section {
+  padding: 40px 0;
+  border-bottom: 1px solid var(--color-line);
+  scroll-margin-top: 20px;
+}
+.sg-section-header {
+  margin-bottom: 20px;
+}
+.sg-section-header h2 {
+  font-family: var(--font-editorial);
+  margin: 0;
+}
+.sg-section-header p {
+  color: var(--color-muted);
+  margin: 4px 0 0;
+  max-width: 76ch;
+}
+.sg-section-body {
+  display: grid;
+  gap: 16px;
+}
+.sg-sub {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* type + weight specimens */
+.sg-type-list,
+.sg-weight-list {
+  display: grid;
+  gap: 4px;
+}
+.sg-type-row,
+.sg-weight-row {
+  display: grid;
+  grid-template-columns: 130px 62px 1fr 1fr;
+  gap: 16px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.sg-type-row:nth-child(odd),
+.sg-weight-row:nth-child(odd) {
+  background: var(--color-surface-soft);
+}
+.sg-type-row p,
+.sg-weight-row p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-type-px {
+  color: var(--color-faint);
+  font-variant-numeric: tabular-nums;
+}
+.sg-type-serif {
+  font-family: var(--font-editorial);
+}
+.sg code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--color-accent-hover);
+}
+.sg small {
+  color: var(--color-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* colour */
+.sg-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+.sg-swatch {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  grid-template-rows: auto auto;
+  gap: 2px 10px;
+  align-items: center;
+}
+.sg-swatch span {
+  grid-row: 1 / 3;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--color-line);
+}
+.sg-tones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.sg-tone {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.sg-tone-box {
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 10px 12px;
+  width: 100%;
+}
+.sg-tone-chip {
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+/* primitives */
+.sg-radii,
+.sg-shadows,
+.sg-spaces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.sg-radius,
+.sg-shadow,
+.sg-space {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+.sg-radius span {
+  width: 60px;
+  height: 60px;
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent);
+  display: block;
+}
+.sg-shadow span {
+  width: 60px;
+  height: 60px;
+  background: var(--color-surface);
+  border-radius: 10px;
+  display: block;
+}
+.sg-space {
+  align-content: end;
+}
+.sg-space span {
+  background: var(--color-bronze);
+  display: block;
+  border-radius: 2px;
+}
+
+/* layout helpers */
+.sg-grid {
+  display: grid;
+  gap: 10px;
+}
+.sg-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.sg-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sg-row > code {
+  min-width: 84px;
+}
+.sg-pad {
+  padding: 18px;
+}
+.sg-inset {
+  border: 1px dashed var(--color-line-strong);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--color-canvas);
+}
+.sg-inset .page {
+  padding-bottom: 24px;
+}
