@@ -1,5 +1,9 @@
-@font-face{font-family:'Manrope Variable';font-style:normal;font-display:swap;font-weight:200 800;src:local('Manrope')}
-@font-face{font-family:'Newsreader Variable';font-style:normal;font-display:swap;font-weight:300 700;src:local('Newsreader')}
+/* Font faces come from @fontsource-variable/{manrope,newsreader}, imported in main.tsx.
+   Do not re-declare these families here: a `src:local(...)` face later in the cascade with no
+   unicode-range shadows the real subsetted faces, and resolves to whatever happens to be
+   installed on the machine (or nothing). Verified in-browser: such faces fail outright here
+   ("A network error occurred") and would silently swap in a static, non-variable font on any
+   machine that does have Manrope installed -- making every weight render differently per user. */
 *{box-sizing:border-box}
 html{scroll-behavior:smooth;background:var(--color-canvas)}
 body{margin:0;min-width:320px;min-height:100vh;background:var(--color-canvas);color:var(--color-ink);line-height:1.5;-webkit-font-smoothing:antialiased}
