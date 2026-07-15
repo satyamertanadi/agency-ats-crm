@@ -1,4 +1,4 @@
 import type { ReactNode } from 'react'
 
-export function Table({ headers, children }: {headers:string[];children:ReactNode}) { return <div className="table-scroll"><table><thead><tr>{headers.map((h)=><th key={h}>{h}</th>)}</tr></thead><tbody>{children}</tbody></table></div> }
-
+export interface TableProps {headers:string[];children:ReactNode;caption?:string;className?:string;sticky?:boolean}
+export function Table({ headers, children, caption, className='', sticky=true }: TableProps) { return <div className={`table-scroll ${sticky?'table-sticky':''} ${className}`.trim()}><table>{caption&&<caption>{caption}</caption>}<thead><tr>{headers.map((header)=><th scope="col" key={header}>{header}</th>)}</tr></thead><tbody>{children}</tbody></table></div> }
