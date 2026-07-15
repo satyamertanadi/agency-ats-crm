@@ -1,0 +1,14 @@
+# Prettier is deliberately scoped to src/styles/**/*.css ONLY.
+#
+# The .tsx in this repo uses a dense one-statement-per-line house style, consistently, across
+# ~40 files. Reformatting it would destroy git blame on the whole application in a commit that
+# changes no behaviour, and it is not the problem: styling lives in CSS (there is exactly one
+# inline style in the codebase). The CSS is the problem -- it averaged ~1,100 bytes per line,
+# which is why design drift was never visible in review.
+#
+# gitignore semantics: a file cannot be re-included if a parent directory is excluded, so the
+# path down to src/styles must be un-ignored step by step.
+/*
+!/src
+/src/*
+!/src/styles

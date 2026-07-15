@@ -14,7 +14,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:rls": "vitest run --config vitest.rls.config.ts",
-    "demo:generate": "node scripts/generate-demo-data.mjs"
+    "demo:generate": "node scripts/generate-demo-data.mjs",
+    "format:css": "prettier --write \"src/styles/**/*.css\"",
+    "format:css:check": "prettier --check \"src/styles/**/*.css\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -53,6 +55,7 @@
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "jsdom": "^28.1.0",
+    "prettier": "^3.9.5",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.53.0",
     "vite": "^7.3.1",
