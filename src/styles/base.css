@@ -11,13 +11,20 @@ html {
   scroll-behavior: smooth;
   background: var(--color-canvas);
 }
+/* The root stays at the browser's 16px -- deliberately NOT the html{font-size:62.5%} trick,
+   which would silently invalidate every existing rem and clamp() and break user font-size
+   preferences. The app's base size is set here instead. Before this line there was no base
+   font-size anywhere, so the app ran two type systems at once: class-driven UI at ~11.5px and
+   every unstyled element at the browser's 16px (measured: the client review page's <dd> at 16px
+   with a 40px browser indent, while table cells sat at 11.84px). */
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
   background: var(--color-canvas);
   color: var(--color-ink);
-  line-height: 1.5;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
 }
 button,
@@ -51,6 +58,41 @@ h3,
 p {
   overflow-wrap: anywhere;
 }
+
+/* Global headings. These became mandatory the moment body{font-size:var(--text-base)} landed:
+   browser-default headings are em-relative, so every unstyled h1-h4 would otherwise silently
+   shrink by the same 14/16 factor. They also close a real gap -- previously h1/h2/h3 got only
+   overflow-wrap here, and every heading size was defined ad-hoc per component, which is why
+   <h3>Suitability</h3> on the client review page rendered at the browser's 18.72px/bold. */
+h1 {
+  margin: 0;
+  font-family: var(--font-editorial);
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
+}
+h2 {
+  margin: 0;
+  font-family: var(--font-editorial);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+}
+h3 {
+  margin: 0;
+  font-family: var(--font-editorial);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+}
+h4 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+}
 .sr-only {
   position: absolute !important;
   width: 1px !important;
@@ -64,7 +106,7 @@ p {
 }
 .muted {
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 .spin {
   animation: spin 1s linear infinite;

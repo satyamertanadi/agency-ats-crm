@@ -1,18 +1,72 @@
+/* Design tokens.
+ *
+ * Rules this file exists to enforce:
+ *   1. Hex colours live HERE and nowhere else. `grep -nE '#[0-9a-fA-F]{3,8}' src/styles/*.css`
+ *      must match only this file.
+ *   2. Type is in rem (so user font-size preferences work); spacing is in px (so it does not
+ *      fight 1px borders, px-sized lucide icons, and --sidebar-width).
+ *   3. Components consume ROLE tokens (--tone-*-fg) not primitives, so nobody is ever forced to
+ *      type a hex because the layer they need does not exist. That was the actual cause of the
+ *      57 stray hexes, not carelessness.
+ */
+
 :root {
-  font-family:
-    "Manrope Variable",
-    Manrope,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  font-family: var(--font-ui);
   font-synthesis: none;
   color: var(--color-ink);
   background: var(--color-canvas);
-  --font-ui: "Manrope Variable", Manrope, ui-sans-serif, system-ui, sans-serif;
+
+  /* ---- families -------------------------------------------------------------------------- */
+  --font-ui:
+    "Manrope Variable", Manrope, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
   --font-editorial: "Newsreader Variable", Newsreader, Georgia, serif;
+
+  /* ---- type scale ------------------------------------------------------------------------
+   * Hybrid on purpose. The bottom five rungs step 1px linearly; the top rungs step modularly
+   * (~1.18-1.25x). A geometric ratio collapses at UI sizes -- 1.125x from 11px gives 12.4,
+   * 13.9, 15.6, which round to the same integers anyway. Below ~16px type must land on integer
+   * pixels or it hints inconsistently; above it, ratio is what creates hierarchy.
+   * Replaces 36 ad-hoc values, 19 of which sat between 9.6px and 13.6px.
+   * --font-editorial is display-only: --text-lg and above. Never at --text-md or below.
+   */
+  --text-2xs: 0.6875rem; /* 11px - badges, kbd, chart axis labels */
+  --text-xs: 0.75rem; /*    12px - eyebrow, th, sub-lines, field labels */
+  --text-sm: 0.8125rem; /*  13px - table body, meta, buttons, nav */
+  --text-base: 0.875rem; /* 14px - body default */
+  --text-md: 0.9375rem; /*  15px - page description, lead paragraphs */
+  --text-lg: 1.0625rem; /*  17px - panel title (serif) */
+  --text-xl: 1.25rem; /*    20px - modal/section heading, review-card h2 (serif) */
+  --text-2xl: 1.5rem; /*    24px - KPI number, empty-state h3 (serif) */
+  --text-3xl: clamp(1.75rem, 2.2vw, 2.125rem); /* 28-34px - page h1, hero (serif) */
+  --text-4xl: clamp(2rem, 3.5vw, 2.5rem); /*      32-40px - review hero h1 (serif) */
+  --text-5xl: clamp(2.75rem, 5vw, 4.25rem); /*    44-68px - auth product title (serif) */
+
+  --leading-none: 1;
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --tracking-display: -0.03em; /* serif h1 / hero */
+  --tracking-tight: -0.015em; /* panel titles, KPI numbers, brand */
+  --tracking-normal: 0;
+  --tracking-wide: 0.06em; /* th uppercase */
+  --tracking-caps: 0.14em; /* eyebrow, nav label */
+
+  /* ---- weights ---------------------------------------------------------------------------
+   * Four, replacing eleven (incl. 470/540/550/580/620/750/800). The serif gets no separate
+   * tokens; it uses regular/medium/semibold by convention.
+   * Note: at 13-14px, 600 carries MORE visual weight than 750 did at 11.5px. Going from
+   * 11.5px to 14px means the same emphasis needs ~150 fewer weight units. Expect this to feel
+   * bolder even though every number went down -- do not "fix" it back.
+   */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ---- colour primitives ------------------------------------------------------------------ */
   --color-ink: #18211d;
   --color-ink-soft: #3f4b46;
   --color-muted: #6c7771;
@@ -21,56 +75,116 @@
   --color-canvas-deep: #ece9df;
   --color-surface: #fffefa;
   --color-surface-soft: #faf8f2;
+
+  /* Three deliberate line tiers. --color-line-soft is for dividers WITHIN a surface (table
+   * rows, list rows); --color-line is the container's own border. That distinction was real
+   * and was being expressed as a hardcoded #eceae2 five times over. */
+  --color-line-soft: #e9e7dd;
   --color-line: #dfddd4;
   --color-line-strong: #cbc8bc;
+
   --color-accent: #196f52;
   --color-accent-hover: #115b41;
   --color-accent-soft: #e6f0eb;
   --color-on-accent: #ffffff;
+  --color-on-dark: #ffffff;
+
   --color-bronze: #9a6b36;
   --color-bronze-dark: #755027;
+  --color-bronze-light: #d5b27f;
   --color-bronze-soft: #f3eadc;
+
+  /* One editorial dark green. Was typed three times with typos: #16372c / #15372c / #15392c. */
+  --color-forest: #15372c;
+  --color-forest-deep: #10251e;
+  --color-forest-lift: #1c4436;
+
   --color-danger: #a83a31;
   --color-danger-soft: #fbe9e6;
   --color-warning: #96600f;
   --color-warning-soft: #fff2d8;
   --color-info: #305f8d;
   --color-info-soft: #e7eff8;
+
   --color-sidebar: #10271f;
   --color-sidebar-deep: #0b1e18;
   --color-sidebar-text: #e5eee9;
   --color-sidebar-muted: #91a69c;
-  --ink: var(--color-ink);
-  --muted: var(--color-muted);
-  --line: var(--color-line);
-  --surface: var(--color-surface);
-  --accent: var(--color-accent);
-  --accent-dark: var(--color-accent-hover);
-  --soft: var(--color-accent-soft);
-  --danger: var(--color-danger);
-  --warn: var(--color-warning);
-  --sidebar: var(--color-sidebar);
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --radius-sm: 7px;
-  --radius-md: 11px;
+  --color-on-dark-muted: #aec2b9;
+
+  --color-scrim: rgba(8, 18, 14, 0.58);
+
+  /* ---- tone triplets -----------------------------------------------------------------------
+   * The missing layer. Every tonal surface (badge, success box, warning box, form error,
+   * cv-confidence, state-error) consumes one triplet, so a background can never again pair
+   * with a hand-picked foreground. Seeded from the existing values, so this consolidates
+   * rather than re-palettes. Previously there were THREE unrelated "warning" palettes and two
+   * "good" borders differing by one character (#cbe0d6 vs #cae0d6).
+   */
+  --tone-neutral-bg: #eeeee9;
+  --tone-neutral-fg: #58615c;
+  --tone-neutral-border: #dedcd2;
+
+  --tone-good-bg: var(--color-accent-soft);
+  --tone-good-fg: #145b43;
+  --tone-good-border: #cae0d6;
+
+  --tone-warn-bg: var(--color-warning-soft);
+  --tone-warn-fg: #7b4d09;
+  --tone-warn-border: #efd9aa;
+
+  --tone-bad-bg: var(--color-danger-soft);
+  --tone-bad-fg: #8f2f27;
+  --tone-bad-border: #f0c4bf;
+
+  --tone-info-bg: var(--color-info-soft);
+  --tone-info-fg: #2a5480;
+  --tone-info-border: #c6d9ec;
+
+  /* ---- radius ------------------------------------------------------------------------------
+   * Values revised to match what authors actually reach for. The old tokens lost to the
+   * hardcodes because they were wrong: --radius-sm:7px had ZERO uses while 7/8/9/10px were
+   * typed by hand 21 times, and --radius-xl:22px was never used at all. --radius-circle is
+   * named because `50%` was retyped 6 times and is semantically distinct from a length.
+   */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
   --radius-lg: 16px;
-  --radius-xl: 22px;
   --radius-pill: 999px;
+  --radius-circle: 50%;
+
+  /* ---- spacing -----------------------------------------------------------------------------
+   * px, not rem. The previous rem scale had zero uses across the entire codebase because it
+   * was missing the rungs the code needed (2/6/10px -- `gap` alone used 15 distinct values)
+   * and because every existing value was authored in px, so using it demanded arithmetic on
+   * every line. px also stops spacing fighting 1px borders and px-sized lucide icons. Type
+   * stays in rem, which preserves the accessibility property that actually matters.
+   */
+  --space-0: 0;
+  --space-05: 2px;
+  --space-1: 4px;
+  --space-15: 6px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-14: 56px;
+
+  /* ---- elevation, motion, layout ---------------------------------------------------------- */
   --shadow-xs: 0 1px 2px rgba(25, 35, 30, 0.05);
   --shadow-sm: 0 5px 18px rgba(32, 40, 35, 0.06);
   --shadow-md: 0 18px 46px rgba(21, 31, 26, 0.12);
   --shadow-lg: 0 30px 90px rgba(7, 20, 15, 0.22);
   --focus: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+
   --motion-fast: 120ms;
   --motion-base: 180ms;
   --motion-slow: 240ms;
+
   --sidebar-width: 268px;
   --sidebar-collapsed-width: 76px;
   --topbar-height: 70px;
