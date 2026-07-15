@@ -11,12 +11,15 @@ values
 ('20000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@rival.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Rival Owner"}','','','','',now(),now())
 on conflict(id) do nothing;
 
--- seat_limit is raised above the production default of 6 because this fixture exists to exercise all
--- eight seeded roles, not to mirror the pilot contract. Without it the seven Northstar members below
--- would trip the seat limit and fail `supabase db reset`.
+-- Northstar's seat_limit is raised above the production default of 6 because this fixture exists to
+-- exercise all eight seeded roles, not to mirror the pilot contract; its seven members below would
+-- otherwise trip the seat limit and fail `supabase db reset`.
+--
+-- Rival has exactly one member and is deliberately capped at one seat, giving the RLS suite an
+-- already-full workspace to prove seat enforcement against. Do not add members to Rival.
 insert into public.organizations(id,name,slug,base_currency,timezone,created_by,seat_limit) values
 ('30000000-0000-0000-0000-000000000001','Northstar Search','northstar-search','USD','Asia/Singapore','10000000-0000-0000-0000-000000000001',25),
-('30000000-0000-0000-0000-000000000002','Rival Search','rival-search','USD','UTC','20000000-0000-0000-0000-000000000001',25)
+('30000000-0000-0000-0000-000000000002','Rival Search','rival-search','USD','UTC','20000000-0000-0000-0000-000000000001',1)
 on conflict(id) do nothing;
 insert into public.organization_settings(organization_id) values('30000000-0000-0000-0000-000000000001'),('30000000-0000-0000-0000-000000000002') on conflict do nothing;
 
