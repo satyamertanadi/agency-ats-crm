@@ -1,6 +1,6 @@
 import { supabase } from '../../shared/lib/supabase'
 import { AppError } from '../../shared/lib/errors'
-import type { Candidate, Company, Contact, Interview, Job, JobCandidate, Offer, PipelineStage, Placement, PublicReview, Task } from '../../shared/types/domain'
+import type { Activity, Candidate, Company, Contact, Interview, Job, JobCandidate, Offer, PipelineStage, Placement, PublicReview, Task } from '../../shared/types/domain'
 import type {Json,TablesInsert} from '../../generated/database.types'
 
 function fail(error: {message:string;code?:string}|null, fallback:string): never { throw new AppError(error?.message||fallback,error?.code||'database_error',error) }
@@ -42,8 +42,29 @@ export async function listTasks(organizationId:string){const {data,error}=await 
 export async function createTask(organizationId:string,userId:string,input:{title:string;description?:string;priority:string;due_at?:string;owner_member_id?:string;link?:{type:'candidate'|'company'|'contact'|'job';id:string}}){const {link,...task}=input;const {data,error}=await supabase.from('tasks').insert({...task,owner_member_id:task.owner_member_id||null,due_at:task.due_at||null,organization_id:organizationId,created_by:userId}).select('id').single();if(error)fail(error,'Could not create task');if(link){const linkRow:TablesInsert<'task_links'>={organization_id:organizationId,task_id:data.id,candidate_id:null,company_id:null,contact_id:null,job_id:null};linkRow[`${link.type}_id`]=link.id;const {error:linkError}=await supabase.from('task_links').insert(linkRow);if(linkError){await supabase.from('tasks').delete().eq('id',data.id);fail(linkError,'Could not link task')}}return data.id as string}
 export async function completeTask(id:string){const {error}=await supabase.from('tasks').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',id);if(error)fail(error,'Could not complete task')}
 
-export async function listActivities(organizationId:string){const {data,error}=await supabase.from('activities').select('*').eq('organization_id',organizationId).order('occurred_at',{ascending:false}).limit(100);if(error)fail(error,'Could not load activities');return data??[]}
-export async function createActivity(organizationId:string,userId:string,input:{activity_type:string;direction:string;subject?:string;summary:string}){const {error}=await supabase.from('activities').insert({...input,organization_id:organizationId,created_by:userId});if(error)fail(error,'Could not log activity')}
+// An activity carries one activity_links row per record it touches, so a single stage move surfaces
+// on both the candidate and the vacancy. Callers name the record whose feed they are reading.
+export type ActivityLink={candidate_id?:string;company_id?:string;contact_id?:string;job_id?:string;candidate_submission_id?:string;placement_id?:string}
+const linkColumn=(link:ActivityLink)=>{const entry=Object.entries(link).find(([,value])=>Boolean(value));if(!entry)throw new AppError('An activity must be linked to a record.','link_required');return entry as [keyof ActivityLink,string]}
+
+export async function listActivities(organizationId:string,link:ActivityLink,limit=50){
+  const [column,value]=linkColumn(link)
+  const {data,error}=await supabase.from('activities')
+    .select(`id,activity_type,direction,subject,summary,occurred_at,created_by,profiles:created_by(full_name),activity_links!inner(${column})`)
+    .eq('organization_id',organizationId).eq(`activity_links.${column}`,value)
+    .order('occurred_at',{ascending:false}).limit(limit)
+  if(error)fail(error,'Could not load activity')
+  return (data??[]) as unknown as Activity[]
+}
+
+// Goes through log_manual_activity rather than inserting directly: the activity and its links must
+// land together, and the RPC refuses system-generated types so the feed stays trustworthy.
+export async function createActivity(organizationId:string,input:{activity_type:string;direction?:string;subject?:string;summary:string;occurred_at?:string},links:ActivityLink[]){
+  const payload=links.map((link)=>{const [column,value]=linkColumn(link);return {[column]:value}})
+  const {data,error}=await supabase.rpc('log_manual_activity',{p_organization_id:organizationId,p_type:input.activity_type,p_summary:input.summary,p_subject:input.subject||undefined,p_direction:input.direction||undefined,p_occurred_at:input.occurred_at||undefined,p_links:payload as Json})
+  if(error)fail(error,'Could not log this activity')
+  return data as string
+}
 
 export async function listPlacements(organizationId:string){const {data,error}=await supabase.from('placements').select('id,candidate_id,job_id,company_id,start_date,salary,placement_fee,currency,guarantee_ends_on,status,candidates(full_name),jobs(title),companies(name),placement_revenue_splits(id,member_id,split_percentage,split_amount,organization_members:member_id(profiles:user_id(full_name,email))),placement_invoices(id,invoice_reference,amount,currency,issued_on,due_on,status,paid_on)').eq('organization_id',organizationId).order('start_date',{ascending:false});if(error)fail(error,'Could not load placements');return (data??[]) as unknown as Placement[]}
 export async function createPlacement(organizationId:string,userId:string,input:{job_candidate_id:string;candidate_id:string;job_id:string;company_id:string;start_date:string;salary:number;placement_fee:number;currency:string;guarantee_days:number}){const {error}=await supabase.from('placements').insert({...input,organization_id:organizationId,created_by:userId});if(error)fail(error,error.code==='23505'?'This candidate already has a placement for the job.':'Could not create placement')}

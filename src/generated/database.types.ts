@@ -2900,6 +2900,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_vendor_support: boolean
           job_title: string | null
           joined_at: string
           organization_id: string
@@ -2909,6 +2910,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_vendor_support?: boolean
           job_title?: string | null
           joined_at?: string
           organization_id: string
@@ -2918,6 +2920,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_vendor_support?: boolean
           job_title?: string | null
           joined_at?: string
           organization_id?: string
@@ -3000,6 +3003,7 @@ export type Database = {
           name: string
           onboarding_completed_at: string | null
           pilot_status: string
+          seat_limit: number
           slug: string
           status: string
           timezone: string
@@ -3014,6 +3018,7 @@ export type Database = {
           name: string
           onboarding_completed_at?: string | null
           pilot_status?: string
+          seat_limit?: number
           slug: string
           status?: string
           timezone?: string
@@ -3028,6 +3033,7 @@ export type Database = {
           name?: string
           onboarding_completed_at?: string | null
           pilot_status?: string
+          seat_limit?: number
           slug?: string
           status?: string
           timezone?: string
@@ -4253,6 +4259,18 @@ export type Database = {
       is_organization_member: {
         Args: { p_organization_id: string }
         Returns: boolean
+      }
+      log_manual_activity: {
+        Args: {
+          p_direction?: string
+          p_links?: Json
+          p_occurred_at?: string
+          p_organization_id: string
+          p_subject?: string
+          p_summary: string
+          p_type: string
+        }
+        Returns: string
       }
       mark_calendar_sync_failed: {
         Args: { p_interview_id: string; p_message: string }
