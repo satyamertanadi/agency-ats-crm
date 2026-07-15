@@ -12,11 +12,5 @@
     "src/features/styleguide/styleguide.css",
     "dist/**",
     "node_modules/**"
-  ],
-  "overrides": [
-    {
-      "files": ["src/styles/base.css"],
-      "rules": { "color-no-hex": null }
-    }
   ]
 }
