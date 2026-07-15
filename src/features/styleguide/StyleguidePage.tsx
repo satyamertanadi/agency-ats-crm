@@ -55,6 +55,10 @@ const fixtureDocuments:PublicReview['documents']=[
   {id:'d1',filename:'Aisha-Rahman-CV.pdf',mimeType:'application/pdf',url:'#'},
   {id:'d2',filename:'Shortlist-summary.pdf',mimeType:'application/pdf',url:'#'},
 ]
+// No logo_path: the initials fallback is the case worth specimen-ing, since most agencies will
+// not have uploaded a logo on day one. The accent is a non-default colour on purpose -- if the
+// header only ever renders in the product's own green, the white-labelling is untested.
+const fixtureBranding:PublicReview['branding']={organization_name:'Samara Search',primary_color:'#2f4858',logo_path:null}
 
 function Section({id,title,note,children}:{id:string;title:string;note?:string;children:React.ReactNode}){
   return <section id={id} className="sg-section">
@@ -203,11 +207,11 @@ export function StyleguidePage(){
       </div>
     </Section>
 
-    <Section id="review-card" title="Client review page" note="The real ReviewHeader + ReviewCandidate against fixtures. This is the surface the agency's client actually opens.">
+    <Section id="review-card" title="Client review page" note="The real ReviewHeader + ReviewCandidate against fixtures, white-labelled to a non-default agency accent. This is the surface the agency's client actually opens.">
       {/* No router wrapper: ReviewCandidate/ReviewHeader use no router hooks (only PublicReviewPage
           calls useParams), and nesting a Router inside the app's BrowserRouter throws. */}
       <div className="sg-inset review-page">
-        <ReviewHeader pkg={fixturePackage} documents={fixtureDocuments}/>
+        <ReviewHeader pkg={fixturePackage} documents={fixtureDocuments} branding={fixtureBranding}/>
         <section className="review-grid"><ReviewCandidate token="styleguide-fixture" candidate={fixtureCandidate}/></section>
       </div>
     </Section>

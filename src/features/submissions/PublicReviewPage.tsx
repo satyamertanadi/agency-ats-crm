@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState,type CSSProperties } from 'react'
 import { useMutation,useQuery,useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
+import { supabase } from '../../shared/lib/supabase'
 import { resolveReview,sendReviewFeedback } from '../core/repository'
 import type { PublicReview,PublicSubmission } from '../../shared/types/domain'
 import { Button } from '../../shared/ui/Button'
@@ -12,8 +13,21 @@ import { formatMoney } from '../../shared/lib/format'
 // Exported so the dev styleguide can render the real client-facing components against fixtures,
 // rather than a copy that drifts. Both are pure functions of their props; ReviewCandidate only
 // touches the network inside a mutation, which the styleguide never fires.
-export function ReviewHeader({pkg,documents}:{pkg:PublicReview['package'];documents?:PublicReview['documents']}){
-  return <header className="review-header">
+// The agency's client opens this page, so it wears the AGENCY's identity, not the product's.
+// Settings already collects an accent colour and logo, and the organization-assets bucket is
+// public by design; the branding simply never reached the public payload until now.
+export function ReviewHeader({pkg,documents,branding}:{pkg:PublicReview['package'];documents?:PublicReview['documents'];branding?:PublicReview['branding']}){
+  const accent=branding?.primary_color&&/^#[0-9a-f]{6}$/i.test(branding.primary_color)?branding.primary_color:null
+  const logoUrl=branding?.logo_path?supabase.storage.from('organization-assets').getPublicUrl(branding.logo_path).data.publicUrl:null
+  // Scoped to this element, so an agency accent can never leak into the rest of the page.
+  const style=accent?{'--color-sidebar':accent,'--color-forest':accent} as CSSProperties:undefined
+  return <header className="review-header" style={style}>
+    {(logoUrl||branding?.organization_name)&&<div className="review-brand">
+      {logoUrl
+        ?<img src={logoUrl} alt={branding?.organization_name||'Agency logo'}/>
+        :<span aria-hidden="true">{branding?.organization_name?.slice(0,2).toUpperCase()}</span>}
+      {branding?.organization_name&&<strong>{branding.organization_name}</strong>}
+    </div>}
     <p className="eyebrow">Confidential candidate review</p>
     <h1>{pkg.title}</h1>
     <p>{pkg.job_title} · {pkg.company_name}</p>
@@ -26,4 +40,4 @@ export function ReviewCandidate({token,candidate}:{token:string;candidate:Public
     a screen reader and to anyone who cannot distinguish the variants -- aria-pressed states it. */}
 <div className="decision-row" role="group" aria-label="Your decision"><Button aria-pressed={decision==='approve'} variant={decision==='approve'?'primary':'secondary'} onClick={()=>setDecision('approve')}>Approve</Button><Button aria-pressed={decision==='interview'} variant={decision==='interview'?'primary':'secondary'} onClick={()=>setDecision('interview')}>Request interview</Button><Button aria-pressed={decision==='hold'} variant={decision==='hold'?'primary':'secondary'} onClick={()=>setDecision('hold')}>Hold</Button><Button aria-pressed={decision==='reject'} variant={decision==='reject'?'danger':'secondary'} onClick={()=>setDecision('reject')}>Reject</Button></div><div className="stack"><Field label="Your name"><Input value={name} onChange={(event)=>setName(event.target.value)}/></Field><Field label="Feedback"><Textarea value={comments} onChange={(event)=>setComments(event.target.value)}/></Field>{mutation.error&&<p className="form-error" role="alert">{mutation.error.message}</p>}<Button disabled={!decision||mutation.isPending} onClick={()=>mutation.mutate()}>{mutation.isPending?'Saving…':'Save feedback'}</Button></div></article>}
 
-export function PublicReviewPage(){const {token=''}=useParams();const query=useQuery({queryKey:['public-review',token],enabled:Boolean(token),queryFn:()=>resolveReview(token)});if(query.isLoading)return <LoadingState label="Opening secure candidate review…"/>;if(query.error||!query.data)return <ErrorState error={query.error}/>;return <main className="review-page"><ReviewHeader pkg={query.data.package} documents={query.data.documents}/><section className="review-grid">{query.data.candidates.map((candidate)=><ReviewCandidate key={candidate.submission_id} token={token} candidate={candidate}/>)}</section></main>}
+export function PublicReviewPage(){const {token=''}=useParams();const query=useQuery({queryKey:['public-review',token],enabled:Boolean(token),queryFn:()=>resolveReview(token)});if(query.isLoading)return <LoadingState label="Opening secure candidate review…"/>;if(query.error||!query.data)return <ErrorState error={query.error}/>;return <main className="review-page"><ReviewHeader pkg={query.data.package} documents={query.data.documents} branding={query.data.branding}/><section className="review-grid">{query.data.candidates.map((candidate)=><ReviewCandidate key={candidate.submission_id} token={token} candidate={candidate}/>)}</section></main>}
