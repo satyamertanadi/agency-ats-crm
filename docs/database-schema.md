@@ -1,8 +1,7 @@
 # Database schema
 
-Every tenant-owned row has `organization_id`. Mutable records include actor and timestamp columns; core records use `deleted_at` where retention requires recoverable deletion. Stage, feedback, audit, and financial histories are append-oriented.
+Every tenant-owned record carries `organization_id`. Core records use recoverable `deleted_at` where retention requires it; stage, feedback, audit, merge, import, and finance histories are append-oriented.
 
-The initial migration defines organization security, candidate data, client CRM, jobs and pipelines, submissions, activities, tasks, interviews, offers, placements, imports/exports, saved views, integrations, background jobs, AI evaluations, indexes, constraints, RLS, and transactional RPCs.
+The schema covers organizations/members/roles, candidates and private profiles, uploader-private CV parsing drafts, client CRM, jobs/pipelines, submissions/public links, activities/notes/tasks, interviews/offers/placements, splits/invoices, documents/storage links, imports and legacy mappings, Calendar connection metadata plus isolated encrypted secrets, email delivery records, audit logs, and background/AI records. Employment and education dates retain their source precision (`day`, `month`, or `year`) instead of presenting inferred first-of-period dates as exact.
 
-JSONB is limited to configuration, import staging, provider payloads, and AI evidence documents. Recruitment and commercial relationships use normalized foreign keys.
-
+JSONB is limited to configuration, import staging/reconciliation, audit metadata, provider payloads, and explainable evidence. Operational and commercial relationships use normalized foreign keys. The authoritative TypeScript projection is generated at `src/generated/database.types.ts`; CI rejects drift after a clean reset.
