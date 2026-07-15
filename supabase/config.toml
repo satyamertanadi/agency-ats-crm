@@ -2,14 +2,14 @@ project_id = "agency-ats-crm"
 
 [api]
 enabled = true
-port = 54321
+port = 55321
 schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
 [db]
-port = 54322
-shadow_port = 54320
+port = 55322
+shadow_port = 55320
 major_version = 17
 
 [db.migrations]
@@ -35,7 +35,64 @@ secure_password_change = true
 enabled = true
 file_size_limit = "25MiB"
 
-[functions.ai-worker]
+[studio]
+enabled = true
+port = 55323
+
+[inbucket]
+enabled = true
+port = 55324
+smtp_port = 55325
+pop3_port = 55326
+
+[analytics]
+enabled = true
+port = 55327
+backend = "postgres"
+
+[edge_runtime]
+policy = "per_worker"
+
+[db.pooler]
+enabled = false
+port = 55329
+
+[functions.ai-evaluate]
 enabled = true
 verify_jwt = false
 
+[functions.send-invitation]
+enabled = true
+verify_jwt = false
+
+[functions.send-submission]
+enabled = true
+verify_jwt = false
+
+[functions.public-review]
+enabled = true
+verify_jwt = false
+
+[functions.calendar-auth-start]
+enabled = true
+verify_jwt = false
+
+[functions.calendar-auth-callback]
+enabled = true
+verify_jwt = false
+
+[functions.calendar-sync]
+enabled = true
+verify_jwt = false
+
+[functions.calendar-disconnect]
+enabled = true
+verify_jwt = false
+
+[functions.execute-import]
+enabled = true
+verify_jwt = false
+
+[functions.parse-candidate-cv]
+enabled = true
+verify_jwt = false

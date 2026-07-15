@@ -1,0 +1,32 @@
+name: Production smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Production or staging URL
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify public routes and security headers
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          node <<'NODE'
+          const base = new URL(process.env.BASE_URL)
+          if (base.protocol !== 'https:') throw new Error('Smoke target must use HTTPS')
+          for (const path of ['/login', '/access-pending']) {
+            const response = await fetch(new URL(path, base), { redirect: 'error' })
+            if (response.status !== 200) throw new Error(`${path} returned ${response.status}`)
+            if (!response.headers.get('content-security-policy')) throw new Error(`${path} has no CSP`)
+            if (response.headers.get('x-content-type-options') !== 'nosniff') throw new Error(`${path} has no nosniff header`)
+          }
+          NODE

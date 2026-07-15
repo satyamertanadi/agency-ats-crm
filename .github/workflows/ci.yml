@@ -1,27 +1,89 @@
 name: CI
-on: [push, pull_request]
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   app:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: 22, cache: npm}
+        with:
+          node-version: 22
+          cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: npm run test:e2e -- --project=desktop
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+
   database:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: 22, cache: npm}
+        with:
+          node-version: 22
+          cache: npm
       - run: npm ci
       - uses: supabase/setup-cli@v1
       - run: supabase start
       - run: supabase db reset
-      - run: SUPABASE_ANON_KEY=$(supabase status -o env | sed -n 's/^ANON_KEY=//p' | tr -d '"') npm run test:rls
+      - run: supabase db lint --level warning
+      - name: Verify generated database types are current
+        run: |
+          supabase gen types typescript --local --schema public > src/generated/database.types.ts
+          git diff --exit-code -- src/generated/database.types.ts
+      - name: Run non-skipping RLS tests
+        run: |
+          export SUPABASE_URL=$(supabase status -o json | jq -r .API_URL)
+          export SUPABASE_ANON_KEY=$(supabase status -o json | jq -r .ANON_KEY)
+          npm run test:rls
+      - name: Compile and smoke Edge Functions
+        shell: bash
+        run: |
+          supabase functions serve --no-verify-jwt > /tmp/edge-functions.log 2>&1 &
+          functions_pid=$!
+          trap 'kill "$functions_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent --request OPTIONS http://127.0.0.1:55321/functions/v1/ai-evaluate > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          SUPABASE_URL=http://127.0.0.1:55321 npm run test:functions
+      - name: Print Edge Function logs on failure
+        if: failure()
+        run: cat /tmp/edge-functions.log || true
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

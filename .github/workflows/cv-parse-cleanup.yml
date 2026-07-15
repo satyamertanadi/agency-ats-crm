@@ -1,0 +1,27 @@
+name: CV parse draft cleanup
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove expired CV parse drafts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          CV_PARSE_WORKER_SECRET: ${{ secrets.CV_PARSE_WORKER_SECRET }}
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$CV_PARSE_WORKER_SECRET"
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "content-type: application/json" \
+            --header "x-worker-secret: $CV_PARSE_WORKER_SECRET" \
+            --data '{"action":"cleanup"}' \
+            "$SUPABASE_URL/functions/v1/parse-candidate-cv"

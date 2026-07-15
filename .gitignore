@@ -7,5 +7,9 @@ dist/
 coverage/
 playwright-report/
 test-results/
+tmp/
 supabase/.temp/
+supabase/.branches/
 *.log
+
+.vercel
