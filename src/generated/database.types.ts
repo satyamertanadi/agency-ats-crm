@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -7,6 +7,11 @@
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       activities: {
@@ -47,6 +52,13 @@ export type Database = {
           summary?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "activities_created_by_profiles_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "activities_organization_id_fkey"
             columns: ["organization_id"]
@@ -484,10 +496,34 @@ export type Database = {
           uploaded_by?: string
         }
         Relationships: [
-          { foreignKeyName: "candidate_cv_parses_accepted_candidate_id_fkey"; columns: ["accepted_candidate_id"]; isOneToOne: false; referencedRelation: "candidates"; referencedColumns: ["id"] },
-          { foreignKeyName: "candidate_cv_parses_matched_candidate_id_fkey"; columns: ["matched_candidate_id"]; isOneToOne: false; referencedRelation: "candidates"; referencedColumns: ["id"] },
-          { foreignKeyName: "candidate_cv_parses_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] },
-          { foreignKeyName: "candidate_cv_parses_target_candidate_id_fkey"; columns: ["target_candidate_id"]; isOneToOne: false; referencedRelation: "candidates"; referencedColumns: ["id"] },
+          {
+            foreignKeyName: "candidate_cv_parses_accepted_candidate_id_fkey"
+            columns: ["accepted_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_cv_parses_matched_candidate_id_fkey"
+            columns: ["matched_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_cv_parses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_cv_parses_target_candidate_id_fkey"
+            columns: ["target_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
         ]
       }
       candidate_education: {
@@ -495,6 +531,7 @@ export type Database = {
           candidate_id: string
           degree: string | null
           ended_on: string | null
+          ended_on_precision: string | null
           field_of_study: string | null
           id: string
           institution: string
@@ -502,12 +539,12 @@ export type Database = {
           sort_order: number
           started_on: string | null
           started_on_precision: string | null
-          ended_on_precision: string | null
         }
         Insert: {
           candidate_id: string
           degree?: string | null
           ended_on?: string | null
+          ended_on_precision?: string | null
           field_of_study?: string | null
           id?: string
           institution: string
@@ -515,12 +552,12 @@ export type Database = {
           sort_order?: number
           started_on?: string | null
           started_on_precision?: string | null
-          ended_on_precision?: string | null
         }
         Update: {
           candidate_id?: string
           degree?: string | null
           ended_on?: string | null
+          ended_on_precision?: string | null
           field_of_study?: string | null
           id?: string
           institution?: string
@@ -528,7 +565,6 @@ export type Database = {
           sort_order?: number
           started_on?: string | null
           started_on_precision?: string | null
-          ended_on_precision?: string | null
         }
         Relationships: [
           {
@@ -552,46 +588,46 @@ export type Database = {
           candidate_id: string
           company_name: string
           ended_on: string | null
+          ended_on_precision: string | null
           id: string
           is_current: boolean
           location: string | null
           organization_id: string
           sort_order: number
           started_on: string | null
+          started_on_precision: string | null
           summary: string | null
           title: string
-          started_on_precision: string | null
-          ended_on_precision: string | null
         }
         Insert: {
           candidate_id: string
           company_name: string
           ended_on?: string | null
+          ended_on_precision?: string | null
           id?: string
           is_current?: boolean
           location?: string | null
           organization_id: string
           sort_order?: number
           started_on?: string | null
+          started_on_precision?: string | null
           summary?: string | null
           title: string
-          started_on_precision?: string | null
-          ended_on_precision?: string | null
         }
         Update: {
           candidate_id?: string
           company_name?: string
           ended_on?: string | null
+          ended_on_precision?: string | null
           id?: string
           is_current?: boolean
           location?: string | null
           organization_id?: string
           sort_order?: number
           started_on?: string | null
+          started_on_precision?: string | null
           summary?: string | null
           title?: string
-          started_on_precision?: string | null
-          ended_on_precision?: string | null
         }
         Relationships: [
           {
@@ -2935,6 +2971,13 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "organization_members_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       organization_settings: {
@@ -4260,6 +4303,19 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: boolean
       }
+      log_activity: {
+        Args: {
+          p_actor?: string
+          p_direction?: string
+          p_links?: Json
+          p_occurred_at?: string
+          p_organization_id: string
+          p_subject?: string
+          p_summary: string
+          p_type: string
+        }
+        Returns: string
+      }
       log_manual_activity: {
         Args: {
           p_direction?: string
@@ -4313,6 +4369,16 @@ export type Database = {
         }
       }
       normalize_email: { Args: { value: string }; Returns: string }
+      provision_initial_organization_owner: {
+        Args: {
+          p_currency?: string
+          p_name: string
+          p_owner_email: string
+          p_slug: string
+          p_timezone?: string
+        }
+        Returns: string
+      }
       record_audit_event: {
         Args: {
           p_action: string
@@ -4519,4 +4585,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
