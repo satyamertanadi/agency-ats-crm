@@ -14,12 +14,14 @@ import {Field,Input,Select} from '../../shared/ui/Field'
 import {Drawer} from '../../shared/ui/Drawer'
 import {Badge,Page,Panel} from '../../shared/ui/Page'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
+import {useOpenOnNewParam} from '../../shared/lib/useOpenOnNewParam'
 import {Table} from '../../shared/ui/Table'
 
 type FormData=z.infer<typeof companySchema>
 
 export function CompaniesPage(){
   const {organization}=useOrganization();const {user}=useAuth();const cache=useQueryClient();const [open,setOpen]=useState(false)
+  useOpenOnNewParam(setOpen)
   const query=useQuery({queryKey:['companies',organization?.id],enabled:Boolean(organization),queryFn:()=>listCompanies(organization!.id)})
   const form=useForm<FormData>({resolver:zodResolver(companySchema),defaultValues:{name:'',industry:'',location:'',website:'',account_status:'prospect'}})
   const mutation=useMutation({mutationFn:(data:FormData)=>createCompany(organization!.id,user!.id,data),onSuccess:async()=>{setOpen(false);form.reset();await cache.invalidateQueries({queryKey:['companies',organization?.id]})}})

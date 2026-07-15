@@ -14,6 +14,7 @@ import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
 import {Badge,Page,Panel} from '../../shared/ui/Page'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
+import {useOpenOnNewParam} from '../../shared/lib/useOpenOnNewParam'
 import {Table} from '../../shared/ui/Table'
 import {formatDate} from '../../shared/lib/format'
 
@@ -22,6 +23,7 @@ type LinkType='candidate'|'company'|'contact'|'job'
 
 export function TasksPage(){
   const {organization,memberships}=useOrganization();const {user}=useAuth();const cache=useQueryClient();const [open,setOpen]=useState(false);const [owner,setOwner]=useState('');const [linkType,setLinkType]=useState<LinkType>('candidate');const [linkId,setLinkId]=useState('');const [statusFilter,setStatusFilter]=useState('open');const [ownerFilter,setOwnerFilter]=useState('all')
+  useOpenOnNewParam(setOpen)
   const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
   const query=useQuery({queryKey:['tasks',organization?.id],enabled:Boolean(organization),queryFn:()=>listTasks(organization!.id)});const team=useQuery({queryKey:['team',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)});const candidates=useQuery({queryKey:['task-candidates',organization?.id],enabled:Boolean(organization&&open&&linkType==='candidate'),queryFn:()=>listCandidatesPage(organization!.id,'',0,100)});const companies=useQuery({queryKey:['companies',organization?.id],enabled:Boolean(organization&&open&&linkType==='company'),queryFn:()=>listCompanies(organization!.id)});const contacts=useQuery({queryKey:['contacts',organization?.id],enabled:Boolean(organization&&open&&linkType==='contact'),queryFn:()=>listContacts(organization!.id)});const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization&&open&&linkType==='job'),queryFn:()=>listJobs(organization!.id)})
   const form=useForm<FormData>({resolver:zodResolver(taskSchema),defaultValues:{title:'',description:'',priority:'normal',due_at:''}});const refresh=()=>cache.invalidateQueries({queryKey:['tasks',organization?.id]});const create=useMutation({mutationFn:(data:FormData)=>createTask(organization!.id,user!.id,{...data,owner_member_id:owner||currentMember?.id,link:linkId?{type:linkType,id:linkId}:undefined}),onSuccess:async()=>{setOpen(false);setOwner('');setLinkId('');form.reset();await refresh()}});const complete=useMutation({mutationFn:completeTask,onSuccess:refresh})

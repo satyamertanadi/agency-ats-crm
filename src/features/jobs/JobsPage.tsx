@@ -13,12 +13,14 @@ import {Field,Input,Select} from '../../shared/ui/Field'
 import {Drawer} from '../../shared/ui/Drawer'
 import {Badge,Page,Panel} from '../../shared/ui/Page'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
+import {useOpenOnNewParam} from '../../shared/lib/useOpenOnNewParam'
 import {Table} from '../../shared/ui/Table'
 
 type FormData=z.infer<typeof jobSchema>
 
 export function JobsPage(){
   const {organization}=useOrganization();const cache=useQueryClient();const [open,setOpen]=useState(false)
+  useOpenOnNewParam(setOpen)
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)})
   const companies=useQuery({queryKey:['companies',organization?.id],enabled:Boolean(organization),queryFn:()=>listCompanies(organization!.id)})
   const form=useForm<FormData>({resolver:zodResolver(jobSchema),defaultValues:{company_id:'',title:''}})

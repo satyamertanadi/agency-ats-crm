@@ -1,4 +1,4 @@
-import { useEffect,useMemo,useState } from 'react'
+import { useEffect,useMemo,useRef,useState } from 'react'
 import { NavLink, Outlet, useNavigate,useParams } from 'react-router-dom'
 import { BarChart3, BriefcaseBusiness, Building2, CalendarRange, CheckSquare, ChevronDown, ContactRound, FileUp, LayoutDashboard, LogOut, Menu, PanelLeftClose, Plus, Search, Send, Settings, UserRoundSearch, WalletCards, X } from 'lucide-react'
 import { useAuth } from './AuthProvider'
@@ -7,6 +7,16 @@ import { env } from '../shared/lib/env'
 import { Avatar } from '../shared/ui/Avatar'
 import { Button } from '../shared/ui/Button'
 import { CommandPalette } from './CommandPalette'
+
+// `?new=1` is consumed by each destination page (see useOpenOnNewParam), so quick add starts the
+// action rather than dropping the user on a list to find the create button themselves.
+const quickAddItems=[
+  ['candidates?new=1','Candidate',UserRoundSearch],
+  ['companies?new=1','Company',Building2],
+  ['contacts?new=1','Contact',ContactRound],
+  ['jobs?new=1','Vacancy',BriefcaseBusiness],
+  ['tasks?new=1','Task',CheckSquare],
+] as const
 
 const navGroups=[
   {label:'Overview',items:[['dashboard','Dashboard',LayoutDashboard]]},
@@ -21,7 +31,17 @@ const validAccent=(value:string|undefined)=>value&&/^#[0-9a-f]{6}$/i.test(value)
 
 export function AppShell() {
   const { signOut, user } = useAuth();const { memberships, organization, setOrganization } = useOrganization();const navigate = useNavigate();const {organizationSlug}=useParams()
-  const [mobileOpen,setMobileOpen]=useState(false);const [collapsed,setCollapsed]=useState(false);const [commandOpen,setCommandOpen]=useState(false);const [userMenuOpen,setUserMenuOpen]=useState(false)
+  const [mobileOpen,setMobileOpen]=useState(false);const [collapsed,setCollapsed]=useState(false);const [commandOpen,setCommandOpen]=useState(false);const [userMenuOpen,setUserMenuOpen]=useState(false);const [quickAddOpen,setQuickAddOpen]=useState(false)
+  const topbarMenus=useRef<HTMLDivElement>(null)
+  // Both topbar popovers dismiss on Escape or a click elsewhere, which a bare toggle does not do.
+  useEffect(()=>{
+    if(!userMenuOpen&&!quickAddOpen)return
+    const close=()=>{setUserMenuOpen(false);setQuickAddOpen(false)}
+    const onPointer=(event:MouseEvent)=>{if(!topbarMenus.current?.contains(event.target as Node))close()}
+    const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape')close()}
+    document.addEventListener('mousedown',onPointer);document.addEventListener('keydown',onKey)
+    return()=>{document.removeEventListener('mousedown',onPointer);document.removeEventListener('keydown',onKey)}
+  },[userMenuOpen,quickAddOpen])
   useEffect(()=>{if(!organizationSlug)return;const membership=memberships.find((item)=>item.organizations.slug===organizationSlug);if(membership&&membership.organizations.id!==organization?.id)setOrganization(membership.organizations)},[memberships,organization?.id,organizationSlug,setOrganization])
   useEffect(()=>{const handleKey=(event:KeyboardEvent)=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();setCommandOpen(true)}};document.addEventListener('keydown',handleKey);return()=>document.removeEventListener('keydown',handleKey)},[])
   const changeOrganization=(id:string)=>{const membership=memberships.find((item)=>item.organizations.id===id);if(membership){setOrganization(membership.organizations);navigate(`/app/${membership.organizations.slug}/dashboard`)}}
@@ -36,7 +56,7 @@ export function AppShell() {
       <div className="sidebar-footer"><div className="user-chip"><Avatar name={user?.user_metadata.full_name||user?.email||'Agency user'} size="sm"/><div><strong>{user?.user_metadata.full_name||'Agency user'}</strong><small>{user?.email}</small></div></div><button className="sidebar-action" onClick={()=>void signOut()}><LogOut size={17}/><span>Sign out</span></button><button className="sidebar-action desktop-only" onClick={()=>setCollapsed((value)=>!value)}><PanelLeftClose size={17}/><span>{collapsed?'Expand sidebar':'Collapse sidebar'}</span></button></div>
     </aside>
     {mobileOpen&&<button className="mobile-scrim" aria-label="Close navigation" onClick={()=>setMobileOpen(false)}/>} 
-    <div className="workspace"><header className="topbar"><button className="icon-button mobile-only" onClick={()=>setMobileOpen(true)} aria-label="Open navigation"><Menu size={19}/></button><div className="topbar-identity"><strong>{organization?.name}</strong><span>Agency operations · {organization?.timezone}</span></div><div className="topbar-actions"><button className="global-search" onClick={()=>setCommandOpen(true)}><Search size={16}/><span>Search workspace</span><kbd>Ctrl K</kbd></button><Button size="sm" variant="bronze" leadingIcon={<Plus size={15}/>} onClick={()=>navigate(`${root}/candidates`)}>Quick add</Button><div className="user-menu"><button className="topbar-avatar" onClick={()=>setUserMenuOpen((value)=>!value)} aria-expanded={userMenuOpen} aria-label="Open user menu"><Avatar name={user?.user_metadata.full_name||user?.email||'Agency user'} size="sm"/><ChevronDown size={14}/></button>{userMenuOpen&&<div className="user-menu-popover"><strong>{user?.user_metadata.full_name||'Agency user'}</strong><span>{user?.email}</span><NavLink to={`${root}/settings`} onClick={()=>setUserMenuOpen(false)}><Settings size={15}/>Settings</NavLink><button onClick={()=>void signOut()}><LogOut size={15}/>Sign out</button></div>}</div></div></header><Outlet/></div>
+    <div className="workspace"><header className="topbar"><button className="icon-button mobile-only" onClick={()=>setMobileOpen(true)} aria-label="Open navigation"><Menu size={19}/></button><div className="topbar-identity"><strong>{organization?.name}</strong><span>Agency operations · {organization?.timezone}</span></div><div className="topbar-actions"><button className="global-search" onClick={()=>setCommandOpen(true)}><Search size={16}/><span>Search workspace</span><kbd>Ctrl K</kbd></button><div className="topbar-menus" ref={topbarMenus}><div className="quick-add"><Button size="sm" variant="bronze" leadingIcon={<Plus size={15}/>} aria-expanded={quickAddOpen} aria-haspopup="menu" onClick={()=>{setQuickAddOpen((value)=>!value);setUserMenuOpen(false)}}>Quick add</Button>{quickAddOpen&&<div className="quick-add-popover" role="menu" aria-label="Create">{quickAddItems.map(([path,label,Icon])=><button key={path} role="menuitem" onClick={()=>{setQuickAddOpen(false);navigate(`${root}/${path}`)}}><Icon size={15}/>{label}</button>)}</div>}</div><div className="user-menu"><button className="topbar-avatar" onClick={()=>{setUserMenuOpen((value)=>!value);setQuickAddOpen(false)}} aria-expanded={userMenuOpen} aria-label="Open user menu"><Avatar name={user?.user_metadata.full_name||user?.email||'Agency user'} size="sm"/><ChevronDown size={14}/></button>{userMenuOpen&&<div className="user-menu-popover"><strong>{user?.user_metadata.full_name||'Agency user'}</strong><span>{user?.email}</span><NavLink to={`${root}/settings`} onClick={()=>setUserMenuOpen(false)}><Settings size={15}/>Settings</NavLink><button onClick={()=>void signOut()}><LogOut size={15}/>Sign out</button></div>}</div></div></div></header><Outlet/></div>
     {organization&&<CommandPalette open={commandOpen} onClose={()=>setCommandOpen(false)} organizationId={organization.id} organizationSlug={organization.slug}/>}
   </div>
 }

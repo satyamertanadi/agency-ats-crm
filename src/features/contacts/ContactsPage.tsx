@@ -14,6 +14,7 @@ import {Field,Input,Select} from '../../shared/ui/Field'
 import {Drawer} from '../../shared/ui/Drawer'
 import {Badge,Page,Panel} from '../../shared/ui/Page'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
+import {useOpenOnNewParam} from '../../shared/lib/useOpenOnNewParam'
 import {Table} from '../../shared/ui/Table'
 import {formatDate} from '../../shared/lib/format'
 
@@ -21,6 +22,7 @@ type FormData=z.infer<typeof contactSchema>
 
 export function ContactsPage(){
   const {organization}=useOrganization();const {user}=useAuth();const cache=useQueryClient();const [open,setOpen]=useState(false)
+  useOpenOnNewParam(setOpen)
   const contacts=useQuery({queryKey:['contacts',organization?.id],enabled:Boolean(organization),queryFn:()=>listContacts(organization!.id)})
   const companies=useQuery({queryKey:['companies',organization?.id],enabled:Boolean(organization),queryFn:()=>listCompanies(organization!.id)})
   const form=useForm<FormData>({resolver:zodResolver(contactSchema),defaultValues:{company_id:'',full_name:'',position:'',email:'',phone:''}})
