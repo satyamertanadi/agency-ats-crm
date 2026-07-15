@@ -11,7 +11,24 @@ import {Badge,Page,Panel} from '../../shared/ui/Page'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
 import {Table} from '../../shared/ui/Table'
 
-const entityHeaders:Record<string,string[]>= {candidates:['legacy_id','full_name','email','phone','current_company','current_position','location','source','current_salary','expected_salary','salary_currency','work_authorization','consent_status'],candidate_employment:['legacy_id','candidate_legacy_id','company_name','title','location','started_on','ended_on','is_current','summary'],candidate_education:['legacy_id','candidate_legacy_id','institution','degree','field_of_study','started_on','ended_on'],candidate_languages:['legacy_id','candidate_legacy_id','language','proficiency'],companies:['legacy_id','name','industry','website','location','account_status'],contacts:['legacy_id','company_legacy_id','full_name','position','email','phone','contact_status'],jobs:['legacy_id','company_legacy_id','title','description','requirements','location','priority','status','currency','placement_fee_percentage','fixed_fee','target_close_date'],job_candidates:['legacy_id','candidate_legacy_id','job_legacy_id','stage','source'],tasks:['legacy_id','title','description','priority','status','due_at','owner_email','candidate_legacy_id','company_legacy_id','contact_legacy_id','job_legacy_id'],activities:['legacy_id','activity_type','direction','subject','summary','occurred_at','owner_email','candidate_legacy_id','company_legacy_id','contact_legacy_id','job_legacy_id'],interviews:['legacy_id','job_candidate_legacy_id','interview_type','starts_at','ends_at','timezone','location','meeting_url','status'],offers:['legacy_id','job_candidate_legacy_id','salary','currency','offered_at','start_date','status','notes'],placements:['legacy_id','job_candidate_legacy_id','start_date','salary','placement_fee','currency','guarantee_days','status'],revenue_splits:['legacy_id','placement_legacy_id','member_email','split_percentage'],invoices:['legacy_id','placement_legacy_id','invoice_reference','amount','currency','issued_on','due_on','status','paid_on','notes']}
+const entityHeaders:Record<string,string[]>= {
+  candidates:['legacy_id','full_name','email','phone','current_company','current_position','location','linkedin_url','status','source','availability','notice_period_days','current_salary','expected_salary','salary_currency','work_authorization','consent_status','owner_email'],
+  candidate_employment:['legacy_id','candidate_legacy_id','company_name','title','location','started_on','ended_on','is_current','summary'],
+  candidate_education:['legacy_id','candidate_legacy_id','institution','degree','field_of_study','started_on','ended_on'],
+  candidate_languages:['legacy_id','candidate_legacy_id','language','proficiency'],
+  companies:['legacy_id','name','industry','website','location','company_size','account_status','business_development_stage','notes_summary','owner_email'],
+  contacts:['legacy_id','company_legacy_id','full_name','position','email','phone','linkedin_url','contact_status','decision_authority','next_follow_up_at','owner_email'],
+  jobs:['legacy_id','company_legacy_id','title','description','requirements','location','employment_type','salary_min','salary_max','priority','status','currency','placement_fee_percentage','fixed_fee','target_close_date','internal_notes','client_visible_notes','owner_email','primary_contact_legacy_id','team_member_emails'],
+  job_candidates:['legacy_id','candidate_legacy_id','job_legacy_id','stage','stage_occurred_at','source','owner_email'],
+  submissions:['legacy_id','job_legacy_id','contact_legacy_id','job_candidate_legacy_ids','title','message','recipient_name','recipient_email','expiry_days'],
+  tasks:['legacy_id','title','description','priority','status','due_at','owner_email','candidate_legacy_id','company_legacy_id','contact_legacy_id','job_legacy_id'],
+  activities:['legacy_id','activity_type','direction','subject','summary','occurred_at','owner_email','candidate_legacy_id','company_legacy_id','contact_legacy_id','job_legacy_id'],
+  interviews:['legacy_id','job_candidate_legacy_id','interview_type','starts_at','ends_at','timezone','location','meeting_url','status'],
+  offers:['legacy_id','job_candidate_legacy_id','salary','currency','offered_at','start_date','status','notes'],
+  placements:['legacy_id','job_candidate_legacy_id','start_date','salary','placement_fee','currency','guarantee_days','status'],
+  revenue_splits:['legacy_id','placement_legacy_id','member_email','split_percentage'],
+  invoices:['legacy_id','placement_legacy_id','invoice_reference','amount','currency','issued_on','due_on','status','paid_on','notes'],
+}
 
 export function ImportsPage(){
   const {organization}=useOrganization();const cache=useQueryClient();const [entityType,setEntityType]=useState('candidates');const [file,setFile]=useState<File|null>(null);const [preview,setPreview]=useState<Array<Record<string,unknown>>>([]);const [sourceHeaders,setSourceHeaders]=useState<string[]>([]);const [mapping,setMapping]=useState<Record<string,string>>({});const [parseError,setParseError]=useState('')
