@@ -550,7 +550,7 @@ begin
     insert into public.roles(organization_id,name,role_key,is_system) values(p_organization_id,r.name,r.role_key,true) returning id into new_id;
     if r.role_key in ('owner','admin') then insert into public.role_permissions select new_id,key from public.permissions;
     elsif r.role_key='manager' then insert into public.role_permissions select new_id,key from public.permissions where key not in ('organization.manage','roles.manage','finance.write');
-    elsif r.role_key='consultant' then insert into public.role_permissions select new_id,key from public.permissions where key in ('candidates.read','candidates.write','candidates_private.read','companies.read','contacts.read','jobs.read','jobs.write','pipeline.move','submissions.read','submissions.write','activities.read','activities.write','tasks.read','tasks.write','placements.read','placements.write','reports.read','ai.use');
+    elsif r.role_key='consultant' then insert into public.role_permissions select new_id,key from public.permissions where key in ('candidates.read','candidates.write','candidates_private.read','companies.read','companies.write','contacts.read','contacts.write','commercial_terms.read','jobs.read','jobs.write','pipeline.move','submissions.read','submissions.write','activities.read','activities.write','tasks.read','tasks.write','placements.read','placements.write','reports.read','ai.use');
     elsif r.role_key='sourcer' then insert into public.role_permissions select new_id,key from public.permissions where key in ('candidates.read','candidates.write','candidates_private.read','companies.read','jobs.read','pipeline.move','activities.read','activities.write','tasks.read','tasks.write','ai.use');
     elsif r.role_key='bd' then insert into public.role_permissions select new_id,key from public.permissions where key in ('companies.read','companies.write','contacts.read','contacts.write','commercial_terms.read','commercial_terms.write','jobs.read','jobs.write','submissions.read','activities.read','activities.write','tasks.read','tasks.write','reports.read');
     elsif r.role_key='finance' then insert into public.role_permissions select new_id,key from public.permissions where key in ('companies.read','jobs.read','placements.read','placements.write','finance.read','finance.write','reports.read','tasks.read','tasks.write');
@@ -610,7 +610,7 @@ begin
 end $$;
 grant execute on function public.move_job_candidate_stage(uuid,uuid,text,text) to authenticated;
 
-create or replace function public.create_submission_package(p_organization_id uuid,p_job_id uuid,p_contact_id uuid,p_title text,p_message text,p_items jsonb,p_recipient_name text default null,p_recipient_email text default null,p_expiry_days integer default 7)
+create or replace function public.create_submission_package(p_organization_id uuid,p_job_id uuid,p_title text,p_items jsonb,p_contact_id uuid default null,p_message text default null,p_recipient_name text default null,p_recipient_email text default null,p_expiry_days integer default 7)
 returns jsonb language plpgsql security definer set search_path=public as $$
 declare package_id uuid; link_id uuid; raw_token text; item jsonb; jc public.job_candidates; expires timestamptz;
 begin
@@ -628,7 +628,7 @@ begin
   values(p_organization_id,package_id,encode(extensions.digest(raw_token,'sha256'),'hex'),left(raw_token,8),p_recipient_name,public.normalize_email(p_recipient_email),expires,auth.uid()) returning id into link_id;
   return jsonb_build_object('package_id',package_id,'link_id',link_id,'token',raw_token,'expires_at',expires);
 end $$;
-grant execute on function public.create_submission_package(uuid,uuid,uuid,text,text,jsonb,text,text,integer) to authenticated;
+grant execute on function public.create_submission_package(uuid,uuid,text,jsonb,uuid,text,text,text,integer) to authenticated;
 
 create or replace function public.request_ip_hash()
 returns text language sql stable security definer set search_path=public as $$
@@ -701,7 +701,7 @@ returns table(entity_type text,entity_id uuid,title text,subtitle text,rank real
     union all select 'company',co.id,co.name,concat_ws(' · ',co.industry,co.location),extensions.similarity(co.name,p_query)::real from public.companies co where co.organization_id=p_organization_id and co.deleted_at is null and public.has_permission(p_organization_id,'companies.read') and (co.name ilike '%'||p_query||'%' or co.industry ilike '%'||p_query||'%')
     union all select 'contact',ct.id,ct.full_name,concat_ws(' · ',ct.position,co.name),extensions.similarity(ct.full_name,p_query)::real from public.contacts ct join public.companies co on co.id=ct.company_id where ct.organization_id=p_organization_id and ct.deleted_at is null and public.has_permission(p_organization_id,'contacts.read') and (ct.full_name ilike '%'||p_query||'%' or ct.email ilike '%'||p_query||'%')
     union all select 'job',j.id,j.title,concat_ws(' · ',co.name,j.location),extensions.similarity(j.title,p_query)::real from public.jobs j join public.companies co on co.id=j.company_id where j.organization_id=p_organization_id and j.deleted_at is null and public.has_permission(p_organization_id,'jobs.read') and (j.title ilike '%'||p_query||'%' or j.description ilike '%'||p_query||'%')
-  ) results order by rank desc,title limit least(p_limit,100)
+  ) results(entity_type,entity_id,title,subtitle,rank) order by rank desc,title limit least(p_limit,100)
 $$;
 grant execute on function public.search_workspace(uuid,text,integer) to authenticated;
 

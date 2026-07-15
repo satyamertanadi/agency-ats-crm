@@ -1,14 +1,14 @@
 -- Local development only. Password for every seeded account: LocalTest!123
-insert into auth.users(id,instance_id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
+insert into auth.users(id,instance_id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,confirmation_token,recovery_token,email_change_token_new,email_change,created_at,updated_at)
 values
-('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Olivia Owner"}',now(),now()),
-('10000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000000','authenticated','authenticated','manager@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Marcus Manager"}',now(),now()),
-('10000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000000','authenticated','authenticated','consultant@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Cara Consultant"}',now(),now()),
-('10000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000000','authenticated','authenticated','sourcer@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Sam Sourcer"}',now(),now()),
-('10000000-0000-0000-0000-000000000005','00000000-0000-0000-0000-000000000000','authenticated','authenticated','bd@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Bianca Development"}',now(),now()),
-('10000000-0000-0000-0000-000000000006','00000000-0000-0000-0000-000000000000','authenticated','authenticated','finance@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Finn Finance"}',now(),now()),
-('10000000-0000-0000-0000-000000000007','00000000-0000-0000-0000-000000000000','authenticated','authenticated','readonly@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Riley Reader"}',now(),now()),
-('20000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@rival.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Rival Owner"}',now(),now())
+('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Olivia Owner"}','','','','',now(),now()),
+('10000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000000','authenticated','authenticated','manager@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Marcus Manager"}','','','','',now(),now()),
+('10000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000000','authenticated','authenticated','consultant@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Cara Consultant"}','','','','',now(),now()),
+('10000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000000','authenticated','authenticated','sourcer@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Sam Sourcer"}','','','','',now(),now()),
+('10000000-0000-0000-0000-000000000005','00000000-0000-0000-0000-000000000000','authenticated','authenticated','bd@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Bianca Development"}','','','','',now(),now()),
+('10000000-0000-0000-0000-000000000006','00000000-0000-0000-0000-000000000000','authenticated','authenticated','finance@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Finn Finance"}','','','','',now(),now()),
+('10000000-0000-0000-0000-000000000007','00000000-0000-0000-0000-000000000000','authenticated','authenticated','readonly@northstar.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Riley Reader"}','','','','',now(),now()),
+('20000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@rival.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Rival Owner"}','','','','',now(),now())
 on conflict(id) do nothing;
 
 insert into public.organizations(id,name,slug,base_currency,timezone,created_by) values
@@ -73,6 +73,11 @@ insert into public.candidate_private_details(candidate_id,organization_id,email,
 ('70000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000001','daniel@example.com','+60 1222 2222',120000,145000,'USD','Requires sponsorship','granted'),
 ('70000000-0000-0000-0000-000000000003','30000000-0000-0000-0000-000000000002','hidden@rival.local',null,null,null,'USD',null,'granted');
 
+-- Ready parse drafts used only by local RLS tests. No matching storage objects are required for read-isolation checks.
+insert into public.candidate_cv_parses(id,organization_id,uploaded_by,original_filename,storage_path,mime_type,size_bytes,status,model,extracted_data) values
+('71000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000003','consultant-cv.pdf','30000000-0000-0000-0000-000000000001/cv-drafts/10000000-0000-0000-0000-000000000003/71000000-0000-0000-0000-000000000001/consultant-cv.pdf','application/pdf',1024,'ready','test-model','{"full_name":"Visible only to uploader"}'),
+('71000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000001','rival-cv.pdf','30000000-0000-0000-0000-000000000002/cv-drafts/20000000-0000-0000-0000-000000000001/71000000-0000-0000-0000-000000000002/rival-cv.pdf','application/pdf',1024,'ready','test-model','{"full_name":"Rival private parse"}');
+
 -- Create one real job-specific pipeline and active candidates.
 insert into public.jobs(id,organization_id,company_id,title,location,employment_type,currency,placement_fee_percentage,priority,status,owner_member_id,description,requirements,opened_at,created_by) values
 ('80000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','60000000-0000-0000-0000-000000000001','Regional Commercial Director','Singapore','Permanent','USD',20,'high','open','40000000-0000-0000-0000-000000000003','Lead regional growth for a renewable energy platform.','10+ years commercial leadership; energy experience; regional team leadership.',now()-interval '14 days','10000000-0000-0000-0000-000000000003');
@@ -89,4 +94,3 @@ select '81000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000
 insert into public.tasks(organization_id,title,status,priority,due_at,owner_member_id,created_by) values
 ('30000000-0000-0000-0000-000000000001','Follow up with Atlas on shortlist','open','high',now()-interval '1 day','40000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000003'),
 ('30000000-0000-0000-0000-000000000001','Call Daniel about availability','open','normal',now()+interval '1 day','40000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000004');
-
