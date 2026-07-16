@@ -819,12 +819,26 @@
   display: grid;
   gap: var(--space-05);
   min-width: 0;
+  flex: 1 1 220px;
 }
 .team-access-row > div > span,
 .finance-row > div > span {
   color: var(--color-muted);
   font-size: var(--text-xs);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+}
+/* .input's width:100% is right for form fields but blows this select out to fill the row --
+   it needs its own intrinsic width here, same as the badge and button beside it. */
+.team-access-row > select,
+.finance-row > select {
+  width: auto;
+  flex: 0 0 auto;
+}
+.team-access-row > .badge,
+.team-access-row > .button,
+.finance-row > .badge,
+.finance-row > .button {
+  flex-shrink: 0;
 }
 .delivery-row > div:first-child {
   max-width: 62%;
