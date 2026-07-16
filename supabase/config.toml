@@ -93,3 +93,7 @@ verify_jwt = false
 [functions.parse-candidate-cv]
 enabled = true
 verify_jwt = false
+
+[functions.generate-candidate-profile]
+enabled = true
+verify_jwt = false

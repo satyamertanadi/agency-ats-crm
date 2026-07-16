@@ -1,6 +1,6 @@
 import {useState,type FormEvent} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {Archive,ArrowLeft,FileText,Plus,RotateCcw,Trash2,Upload} from 'lucide-react'
+import {Archive,ArrowLeft,FileSignature,FileText,Plus,RotateCcw,Trash2,Upload} from 'lucide-react'
 import {Link,useParams} from 'react-router-dom'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
@@ -12,12 +12,13 @@ import {Badge,Page,Panel} from '../../shared/ui/Page'
 import {ErrorState,LoadingState} from '../../shared/ui/States'
 import {formatDate,formatMoney} from '../../shared/lib/format'
 import {CandidateCvParser} from './CandidateCvParser'
+import {CandidateProfileGenerator} from './CandidateProfileGenerator'
 import {ActivityFeed} from '../activities/ActivityFeed'
 
 type AddMode='employment'|'education'|'language'|'skill'|'tag'|null
 function formatCvDate(value:string|null,precision:string|null){if(!value)return '—';if(precision==='year')return value.slice(0,4);if(precision==='month')return new Intl.DateTimeFormat('en-GB',{month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(`${value}T00:00:00Z`));return formatDate(value)}
 export function CandidateDetailPage(){
-  const {candidateId=''}=useParams();const {organization}=useOrganization();const {user}=useAuth();const cache=useQueryClient();const [addMode,setAddMode]=useState<AddMode>(null);const [cvOpen,setCvOpen]=useState(false)
+  const {candidateId=''}=useParams();const {organization}=useOrganization();const {user}=useAuth();const cache=useQueryClient();const [addMode,setAddMode]=useState<AddMode>(null);const [cvOpen,setCvOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false)
   const detail=useQuery({queryKey:['candidate-detail',organization?.id,candidateId],enabled:Boolean(organization&&candidateId),queryFn:()=>getCandidateDetail(organization!.id,candidateId)})
   const documents=useQuery({queryKey:['candidate-documents',organization?.id,candidateId],enabled:Boolean(organization&&candidateId),queryFn:()=>listCandidateDocuments(organization!.id,candidateId)})
   const members=useQuery({queryKey:['members',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
@@ -29,7 +30,8 @@ export function CandidateDetailPage(){
   const removeTag=useMutation({mutationFn:(tagId:string)=>removeCandidateTag(organization!.id,candidateId,tagId),onSuccess:refresh})
   if(detail.isLoading||documents.isLoading||members.isLoading)return <LoadingState/>;if(detail.error||documents.error||members.error||!detail.data)return <ErrorState error={detail.error||documents.error||members.error}/>
   const candidate=detail.data;const privateData=Array.isArray(candidate.candidate_private_details)?candidate.candidate_private_details[0]:candidate.candidate_private_details
-  return <Page title={candidate.full_name} eyebrow="Candidate profile" description={`${candidate.current_position||'Role not recorded'}${candidate.current_company?` at ${candidate.current_company}`:''}`} actions={<><Link className="button button-quiet" to={`/app/${organization?.slug}/candidates`}><ArrowLeft size={15}/>Candidates</Link><Button variant={candidate.deleted_at?'secondary':'danger'} disabled={archive.isPending} onClick={()=>archive.mutate(!candidate.deleted_at)}>{candidate.deleted_at?<><RotateCcw size={15}/>Restore</>:<><Archive size={15}/>Archive</>}</Button></>}>
+  const preparedBy=members.data?.find((member)=>member.user_id===user?.id)?.profiles?.full_name||''
+  return <Page title={candidate.full_name} eyebrow="Candidate profile" description={`${candidate.current_position||'Role not recorded'}${candidate.current_company?` at ${candidate.current_company}`:''}`} actions={<><Link className="button button-quiet" to={`/app/${organization?.slug}/candidates`}><ArrowLeft size={15}/>Candidates</Link><Button variant="secondary" onClick={()=>setProfileOpen(true)}><FileSignature size={15}/>Client profile</Button><Button variant={candidate.deleted_at?'secondary':'danger'} disabled={archive.isPending} onClick={()=>archive.mutate(!candidate.deleted_at)}>{candidate.deleted_at?<><RotateCcw size={15}/>Restore</>:<><Archive size={15}/>Archive</>}</Button></>}>
     {candidate.deleted_at&&<p className="warning-box">This record is archived and excluded from normal candidate searches.</p>}
     <form key={candidate.updated_at} className="stack" onSubmit={(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();save.mutate(event.currentTarget)}}>
       <Panel title="Profile and ownership"><div className="form-grid"><Field label="Full name"><Input name="full_name" defaultValue={candidate.full_name} required/></Field><Field label="Owner"><Select name="owner_member_id" defaultValue={candidate.owner_member_id||''}><option value="">Unassigned</option>{members.data?.filter((member)=>member.status==='active').map((member)=><option key={member.id} value={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><Field label="Current company"><Input name="current_company" defaultValue={candidate.current_company||''}/></Field><Field label="Current position"><Input name="current_position" defaultValue={candidate.current_position||''}/></Field><Field label="Location"><Input name="location" defaultValue={candidate.location||''}/></Field><Field label="Source"><Input name="source" defaultValue={candidate.source||''}/></Field><Field label="LinkedIn"><Input type="url" name="linkedin_url" defaultValue={candidate.linkedin_url||''}/></Field><Field label="Portfolio"><Input type="url" name="portfolio_url" defaultValue={candidate.portfolio_url||''}/></Field><Field label="Availability"><Input name="availability" defaultValue={candidate.availability||''}/></Field><Field label="Notice period (days)"><Input type="number" min="0" name="notice_period_days" defaultValue={candidate.notice_period_days??''}/></Field><Field label="Status"><Select name="status" defaultValue={candidate.status}><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select></Field></div></Panel>
@@ -46,6 +48,7 @@ export function CandidateDetailPage(){
     </div>
     <Modal title={`Add ${addMode||'profile item'}`} open={Boolean(addMode)} onClose={()=>setAddMode(null)}><AddProfileItem mode={addMode} organizationId={organization!.id} candidateId={candidateId} onDone={async()=>{setAddMode(null);await refresh()}}/></Modal>
     <Modal title="Upload and parse CV" open={cvOpen} wide onClose={()=>setCvOpen(false)}><CandidateCvParser organizationId={organization!.id} userId={user!.id} targetCandidateId={candidateId} targetCandidateName={candidate.full_name} onCancel={()=>setCvOpen(false)} onAccepted={async()=>{setCvOpen(false);await refresh()}}/></Modal>
+    <Modal title="Generate client profile" open={profileOpen} wide onClose={()=>setProfileOpen(false)}><CandidateProfileGenerator organizationId={organization!.id} candidate={candidate} defaultPreparedBy={preparedBy} onClose={()=>setProfileOpen(false)}/></Modal>
     <Panel title="Commercial snapshot"><div className="settings-list"><article><strong>Expected salary</strong><p>{formatMoney(privateData?.expected_salary,privateData?.salary_currency||organization?.base_currency)}</p></article><article><strong>Consent</strong><p><Badge tone={privateData?.consent_status==='granted'?'good':'warn'}>{privateData?.consent_status||'unknown'}</Badge></p></article></div></Panel>
   </Page>
 }
