@@ -6,6 +6,28 @@ export const IMPORT_ORDER=['companies','contacts','candidates','candidate_employ
 export const ROLLBACK_ORDER=[...IMPORT_ORDER].reverse()
 export const EXPECTED_COUNTS={companies:8,contacts:12,candidates:40,candidate_employment:64,candidate_education:40,candidate_languages:60,jobs:8,job_candidates:36,submissions:4,tasks:20,activities:36,interviews:8,offers:4,placements:2,revenue_splits:6,invoices:2}
 
+/* Why no record here says "this is demo data" in its prose any more.
+ *
+ * It used to. Every account note read "Fictional Indonesian demo account. No external outreach.",
+ * every candidate's source read "Demo dataset — Indonesia v1", and both rendered straight onto the
+ * screen -- so the workspace announced itself as a prototype in the exact moment someone was being
+ * shown it. The wording was doing real work, though, and deleting it needed the work to be done
+ * somewhere better rather than just dropped.
+ *
+ * It already is, three times over, and every one of these is stronger than a sentence in a field
+ * nobody reads:
+ *
+ *   1. Nobody can be contacted. Every address below is under a `.example` domain, which RFC 2606
+ *      reserves precisely so that it can never resolve. `phone` and `linkedin_url` are empty. There
+ *      is no channel out. Prose asks a human not to make contact; this makes contact impossible.
+ *   2. Every row is identifiable. `legacy_id` carries the PREFIX below, so demo rows are one
+ *      predicate away (`legacy_id like 'DEMO-IDN-V1-%'`) -- which is how ROLLBACK_ORDER removes the
+ *      whole set cleanly.
+ *   3. The names are visibly invented. The companies and people do not exist.
+ *
+ * So: keep the guarantees, drop the narration. If you add a record here, the rule is the address
+ * stays under `.example` and the legacy_id keeps the prefix. Those are the safety properties. The
+ * copy is just copy. */
 const PREFIX='DEMO-IDN-V1'
 const id=(kind,index)=>`${PREFIX}-${kind}-${String(index).padStart(2,'0')}`
 const owner=(owners,index)=>owners[index%owners.length]
@@ -41,18 +63,66 @@ const candidateNames=[
 const positions=['Engineering Manager','Senior Product Manager','Data Engineering Lead','Talent Acquisition Manager','Enterprise Account Executive','Finance Business Partner','Operations Excellence Lead','Brand Marketing Manager','Backend Engineer','People Analytics Specialist','Regional Sales Manager','Supply Chain Manager','Commercial Strategy Lead','Customer Experience Manager','Product Designer','Quality Assurance Lead','HR Business Partner','Cloud Infrastructure Engineer','Procurement Manager','Area Operations Manager','Key Account Manager','Risk and Compliance Lead','Business Intelligence Analyst','Warehouse Operations Lead','Renewable Energy Project Manager','Revenue Operations Manager','Clinical Operations Manager','Manufacturing Engineering Lead','Solutions Architect','Head of Engineering','Director of Product','Senior Recruiter','Partnerships Manager','Financial Planning Manager','Hotel Operations Manager','Medical Affairs Manager','Plant Maintenance Manager','Growth Marketing Lead','Information Security Manager','Learning and Development Lead']
 const currentCompanies=['Ruang Karya','Solusi Awan','Data Pijar','Talenta Bersama','Niaga Maju','Dana Cermat','Gerak Cepat','Merek Cerah','Kode Rakit','Insan Analitika','Jual Tumbuh','Rantai Prima','Strategi Timur','Sapa Pelanggan','Studio Bentuk','Mutu Digital','Mitra Insani','Infrastruktur Kita','Sumber Andalan','Operasi Raya']
 const locations=['Jakarta','Bandung','Surabaya','Bali','Makassar','Yogyakarta']
+/* Account context a consultant would actually have written, rather than one sentence repeated eight
+ * times. Varied on purpose: identical notes down a column read as seeding even when the words are
+ * innocuous. */
+const accountNotes=[
+  'Retained on engineering leadership since 2024. Prefers a three-person shortlist and moves quickly once briefed.',
+  'Two open mandates a year, consistently. Talent lead runs the process and expects weekly written updates.',
+  'Fee agreement renewed at 20%. Hiring committee meets fortnightly, so time submissions to land Monday.',
+  'Expanding the Bandung site. Decisions sit with the COO; the HR team schedules but does not decide.',
+  'Renewables build-out is the driver here. Long lead times on approvals — keep candidates warm.',
+  'Relationship paused after the last search filled internally. Worth a check-in next quarter.',
+  'Strong on culture fit, slow on feedback. Chase within 48 hours or the process stalls.',
+  'New logo via referral. First mandate is a test of the desk; keep the bar high on shortlist quality.',
+]
+/* Where a real desk finds people. Replaces 'Demo dataset — Indonesia v1', which rendered under every
+ * candidate's name on the database screen. */
+const candidateSources=['Referral','LinkedIn','Inbound application','Network — ex-colleague','Industry event','Referral — placed candidate']
+/* The activity feed is the record of a relationship, so "Demo recruitment activity 14 / Recorded
+ * fictional call activity" was both a giveaway and useless as a demonstration -- a feed of numbered
+ * placeholders proves nothing about the product. These read like a desk's actual history. */
+const activitySubjects=[
+  'Intro call — availability and motivation','Client briefing on the role','Shortlist walkthrough','Interview debrief',
+  'Salary expectations discussed','Reference check arranged','Offer terms confirmed','Weekly search update',
+  'Candidate follow-up','Notice period clarified','Feedback chased','Start date agreed',
+]
+const activitySummaries=[
+  'Covered background, motivation for a move, and what would make them say yes. Open to the right role.',
+  'Client confirmed the brief and the must-haves. Wants to see three candidates by end of next week.',
+  'Talked the client through each profile and the rationale. Two progressing to first interview.',
+  'Interview went well on substance. Client wants one more conversation on team fit before deciding.',
+  'Expectations are inside the range. No competing offers at this stage.',
+  'Two referees confirmed and scheduled for later this week.',
+  'Terms agreed verbally. Written offer to follow once the client has signed off internally.',
+  'Sent the client a written update on pipeline and timeline. No blockers to report.',
+  'Checked in after the interview. Still engaged and keen to progress.',
+  'Confirmed a 30-day notice period, so an earliest start of mid next month.',
+  'Chased the client for interview feedback; promised by tomorrow.',
+  'Start date agreed and confirmed with both sides. Placement to be recorded.',
+]
+const jobNotes=[
+  'Client wants three candidates, not five. Quality over volume on this one.',
+  'Budget confirmed at the top of the range for the right profile.',
+  'Prior search stalled on notice periods — screen for availability early.',
+  'Hiring manager is direct in interviews; brief candidates on style beforehand.',
+  'Board-visible hire. Expect an extra reference round before offer.',
+  'On hold pending the client’s budget review. Do not submit further candidates yet.',
+  'Filled from our shortlist. Keep the runners-up warm for the next mandate.',
+  'Replacement search. Discretion matters — the incumbent is still in post.',
+]
 const universities=['Universitas Indonesia','Institut Teknologi Bandung','Universitas Gadjah Mada','Universitas Airlangga','Institut Teknologi Sepuluh Nopember','Universitas Hasanuddin']
 
 export function generateDemoData({anchorDate=new Date().toISOString().slice(0,10),owners}){
   validateOwners(owners)
   if(!/^\d{4}-\d{2}-\d{2}$/.test(anchorDate)||Number.isNaN(new Date(`${anchorDate}T00:00:00Z`).valueOf()))throw new Error('anchorDate must use YYYY-MM-DD')
 
-  const companies=companySource.map(([name,industry,location,size,status,stage],index)=>({legacy_id:id('COMP',index+1),name,industry,website:`https://${slug(name)}.example`,location,company_size:size,account_status:status,business_development_stage:stage,notes_summary:'Fictional Indonesian demo account. No external outreach.',owner_email:owner(owners,index)}))
+  const companies=companySource.map(([name,industry,location,size,status,stage],index)=>({legacy_id:id('COMP',index+1),name,industry,website:`https://${slug(name)}.example`,location,company_size:size,account_status:status,business_development_stage:stage,notes_summary:accountNotes[index%accountNotes.length],owner_email:owner(owners,index)}))
   const contacts=contactSource.map(([companyIndex,name,position,authority],index)=>({legacy_id:id('CONT',index+1),company_legacy_id:id('COMP',companyIndex),full_name:name,position,email:`${slug(name)}@client.demo.example`,phone:'',linkedin_url:'',contact_status:index===11?'inactive':'active',decision_authority:authority,next_follow_up_at:iso(anchorDate,index-3,10),owner_email:owner(owners,index+1)}))
 
   const candidates=candidateNames.map((fullName,index)=>({
     legacy_id:id('CAND',index+1),full_name:fullName,email:`${slug(fullName)}@candidate.demo.example`,phone:'',current_company:currentCompanies[index%currentCompanies.length],current_position:positions[index],location:locations[index%locations.length],linkedin_url:'',
-    status:index===29||index===30?'placed':index>=38?'do_not_contact':index%3===0?'passive':'active',source:'Demo dataset — Indonesia v1',availability:index%4===0?'Immediate':`${30+(index%3)*15} days`,notice_period_days:index%4===0?0:30+(index%3)*15,current_salary:180000000+index*6000000,expected_salary:220000000+index*7500000,salary_currency:'IDR',work_authorization:'Indonesian citizen',consent_status:index>=38?'withdrawn':'granted',owner_email:owner(owners,index),
+    status:index===29||index===30?'placed':index>=38?'do_not_contact':index%3===0?'passive':'active',source:candidateSources[index%candidateSources.length],availability:index%4===0?'Immediate':`${30+(index%3)*15} days`,notice_period_days:index%4===0?0:30+(index%3)*15,current_salary:180000000+index*6000000,expected_salary:220000000+index*7500000,salary_currency:'IDR',work_authorization:'Indonesian citizen',consent_status:index>=38?'withdrawn':'granted',owner_email:owner(owners,index),
   }))
 
   const candidate_employment=[]
@@ -67,32 +137,32 @@ export function generateDemoData({anchorDate=new Date().toISOString().slice(0,10
   ])
 
   const jobTitles=['Engineering Manager','Senior Product Manager','National Operations Manager','Head of Brand Marketing','Commercial Director','Hotel General Manager','Clinical Operations Lead','Plant Engineering Manager']
-  const jobs=jobTitles.map((title,index)=>({legacy_id:id('JOB',index+1),company_legacy_id:id('COMP',index+1),title,description:`Lead the ${title.toLowerCase()} mandate for a fictional Indonesian client.`,requirements:'Demonstrated leadership, strong stakeholder management, and relevant Indonesian market experience.',location:locations[index%locations.length],employment_type:'Permanent',salary_min:300000000+index*30000000,salary_max:480000000+index*45000000,priority:index<2?'urgent':index<5?'high':'normal',status:index===5?'on_hold':index===6?'filled':'open',currency:'IDR',placement_fee_percentage:20,fixed_fee:'',target_close_date:day(anchorDate,30+index*7),internal_notes:'Demo vacancy. Do not contact any external party.',client_visible_notes:'Search underway with a representative fictional shortlist.',owner_email:owner(owners,index),primary_contact_legacy_id:contacts.find((contact)=>contact.company_legacy_id===id('COMP',index+1)).legacy_id,team_member_emails:`${owner(owners,index)};${owner(owners,index+1)}`}))
+  const jobs=jobTitles.map((title,index)=>({legacy_id:id('JOB',index+1),company_legacy_id:id('COMP',index+1),title,description:`Own the ${title.toLowerCase()} mandate, reporting to the executive team and building out the function through the next growth stage.`,requirements:'Demonstrated leadership, strong stakeholder management, and relevant Indonesian market experience.',location:locations[index%locations.length],employment_type:'Permanent',salary_min:300000000+index*30000000,salary_max:480000000+index*45000000,priority:index<2?'urgent':index<5?'high':'normal',status:index===5?'on_hold':index===6?'filled':'open',currency:'IDR',placement_fee_percentage:20,fixed_fee:'',target_close_date:day(anchorDate,30+index*7),internal_notes:jobNotes[index%jobNotes.length],client_visible_notes:'Search underway. Shortlist in progress and tracking to the agreed timeline.',owner_email:owner(owners,index),primary_contact_legacy_id:contacts.find((contact)=>contact.company_legacy_id===id('COMP',index+1)).legacy_id,team_member_emails:`${owner(owners,index)};${owner(owners,index+1)}`}))
 
   const jobGroups=[[1,2,3,4,5],[6,7,8,9,10],[11,12,13,14,15],[16,17,18,19,20],[21,22,23,24],[25,26,27,28],[29,30,31,32],[33,34,35,36]]
   const stageGroups=[['Sourced','Contacted','Screening','Shortlisted','Submitted to Client'],['Interested','Screening','Client Reviewing','Interview Scheduled','Rejected'],['Longlisted','Shortlisted','Submitted to Client','Interview Completed','Offer'],['Contacted','Screening','Assessment','Reference Check','Withdrawn'],['Sourced','Interested','On Hold','Rejected'],['Shortlisted','Client Reviewing','Interview Scheduled','Offer'],['Interview Completed','Placed','Placed','Offer'],['Sourced','Screening','Submitted to Client','Withdrawn']]
   const job_candidates=[]
-  jobGroups.forEach((group,jobIndex)=>group.forEach((candidateIndex,groupIndex)=>job_candidates.push({legacy_id:id('JC',job_candidates.length+1),candidate_legacy_id:id('CAND',candidateIndex),job_legacy_id:id('JOB',jobIndex+1),stage:stageGroups[jobIndex][groupIndex],stage_occurred_at:iso(anchorDate,-(35-job_candidates.length),11),source:'Demo dataset — Indonesia v1',owner_email:owner(owners,candidateIndex-1)})))
+  jobGroups.forEach((group,jobIndex)=>group.forEach((candidateIndex,groupIndex)=>job_candidates.push({legacy_id:id('JC',job_candidates.length+1),candidate_legacy_id:id('CAND',candidateIndex),job_legacy_id:id('JOB',jobIndex+1),stage:stageGroups[jobIndex][groupIndex],stage_occurred_at:iso(anchorDate,-(35-job_candidates.length),11),source:candidateSources[candidateIndex%candidateSources.length],owner_email:owner(owners,candidateIndex-1)})))
 
-  const submissions=[[1,[3,4,5]],[2,[8,9,10]],[3,[13,14,15]],[8,[33,34,35]]].map(([jobIndex,jcIndexes],index)=>({legacy_id:id('SUB',index+1),job_legacy_id:id('JOB',jobIndex),contact_legacy_id:jobs[jobIndex-1].primary_contact_legacy_id,job_candidate_legacy_ids:jcIndexes.map((value)=>id('JC',value)).join(';'),title:`${jobTitles[jobIndex-1]} shortlist`,message:'Please review this fictional demo shortlist. No external communication has been sent.',recipient_name:contacts.find((contact)=>contact.legacy_id===jobs[jobIndex-1].primary_contact_legacy_id).full_name,recipient_email:`reviewer${index+1}@client.demo.example`,expiry_days:30}))
+  const submissions=[[1,[3,4,5]],[2,[8,9,10]],[3,[13,14,15]],[8,[33,34,35]]].map(([jobIndex,jcIndexes],index)=>({legacy_id:id('SUB',index+1),job_legacy_id:id('JOB',jobIndex),contact_legacy_id:jobs[jobIndex-1].primary_contact_legacy_id,job_candidate_legacy_ids:jcIndexes.map((value)=>id('JC',value)).join(';'),title:`${jobTitles[jobIndex-1]} shortlist`,message:'Please review the shortlisted candidates below and share your feedback on each. Happy to arrange interviews for anyone you would like to meet.',recipient_name:contacts.find((contact)=>contact.legacy_id===jobs[jobIndex-1].primary_contact_legacy_id).full_name,recipient_email:`reviewer${index+1}@client.demo.example`,expiry_days:30}))
 
-  const tasks=Array.from({length:20},(_,index)=>({legacy_id:id('TASK',index+1),title:index<6?'Follow up on candidate availability':index<12?'Prepare client shortlist':'Update vacancy progress',description:'Fictional next action created for the Indonesian demo workspace.',priority:index%5===0?'urgent':index%3===0?'high':'normal',status:index>=12?'completed':'open',due_at:iso(anchorDate,index-5,9),owner_email:owner(owners,index),candidate_legacy_id:index<8?id('CAND',index+1):'',company_legacy_id:index>=8&&index<14?id('COMP',(index%8)+1):'',contact_legacy_id:index>=14&&index<17?id('CONT',(index%12)+1):'',job_legacy_id:index>=17?id('JOB',(index%8)+1):''}))
+  const tasks=Array.from({length:20},(_,index)=>({legacy_id:id('TASK',index+1),title:index<6?'Follow up on candidate availability':index<12?'Prepare client shortlist':'Update vacancy progress',description:index<6?'Confirm notice period and earliest start date before the client asks.':index<12?'Pull the three strongest profiles together and write the submission notes.':'Send the client a written progress update on the current search.',priority:index%5===0?'urgent':index%3===0?'high':'normal',status:index>=12?'completed':'open',due_at:iso(anchorDate,index-5,9),owner_email:owner(owners,index),candidate_legacy_id:index<8?id('CAND',index+1):'',company_legacy_id:index>=8&&index<14?id('COMP',(index%8)+1):'',contact_legacy_id:index>=14&&index<17?id('CONT',(index%12)+1):'',job_legacy_id:index>=17?id('JOB',(index%8)+1):''}))
   const activityTypes=['call','email','whatsapp','meeting','interview','status_change']
-  const activities=Array.from({length:36},(_,index)=>({legacy_id:id('ACT',index+1),activity_type:activityTypes[index%activityTypes.length],direction:index%4===0?'inbound':index%3===0?'internal':'outbound',subject:`Demo recruitment activity ${index+1}`,summary:`Recorded fictional ${activityTypes[index%activityTypes.length]} activity for the Indonesian agency demo.`,occurred_at:iso(anchorDate,-(index%28),8+(index%8)),owner_email:owner(owners,index),candidate_legacy_id:index<18?id('CAND',index+1):'',company_legacy_id:index>=18&&index<26?id('COMP',(index%8)+1):'',contact_legacy_id:index>=26&&index<30?id('CONT',(index%12)+1):'',job_legacy_id:index>=30?id('JOB',(index%8)+1):''}))
+  const activities=Array.from({length:36},(_,index)=>({legacy_id:id('ACT',index+1),activity_type:activityTypes[index%activityTypes.length],direction:index%4===0?'inbound':index%3===0?'internal':'outbound',subject:activitySubjects[index%activitySubjects.length],summary:activitySummaries[index%activitySummaries.length],occurred_at:iso(anchorDate,-(index%28),8+(index%8)),owner_email:owner(owners,index),candidate_legacy_id:index<18?id('CAND',index+1):'',company_legacy_id:index>=18&&index<26?id('COMP',(index%8)+1):'',contact_legacy_id:index>=26&&index<30?id('CONT',(index%12)+1):'',job_legacy_id:index>=30?id('JOB',(index%8)+1):''}))
 
   const interviewJcs=[9,14,15,19,27,28,29,32]
   const interviews=interviewJcs.map((jcIndex,index)=>({legacy_id:id('INT',index+1),job_candidate_legacy_id:id('JC',jcIndex),interview_type:index%2===0?'client_interview':'panel_interview',starts_at:iso(anchorDate,index<4?index+2:-(index+2),10+(index%4)),ends_at:iso(anchorDate,index<4?index+2:-(index+2),11+(index%4)),timezone:'Asia/Makassar',location:index%2===0?'Google Meet':'Client office',meeting_url:'',status:index<4?'scheduled':index===7?'cancelled':'completed'}))
   const offers=[
     {jc:15,status:'presented',salary:510000000,offset:-3,start:35},{jc:28,status:'declined',salary:480000000,offset:-18,start:20},
     {jc:30,status:'accepted',salary:620000000,offset:-28,start:14},{jc:31,status:'accepted',salary:560000000,offset:-24,start:18},
-  ].map((item,index)=>({legacy_id:id('OFFER',index+1),job_candidate_legacy_id:id('JC',item.jc),salary:item.salary,currency:'IDR',offered_at:day(anchorDate,item.offset),start_date:day(anchorDate,item.start),status:item.status,notes:'Fictional demo offer; no candidate communication occurred.'}))
+  ].map((item,index)=>({legacy_id:id('OFFER',index+1),job_candidate_legacy_id:id('JC',item.jc),salary:item.salary,currency:'IDR',offered_at:day(anchorDate,item.offset),start_date:day(anchorDate,item.start),status:item.status,notes:'Terms agreed with the client before presenting. Candidate briefed on the package in full.'}))
   const placements=[
     {legacy_id:id('PLACE',1),job_candidate_legacy_id:id('JC',30),start_date:day(anchorDate,14),salary:620000000,placement_fee:124000000,currency:'IDR',guarantee_days:90,status:'confirmed'},
     {legacy_id:id('PLACE',2),job_candidate_legacy_id:id('JC',31),start_date:day(anchorDate,18),salary:560000000,placement_fee:112000000,currency:'IDR',guarantee_days:90,status:'confirmed'},
   ]
   const splitPercentages=[50,30,20]
   const revenue_splits=placements.flatMap((placement,placementIndex)=>splitPercentages.map((percentage,index)=>({legacy_id:id('SPLIT',placementIndex*3+index+1),placement_legacy_id:placement.legacy_id,member_email:owner(owners,placementIndex*3+index),split_percentage:percentage})))
-  const invoices=placements.map((placement,index)=>({legacy_id:id('INV',index+1),placement_legacy_id:placement.legacy_id,invoice_reference:`DEMO-INV-2026-${String(index+1).padStart(3,'0')}`,amount:placement.placement_fee,currency:'IDR',issued_on:day(anchorDate,-(10-index*3)),due_on:day(anchorDate,20+index*3),status:index===0?'paid':'issued',paid_on:index===0?day(anchorDate,-2):'',notes:'Fictional demo invoice. Not for accounting use.'}))
+  const invoices=placements.map((placement,index)=>({legacy_id:id('INV',index+1),placement_legacy_id:placement.legacy_id,invoice_reference:`INV-2026-${String(index+1).padStart(4,'0')}`,amount:placement.placement_fee,currency:'IDR',issued_on:day(anchorDate,-(10-index*3)),due_on:day(anchorDate,20+index*3),status:index===0?'paid':'issued',paid_on:index===0?day(anchorDate,-2):'',notes:'Placement fee invoiced per the agreed schedule. 30-day payment terms.'}))
 
   const data={companies,contacts,candidates,candidate_employment,candidate_education,candidate_languages,jobs,job_candidates,submissions,tasks,activities,interviews,offers,placements,revenue_splits,invoices}
   validateDemoData(data,owners)

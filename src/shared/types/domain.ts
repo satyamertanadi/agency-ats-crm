@@ -25,6 +25,7 @@
 export type JobStatus='draft'|'open'|'on_hold'|'filled'|'cancelled'|'closed'
 export type JobPriority='low'|'normal'|'high'|'urgent' /* NOT db-constrained; see lookup() */
 export type AccountStatus='prospect'|'active_client'|'inactive'|'do_not_contact'
+export type BusinessDevelopmentStage='lead'|'qualified'|'proposal'|'negotiation'|'won'|'lost' /* NOT db-constrained; see lookup() */
 export type ContactStatus='active'|'inactive'|'do_not_contact' /* NOT db-constrained; see lookup() */
 export type CandidateStatus='active'|'passive'|'placed'|'do_not_contact'|'archived'
 export type ConsentStatus='unknown'|'requested'|'granted'|'withdrawn'|'expired'
@@ -45,8 +46,11 @@ export type PilotStatus='preparing'|'uat'|'pilot'|'active'|'suspended'|'closed'
  * must not import from features/. */
 export type ProfileStatus='draft'|'finalized'|'failed'
 export type PipelinePhaseKey='sourcing'|'screening'|'shortlist'|'client_review'|'interview'|'offer'|'placed'|'other'
+/* Re-exported by features/workflow/workflow.ts, which is where it is produced. Declared here for the
+ * same reason as ProfileStatus: shared/lib/status.ts owns its wording and must not import features/. */
+export type TodayWorkKind='blocked'|'overdue'|'today'|'upcoming'|'recommended'
 
-export type Organization = { id: string; name: string; slug: string; base_currency: string; timezone: string; seat_limit: number; pilot_status: PilotStatus; primary_color?:string;logo_path?:string|null;logo_url?:string|null;profile_enabled?:boolean;consultant_first_enabled?:boolean }
+export type Organization = { id: string; name: string; slug: string; base_currency: string; salary_period?: 'annual'|'monthly'; timezone: string; seat_limit: number; pilot_status: PilotStatus; primary_color?:string;logo_path?:string|null;logo_url?:string|null;profile_enabled?:boolean;consultant_first_enabled?:boolean }
 export type Membership = { id: string; organization_id: string; user_id?:string; status: MemberStatus; organizations: Organization }
 export type Candidate = {
   id: string; organization_id: string; full_name: string; current_company: string | null; current_position: string | null;
@@ -68,7 +72,7 @@ export type Interview = {id:string;job_candidate_id:string;interview_type:string
 export type Offer = {id:string;job_candidate_id:string;salary:number;currency:string;offered_at:string;start_date:string|null;status:OfferStatus;notes:string|null;job_candidates?:{candidate_id?:string;candidates?:Pick<Candidate,'id'|'full_name'>|null;jobs?:Pick<Job,'id'|'title'|'owner_member_id'>|null}|null}
 
 export interface WorkspaceCapabilities {roleKeys:string[];canWriteCandidates:boolean;canWriteClients:boolean;canWriteJobs:boolean;canMovePipeline:boolean;canSubmit:boolean;canManagePlacements:boolean;canViewTeamReports:boolean;canManageFinance:boolean;canImport:boolean;canManageWorkspace:boolean;canManageTemplates:boolean;canViewAdmin:boolean;readOnly:boolean}
-export type PublicReview = { package: { id:string; title:string; message:string|null; job_title:string; company_name:string; recipient_name:string|null; expires_at:string }; branding?:{organization_name:string;primary_color:string|null;logo_path:string|null}|null; candidates: PublicSubmission[];documents?:Array<{id:string;filename:string;mimeType:string;url:string}> }
+export type PublicReview = { package: { id:string; title:string; message:string|null; job_title:string; company_name:string; recipient_name:string|null; expires_at:string }; branding?:{organization_name:string;primary_color:string|null;logo_path:string|null;salary_period?:'annual'|'monthly'|null}|null; candidates: PublicSubmission[];documents?:Array<{id:string;filename:string;mimeType:string;url:string}> }
 export type PublicSubmission = { submission_id:string; candidate_name:string; current_company:string|null; current_position:string|null; location:string|null; linkedin_url:string|null; portfolio_url:string|null; candidate_summary:string; recruiter_comments:string|null; suitability_assessment:string|null; relevant_experience:string|null; expected_salary:number|null; currency:string|null; notice_period:string|null; availability:string|null; motivation:string|null; relocation_willingness:string|null; interview_availability:string|null; feedback:{decision:string;comments:string|null;reviewer_name:string|null;updated_at:string}|null }
 
 export type ActivityType='call'|'email'|'whatsapp'|'meeting'|'interview'|'status_change'|'submission'|'client_feedback'|'placement'|'other'

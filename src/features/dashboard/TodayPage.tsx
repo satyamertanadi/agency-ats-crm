@@ -7,17 +7,14 @@ import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {createTask,dashboardSummary,listEmailDeliveryIssues,listInterviews,listJobs,listOffers,listSubmissionPackages,listTasks} from '../core/repository'
 import {ErrorState,LoadingState} from '../../shared/ui/States'
-import {Badge,Page,Panel} from '../../shared/ui/Page'
+import {Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {Button} from '../../shared/ui/Button'
 import {Modal} from '../../shared/ui/Modal'
 import {Field,Input,Select} from '../../shared/ui/Field'
 import {formatDateTime} from '../../shared/lib/format'
-import {buildTodayWorkItems,type TodayWorkKind} from '../workflow/workflow'
+import {todayWorkKind} from '../../shared/lib/status'
+import {buildTodayWorkItems} from '../workflow/workflow'
 import {SetupChecklist,buildSetupSteps} from './SetupChecklist'
-
-const kindMeta:Record<TodayWorkKind,{label:string;tone:'bad'|'warn'|'info'|'neutral'}>={
-  blocked:{label:'Needs attention',tone:'bad'},overdue:{label:'Overdue',tone:'bad'},today:{label:'Today',tone:'warn'},upcoming:{label:'Upcoming',tone:'info'},recommended:{label:'Next step',tone:'neutral'},
-}
 
 export function TodayPage(){
   const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const [params,setParams]=useSearchParams();const [scope,setScope]=useState<'mine'|'team'>('mine')
@@ -37,12 +34,12 @@ export function TodayPage(){
   const steps=buildSetupSteps(query.data.summary,base);const setupComplete=steps.length>0&&steps.every((step)=>step.done)
   const urgent=items.filter((item)=>item.kind==='blocked'||item.kind==='overdue').length
   const activeJobs=query.data.jobs.filter((job)=>job.status==='open'&&(scope==='team'||!job.owner_member_id||job.owner_member_id===currentMember?.id))
-  return <Page title={name?`Today, ${name}`:'Today'} eyebrow={organization?.name} description="Your next recruitment actions, in the order they need attention." className="today-page" actions={<div className="page-scope-actions">{capabilities.data?.canViewTeamReports&&<div className="segmented-control" aria-label="Work scope"><button className={scope==='mine'?'active':''} onClick={()=>setScope('mine')}>My work</button><button className={scope==='team'?'active':''} onClick={()=>setScope('team')}>Team view</button></div>}{capabilities.data?.canWriteCandidates&&<Link className="button button-primary button-md" to={`${base}/candidates?new=1`}><Plus size={15}/>Add candidate</Link>}</div>}>
+  return <Page title={name?`Today, ${name}`:'Today'} eyebrow={organization?.name} description="Your next recruitment actions, in the order they need attention." className="today-page" actions={<div className="page-scope-actions">{capabilities.data?.canViewTeamReports&&<div className="segmented-control" aria-label="Work scope"><button className={scope==='mine'?'active':''} onClick={()=>setScope('mine')}>My work</button><button className={scope==='team'?'active':''} onClick={()=>setScope('team')}>Team view</button></div>}{capabilities.data?.canWriteCandidates&&<Link className="button button-primary" to={`${base}/candidates?new=1`}><Plus size={15}/>Add candidate</Link>}</div>}>
     {!setupComplete&&<SetupChecklist steps={steps}/>}
     {setupComplete&&<section className={`today-brief ${urgent?'today-brief-alert':''}`}><span>{urgent?<TriangleAlert size={21}/>:<CheckCircle2 size={21}/>}</span><div><p className="eyebrow">Operating brief</p><h2>{urgent?`${urgent} action${urgent===1?'':'s'} need attention`:'You are clear for today'}</h2><p>{items.length?`${items.length} total items · ${activeJobs.length} active jobs in this view`:'No overdue or upcoming work is waiting.'}</p></div></section>}
     <div className="today-layout">
       <Panel title="Next actions" subtitle="One click opens the right record with its context preserved." elevation="raised">
-        {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<ol className="work-queue">{items.map((item)=>{const meta=kindMeta[item.kind];return <li key={item.id}><div className="work-queue-main"><Badge tone={meta.tone}>{meta.label}</Badge><div><strong>{item.title}</strong><p>{item.reason}</p>{item.dueAt&&<time dateTime={item.dueAt}>{formatDateTime(item.dueAt)}</time>}</div></div><Link className="button button-secondary button-sm" to={item.href}>{item.cta}<ArrowRight size={13}/></Link></li>})}</ol>}
+        {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<ol className="work-queue">{items.map((item)=><li key={item.id}><div className="work-queue-main"><StatusBadge map={todayWorkKind} value={item.kind}/><div><strong>{item.title}</strong><p>{item.reason}</p>{item.dueAt&&<time dateTime={item.dueAt}>{formatDateTime(item.dueAt)}</time>}</div></div><Link className="button button-secondary button-sm" to={item.href}>{item.cta}<ArrowRight size={13}/></Link></li>)}</ol>}
       </Panel>
       <Panel title={scope==='mine'?'My active jobs':'Active jobs'} subtitle="Jobs most likely to need your attention next.">
         <div className="today-job-list">{activeJobs.slice(0,6).map((job)=><Link to={`${base}/jobs/${job.id}`} key={job.id}><span><BriefcaseBusiness size={16}/><span><strong>{job.title}</strong><small>{job.companies?.name||'Client'} · {job.location||'Location not set'}</small></span></span><ArrowRight size={14}/></Link>)}{activeJobs.length===0&&<p className="muted">No active jobs in this view.</p>}</div>

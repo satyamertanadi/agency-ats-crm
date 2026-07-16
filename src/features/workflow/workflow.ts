@@ -1,8 +1,7 @@
-import type {Interview,Job,JobCandidate,Offer,PipelinePhaseKey,PipelineStage,Task} from '../../shared/types/domain'
+import type {Interview,Job,JobCandidate,Offer,PipelinePhaseKey,PipelineStage,Task,TodayWorkKind} from '../../shared/types/domain'
 
-export type {PipelinePhaseKey} from '../../shared/types/domain'
+export type {PipelinePhaseKey,TodayWorkKind} from '../../shared/types/domain'
 export type NextActionKey='add_candidates'|'submit'|'check_feedback'|'schedule_interview'|'record_outcome'|'record_offer'|'create_placement'|'resolve_delivery'|'complete_job'
-export type TodayWorkKind='blocked'|'overdue'|'today'|'upcoming'|'recommended'
 
 export interface NextAction {key:NextActionKey;label:string;reason:string}
 export interface TodayWorkItem {id:string;kind:TodayWorkKind;title:string;reason:string;href:string;cta:string;dueAt?:string|null}
@@ -35,6 +34,46 @@ export function groupPipelineStages(stages:PipelineStage[]){
     ...phase,
     stages:stages.filter((stage)=>phaseForStage(stage)===phase.key),
   })).filter((phase)=>phase.stages.length>0)
+}
+
+/* Stage types that are an outcome rather than a step: they end the candidate's run and so get a
+ * counter, not a board column. */
+export const outcomeStageTypes=['rejected','withdrawn','on_hold']
+export const isOutcomeStage=(stage:Pick<PipelineStage,'stage_type'>)=>outcomeStageTypes.includes(stage.stage_type)
+
+/* The board's column model. It lives here rather than in the page because the board had a bug that
+ * only a shared model can prevent: the column a card was rendered in and the value its stage
+ * dropdown displayed were derived separately, so they could disagree -- a candidate at
+ * `interview_completed` rendered under Interview while the dropdown read "Sourcing". A <select> whose
+ * value matches no <option> falls back to showing the first one, and in phase mode the options only
+ * ever held each phase's FIRST stage id, so every candidate in a non-first stage rendered a lie.
+ *
+ * The fix is structural: a column is keyed by its own identity (phase key, or stage id when
+ * detailed), never by a stage id standing in for a phase, and the card is handed the key of the
+ * column it is rendered inside. Card and column cannot disagree because they are the same value. */
+export interface PipelineColumn {key:string;label:string;stages:PipelineStage[]}
+
+export function buildPipelineColumns(stages:PipelineStage[],detailed:boolean):PipelineColumn[]{
+  const active=stages.filter((stage)=>!isOutcomeStage(stage))
+  return detailed
+    ?active.map((stage)=>({key:stage.id,label:stage.name,stages:[stage]}))
+    :groupPipelineStages(active).map((phase)=>({key:phase.key,label:phase.label,stages:phase.stages}))
+}
+
+export const columnKeyForStage=(columns:PipelineColumn[],stageId:string):string|undefined=>
+  columns.find((column)=>column.stages.some((stage)=>stage.id===stageId))?.key
+
+/* Resolves a drop/select onto a column into the stage to actually move to, or null for "no move".
+ *
+ * Returning null when the candidate already sits somewhere in the target column is what stops the
+ * second half of the bug: moving to a phase used to send the candidate to that phase's first stage
+ * unconditionally, so choosing "Interview" for someone at Interview Completed silently demoted them
+ * back to Interview Scheduled. Entering a phase starts at its first stage; staying put is a no-op. */
+export function resolveStageForColumn(columns:PipelineColumn[],columnKey:string,currentStageId:string):string|null{
+  const column=columns.find((item)=>item.key===columnKey)
+  if(!column)return null
+  if(column.stages.some((stage)=>stage.id===currentStageId))return null
+  return column.stages[0]?.id??null
 }
 
 export function recommendedCandidateAction(input:{stage:PipelineStage;hasSubmission:boolean;interviews:Interview[];offers:Offer[];hasPlacement:boolean}):NextAction{

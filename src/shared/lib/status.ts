@@ -1,8 +1,8 @@
 import type {
-  AccountStatus, CalendarConnectionStatus, CalendarSyncStatus, CandidateStatus, ConsentStatus,
-  ContactStatus, DeliveryStatus, ImportStatus, InterviewStatus, InvoiceStatus, JobPriority,
-  JobStatus, MemberStatus, OfferStatus, PilotStatus, PlacementStatus, ProfileStatus, TaskPriority,
-  TaskStatus,
+  AccountStatus, BusinessDevelopmentStage, CalendarConnectionStatus, CalendarSyncStatus,
+  CandidateStatus, ConsentStatus, ContactStatus, DeliveryStatus, ImportStatus, InterviewStatus,
+  InvoiceStatus, JobPriority, JobStatus, MemberStatus, OfferStatus, PilotStatus, PlacementStatus,
+  ProfileStatus, TaskPriority, TaskStatus, TodayWorkKind,
 } from '../types/domain'
 
 /* The vocabulary layer: every domain status decides its colour and its wording HERE, once.
@@ -69,6 +69,22 @@ export const accountStatus=map<AccountStatus>({
   active_client:{tone:'good',label:'Active client'},
   inactive:{tone:'neutral',label:'Inactive'},
   do_not_contact:{tone:'bad',label:'Do not contact'},
+})
+
+/* The second axis on a client, and the reason 'Inactive' sitting beside 'Lost' is not a
+ * contradiction: accountStatus is what the relationship IS now, businessDevelopmentStage is how the
+ * last commercial pursuit ENDED. A dormant account whose last deal was lost is honestly both. The
+ * client page labels them so that reads as deliberate rather than as two disagreeing truths.
+ *
+ * Like jobPriority, not DB-constrained (migration :112 is a bare `text not null default 'lead'`), so
+ * this map is our best understanding of what the client edit form writes, not a guarantee. */
+export const businessDevelopmentStage=map<BusinessDevelopmentStage>({
+  lead:{tone:'neutral',label:'Lead'},
+  qualified:{tone:'info',label:'Qualified'},
+  proposal:{tone:'info',label:'Proposal'},
+  negotiation:{tone:'warn',label:'Negotiation'},
+  won:{tone:'good',label:'Won'},
+  lost:{tone:'bad',label:'Lost'},
 })
 
 /* Like jobPriority, not DB-constrained -- the contact form (RecordDetailPages.tsx:19) is the only
@@ -192,6 +208,17 @@ export const profileStatus=map<ProfileStatus>({
   draft:{tone:'warn',label:'Draft'},
   finalized:{tone:'good',label:'Finalized'},
   failed:{tone:'bad',label:'Failed'},
+})
+
+/* Not a stored status but a derived urgency (see buildTodayWorkItems). It belongs here anyway: it was
+ * a second vocabulary map living in TodayPage, which is exactly how "Needs attention" ends up meaning
+ * one thing on the dashboard and something else everywhere else. */
+export const todayWorkKind=map<TodayWorkKind>({
+  blocked:{tone:'bad',label:'Needs attention'},
+  overdue:{tone:'bad',label:'Overdue'},
+  today:{tone:'warn',label:'Today'},
+  upcoming:{tone:'info',label:'Upcoming'},
+  recommended:{tone:'neutral',label:'Next step'},
 })
 
 /* 'active' means the workspace is live, so it gets no badge at all -- see pilotIndicator(). The

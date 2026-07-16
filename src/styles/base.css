@@ -33,6 +33,19 @@ select,
 textarea {
   font: inherit;
 }
+/* The loudest off-brand colour in the product. An untinted checkbox paints its checked state in the
+ * UA's own blue, which sits next to nothing else in this palette -- it was the one control that
+ * announced "browser default" on every form, and on the templates screen it was the first thing the
+ * eye landed on.
+ *
+ * accent-color tints the NATIVE control rather than replacing it. The alternative -- a hidden input
+ * behind a styled span -- would match the palette too, and would also re-implement focus rings, the
+ * indeterminate state, forced-colors mode, and the platform's own touch targets, all of which the
+ * browser already gets right. One declaration buys the colour without taking on that surface. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-accent);
+}
 button,
 a {
   touch-action: manipulation;

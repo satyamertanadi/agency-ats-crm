@@ -440,6 +440,10 @@ td span:not([class]) {
 .badge-neutral {
   background: var(--tone-neutral-bg);
   color: var(--tone-neutral-fg);
+  /* The other four tones all set their border, so omitting it here left neutral as the one badge
+   * rendering on the transparent base border -- visibly flatter than its siblings for no reason.
+   * --tone-neutral-border already existed and simply went unused. */
+  border-color: var(--tone-neutral-border);
 }
 .badge-good {
   background: var(--color-accent-soft);

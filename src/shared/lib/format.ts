@@ -13,18 +13,36 @@
  *               matters: an interview at 2026-07-16T23:00:00Z is the 17th in Asia/Makassar, and
  *               before this it rendered in whatever zone the viewer's laptop was set to.
  *   currency <- organization.base_currency, overridable per record (a job may quote in its own).
+ *   salaryPeriod <- organization.salary_period. The WORKSPACE's market decides whether a quoted
+ *               salary means per year or per month. Same axis as currency: an agency quotes
+ *               consistently, so it is configured once rather than stored per candidate. Indonesian
+ *               salaries are commonly monthly, which is why "IDR 497,500,000" with no period was
+ *               unreadable rather than merely untidy.
  */
-type Config={locale:string;timeZone:string|undefined;currency:string}
+type SalaryPeriod='annual'|'monthly'
+type Config={locale:string;timeZone:string|undefined;currency:string;salaryPeriod:SalaryPeriod}
 
 /* Defaults are only used before the org resolves. en-GB because day/month is unambiguous to the
  * most readers; every page gates its queries on `enabled:Boolean(organization)`, so in practice no
  * money or date paints before configureFormat runs. */
-let config:Config={locale:'en-GB',timeZone:undefined,currency:'USD'}
+let config:Config={locale:'en-GB',timeZone:undefined,currency:'USD',salaryPeriod:'annual'}
 export const configureFormat=(next:Partial<Config>)=>{config={...config,...next}}
 
 export function formatMoney(value:number|null|undefined,currency?:string|null){
   if(value==null)return '—'
   return new Intl.NumberFormat(config.locale,{style:'currency',currency:currency||config.currency,maximumFractionDigits:0}).format(value)
+}
+
+/* Money that is a RATE, not an amount. Use this for anything a person earns; use formatMoney for
+ * fees, invoices and placement values, which are one-off sums and would read as nonsense with a
+ * period attached.
+ *
+ * `period` overrides the workspace convention for the rare record that genuinely differs, and is how
+ * PublicReviewPage passes the agency's setting -- it renders outside OrganizationProvider (see the
+ * note above), so configureFormat has not run for it. */
+export function formatSalary(value:number|null|undefined,currency?:string|null,period?:SalaryPeriod|null){
+  if(value==null)return '—'
+  return `${formatMoney(value,currency)} / ${(period||config.salaryPeriod)==='monthly'?'month':'year'}`
 }
 
 /* Returns both forms so a caller can show `short` and put `full` in a title/tooltip. A KPI card is

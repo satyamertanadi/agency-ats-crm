@@ -92,8 +92,10 @@
   .mapping-grid {
     grid-template-columns: 1fr;
   }
+  /* No `top` here: position:sticky was removed from .toolbar (see components.css) because its
+   * nearest scroll container is .panel, which is overflow:hidden and never scrolls. `top` on a
+   * static element does nothing -- it was left behind when the sticky went. */
   .toolbar {
-    top: var(--topbar-height);
     overflow-x: auto;
   }
   .delivery-row {
