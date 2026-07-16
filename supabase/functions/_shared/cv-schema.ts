@@ -15,7 +15,7 @@ export const candidateCvJsonSchema={
 
 function nullableString(){return {type:['string','null']} as const}
 function nullableNumber(integer=false){return {type:integer?['integer','null']:['number','null']} as const}
-function nullableDate(){return {type:['string','null'],pattern:'^\\d{4}-\\d{2}-\\d{2}$'} as const}
+function nullableDate(){return {type:['string','null']} as const}
 function nullablePrecision(){return {type:['string','null'],enum:['day','month','year',null]} as const}
 
 export interface CvExtraction {
