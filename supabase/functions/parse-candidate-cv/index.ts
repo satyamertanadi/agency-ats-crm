@@ -94,7 +94,9 @@ async function status(request:Request,context:Context,input:ScopedInput,requestI
 async function retry(request:Request,context:Context,input:ScopedInput,requestID:string){
   const row=await ownParse(context,input.organizationId,input.parseId)
   if(row.status!=='failed'||row.attempts>=3)throw new FunctionError(409,'parse_not_retryable','This CV parse cannot be retried.')
-  await context.admin.from('candidate_cv_parses').update({status:'uploaded',error_code:null,error_message:null}).eq('id',row.id)
+  const model=Deno.env.get('AI_MODEL')?.trim()
+  if(Deno.env.get('AI_PROVIDER')!=='anthropic'||!model||!Deno.env.get('ANTHROPIC_API_KEY'))throw new FunctionError(503,'cv_parser_not_configured','CV parsing is not configured.')
+  await context.admin.from('candidate_cv_parses').update({status:'uploaded',model,error_code:null,error_message:null}).eq('id',row.id)
   EdgeRuntime.waitUntil(processParse(context,input.organizationId,input.parseId,requestID))
   return json(request,{parseId:row.id,status:'uploaded',requestId:requestID},202)
 }
