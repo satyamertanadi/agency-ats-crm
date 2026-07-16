@@ -12,10 +12,19 @@ Deno.serve(async(request)=>{
     const input=await request.json() as Input
     if(!input.organizationId||!input.jobId||!input.title?.trim()||!input.items?.length||!/^\S+@\S+\.\S+$/.test(input.recipientEmail||''))throw new FunctionError(400,'invalid_request','Vacancy, title, candidates, and recipient email are required.')
     const {caller,admin,user}=await requirePermission(request,input.organizationId,'submissions.write')
+    for(const item of input.items){
+      if(!item.document_ids?.length)continue
+      const assignment=await admin.from('job_candidates').select('candidate_id').eq('id',item.job_candidate_id).eq('organization_id',input.organizationId).eq('job_id',input.jobId).maybeSingle()
+      if(assignment.error||!assignment.data)throw new FunctionError(400,'invalid_submission_candidate','A selected candidate is not attached to this vacancy.')
+      const uniqueIds=[...new Set(item.document_ids)]
+      const documents=await admin.from('document_links').select('document_id,documents!inner(organization_id,deleted_at)').eq('organization_id',input.organizationId).eq('candidate_id',assignment.data.candidate_id).in('document_id',uniqueIds)
+      const valid=new Set((documents.data||[]).filter((row)=>{const document=row.documents as unknown as {organization_id:string;deleted_at:string|null};return document.organization_id===input.organizationId&&!document.deleted_at}).map((row)=>row.document_id))
+      if(documents.error||valid.size!==uniqueIds.length)throw new FunctionError(400,'invalid_submission_document','Every selected document must belong to this candidate and organization.')
+      item.document_ids=uniqueIds
+    }
     const {data,error}=await caller.rpc('create_submission_package',{p_organization_id:input.organizationId,p_job_id:input.jobId,p_contact_id:input.contactId||null,p_title:input.title.trim(),p_message:input.message?.trim()||null,p_items:input.items,p_recipient_name:input.recipientName?.trim()||null,p_recipient_email:input.recipientEmail.trim().toLowerCase(),p_expiry_days:Math.min(30,Math.max(1,input.expiryDays||7))})
     if(error)throw new FunctionError(400,'submission_failed',error.message)
     const result=data as {package_id:string;link_id:string;token:string;expires_at:string}
-    for(const item of input.items){if(!item.document_ids?.length)continue;const {data:submission}=await admin.from('candidate_submissions').select('id').eq('package_id',result.package_id).eq('job_candidate_id',item.job_candidate_id).single();if(submission)await admin.from('submission_documents').insert(item.document_ids.map((documentId)=>({organization_id:input.organizationId,candidate_submission_id:submission.id,document_id:documentId})))}
     const [{data:organization},{data:job}]=await Promise.all([caller.from('organizations').select('name').eq('id',input.organizationId).single(),caller.from('jobs').select('title,companies(name)').eq('id',input.jobId).single()])
     const origin=(Deno.env.get('APP_ORIGIN')||'http://127.0.0.1:5173').split(',')[0].trim().replace(/\/$/,'');const reviewUrl=`${origin}/review/${encodeURIComponent(result.token)}`
     const resendKey=Deno.env.get('RESEND_API_KEY');let providerMessageId:string|undefined;let deliveryStatus='sent'

@@ -166,15 +166,23 @@ export type Database = {
       ai_evaluations: {
         Row: {
           candidate_id: string
+          completed_at: string | null
           created_at: string
+          duration_ms: number | null
           evaluation_type: string
           evidence: Json
+          failure_code: string | null
+          failure_message: string | null
           id: string
+          input_hash: string | null
+          input_tokens: number | null
+          input_versions: Json
           job_id: string | null
           matched_requirements: Json
           missing_requirements: Json
           model: string
           organization_id: string
+          output_tokens: number | null
           prompt_version: string
           provider: string
           raw_response: Json | null
@@ -186,15 +194,23 @@ export type Database = {
         }
         Insert: {
           candidate_id: string
+          completed_at?: string | null
           created_at?: string
+          duration_ms?: number | null
           evaluation_type: string
           evidence?: Json
+          failure_code?: string | null
+          failure_message?: string | null
           id?: string
+          input_hash?: string | null
+          input_tokens?: number | null
+          input_versions?: Json
           job_id?: string | null
           matched_requirements?: Json
           missing_requirements?: Json
           model: string
           organization_id: string
+          output_tokens?: number | null
           prompt_version: string
           provider: string
           raw_response?: Json | null
@@ -206,15 +222,23 @@ export type Database = {
         }
         Update: {
           candidate_id?: string
+          completed_at?: string | null
           created_at?: string
+          duration_ms?: number | null
           evaluation_type?: string
           evidence?: Json
+          failure_code?: string | null
+          failure_message?: string | null
           id?: string
+          input_hash?: string | null
+          input_tokens?: number | null
+          input_versions?: Json
           job_id?: string | null
           matched_requirements?: Json
           missing_requirements?: Json
           model?: string
           organization_id?: string
+          output_tokens?: number | null
           prompt_version?: string
           provider?: string
           raw_response?: Json | null
@@ -282,6 +306,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "audit_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_product_events: {
+        Row: {
+          action_key: string | null
+          actor_user_id: string | null
+          destination: string | null
+          event_name: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          organization_id: string
+          surface: string
+        }
+        Insert: {
+          action_key?: string | null
+          actor_user_id?: string | null
+          destination?: string | null
+          event_name: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          organization_id: string
+          surface: string
+        }
+        Update: {
+          action_key?: string | null
+          actor_user_id?: string | null
+          destination?: string | null
+          event_name?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          organization_id?: string
+          surface?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_product_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -817,6 +885,143 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      candidate_profile_versions: {
+        Row: {
+          ai_evaluation_id: string
+          anonymized: boolean
+          candidate_id: string
+          created_at: string
+          created_by: string
+          docx_document_id: string | null
+          edited_field_count: number | null
+          export_failure_reason: string | null
+          exported_formats: string[]
+          finalization_ms: number | null
+          finalized_at: string | null
+          generated_content: Json
+          generation_ms: number
+          id: string
+          input_hash: string
+          input_versions: Json
+          job_id: string
+          organization_id: string
+          pdf_document_id: string | null
+          reviewed_content: Json | null
+          status: string
+          submitted_at: string | null
+          template_id: string
+          template_snapshot: Json
+          template_version: number
+          version: number
+        }
+        Insert: {
+          ai_evaluation_id: string
+          anonymized?: boolean
+          candidate_id: string
+          created_at?: string
+          created_by: string
+          docx_document_id?: string | null
+          edited_field_count?: number | null
+          export_failure_reason?: string | null
+          exported_formats?: string[]
+          finalization_ms?: number | null
+          finalized_at?: string | null
+          generated_content: Json
+          generation_ms?: number
+          id?: string
+          input_hash: string
+          input_versions?: Json
+          job_id: string
+          organization_id: string
+          pdf_document_id?: string | null
+          reviewed_content?: Json | null
+          status?: string
+          submitted_at?: string | null
+          template_id: string
+          template_snapshot: Json
+          template_version: number
+          version?: number
+        }
+        Update: {
+          ai_evaluation_id?: string
+          anonymized?: boolean
+          candidate_id?: string
+          created_at?: string
+          created_by?: string
+          docx_document_id?: string | null
+          edited_field_count?: number | null
+          export_failure_reason?: string | null
+          exported_formats?: string[]
+          finalization_ms?: number | null
+          finalized_at?: string | null
+          generated_content?: Json
+          generation_ms?: number
+          id?: string
+          input_hash?: string
+          input_versions?: Json
+          job_id?: string
+          organization_id?: string
+          pdf_document_id?: string | null
+          reviewed_content?: Json | null
+          status?: string
+          submitted_at?: string | null
+          template_id?: string
+          template_snapshot?: Json
+          template_version?: number
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_profile_versions_ai_evaluation_id_fkey"
+            columns: ["ai_evaluation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_evaluations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_profile_versions_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_profile_versions_docx_document_id_fkey"
+            columns: ["docx_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_profile_versions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_profile_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_profile_versions_pdf_document_id_fkey"
+            columns: ["pdf_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_profile_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
             referencedColumns: ["id"]
           },
         ]
@@ -3097,6 +3302,7 @@ export type Database = {
       pipeline_stages: {
         Row: {
           color: string | null
+          phase_key: string | null
           id: string
           is_client_visible: boolean
           name: string
@@ -3108,6 +3314,7 @@ export type Database = {
         }
         Insert: {
           color?: string | null
+          phase_key?: string | null
           id?: string
           is_client_visible?: boolean
           name: string
@@ -3119,6 +3326,7 @@ export type Database = {
         }
         Update: {
           color?: string | null
+          phase_key?: string | null
           id?: string
           is_client_visible?: boolean
           name?: string
@@ -4172,40 +4380,52 @@ export type Database = {
       }
       templates: {
         Row: {
+          configuration: Json
           content: string
           created_at: string
           created_by: string
+          deleted_at: string | null
           id: string
           is_default: boolean
           name: string
           organization_id: string
           template_type: string
           updated_at: string
+          updated_by: string | null
           variables: Json
+          version: number
         }
         Insert: {
+          configuration?: Json
           content: string
           created_at?: string
           created_by: string
+          deleted_at?: string | null
           id?: string
           is_default?: boolean
           name: string
           organization_id: string
           template_type: string
           updated_at?: string
+          updated_by?: string | null
           variables?: Json
+          version?: number
         }
         Update: {
+          configuration?: Json
           content?: string
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
           id?: string
           is_default?: boolean
           name?: string
           organization_id?: string
           template_type?: string
           updated_at?: string
+          updated_by?: string | null
           variables?: Json
+          version?: number
         }
         Relationships: [
           {
@@ -4234,6 +4454,14 @@ export type Database = {
       accept_organization_invitation: {
         Args: { p_token: string }
         Returns: Json
+      }
+      archive_candidate_profile_template: {
+        Args: { p_organization_id: string; p_template_id: string }
+        Returns: undefined
+      }
+      configure_founding_partner: {
+        Args: { p_enabled?: boolean; p_organization_id: string }
+        Returns: undefined
       }
       create_job_with_pipeline: {
         Args: {
@@ -4288,6 +4516,22 @@ export type Database = {
           p_title: string
         }
         Returns: Json
+      }
+      default_candidate_profile_configuration: {
+        Args: { p_language?: string }
+        Returns: Json
+      }
+      finalize_candidate_profile: {
+        Args: {
+          p_anonymized: boolean
+          p_docx_document_id: string
+          p_edited_field_count?: number
+          p_organization_id: string
+          p_pdf_document_id: string
+          p_profile_version_id: string
+          p_reviewed_content: Json
+        }
+        Returns: string
       }
       get_my_access_state: { Args: never; Returns: Json }
       has_permission: {
@@ -4384,6 +4628,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      record_candidate_profile_export_failure: {
+        Args: {
+          p_organization_id: string
+          p_profile_version_id: string
+          p_reason: string
+        }
+        Returns: undefined
+      }
       request_ip_hash: { Args: never; Returns: string }
       resolve_submission_documents: {
         Args: { p_token: string }
@@ -4412,6 +4664,16 @@ export type Database = {
           subtitle: string
           title: string
         }[]
+      }
+      save_candidate_profile_template: {
+        Args: {
+          p_configuration: Json
+          p_is_default?: boolean
+          p_name: string
+          p_organization_id: string
+          p_template_id: string | null
+        }
+        Returns: string
       }
       seed_organization_roles: {
         Args: { p_organization_id: string }
@@ -4580,4 +4842,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

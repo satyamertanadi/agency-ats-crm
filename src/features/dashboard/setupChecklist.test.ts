@@ -9,7 +9,7 @@ describe('buildSetupSteps',()=>{
     const steps=buildSetupSteps(empty,base)
     expect(steps.every((step)=>!step.done)).toBe(true)
     expect(steps.filter((step)=>!step.blocked)).toHaveLength(1)
-    expect(steps[0]).toMatchObject({key:'company',blocked:false,href:'/app/northstar/companies'})
+    expect(steps[0]).toMatchObject({key:'company',blocked:false,href:'/app/northstar/clients?new=1'})
   })
 
   it('unblocks the next step as each dependency is met',()=>{

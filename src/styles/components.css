@@ -121,10 +121,36 @@
   background: var(--color-canvas-deep);
   color: var(--color-ink);
 }
+/* Two destructive tiers, because "destructive" was one bucket holding actions that are not alike.
+   See Severity in lib/status.ts for which action is which.
+
+   .button-danger is for the irreversible ones only (rollback an import, revoke a live link). It is
+   filled, not tinted: it used to use --color-danger-soft, and a pale pink fill next to a pale
+   secondary is exactly why active controls were being read as disabled. It is also now rare -- when
+   only the unrecoverable actions are red, red means something again.
+
+   .button-caution is the reversible ones (suspend, disconnect, cancel an interview). Secondary
+   weight, danger-coloured text: available and clearly consequential, without pretending to be the
+   same event as destroying data. */
 .button-danger {
-  background: var(--color-danger-soft);
+  background: var(--color-danger);
+  color: var(--color-on-dark);
+  border-color: var(--color-danger);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-danger) 22%, transparent);
+}
+.button-danger:hover:not(:disabled) {
+  background: var(--color-danger-hover);
+  border-color: var(--color-danger-hover);
+}
+.button-caution {
+  background: var(--color-surface);
   color: var(--color-danger);
-  border-color: color-mix(in srgb, var(--color-danger) 24%, white);
+  border-color: var(--tone-bad-border);
+  box-shadow: var(--shadow-xs);
+}
+.button-caution:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
 }
 .button-bronze {
   background: var(--color-bronze);
@@ -388,6 +414,16 @@ td span:not([class]) {
 }
 .table-scroll tbody tr:last-child td {
   border-bottom: 0;
+}
+/* Money in a column. tabular-nums makes every digit the same advance width, so thousands separators
+   stack vertically and two amounts of the same magnitude are the same length -- without it,
+   proportional digits make 111,000 visibly narrower than 999,000 and the column reads ragged.
+   Right-aligned because the only useful comparison between two figures is by place value. Values in
+   prose (a KPI, a sentence) do NOT take this class -- there is no column to align to. */
+.money {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
 }
 .badge {
   display: inline-flex;

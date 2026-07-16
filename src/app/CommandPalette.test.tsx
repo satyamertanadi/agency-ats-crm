@@ -33,7 +33,7 @@ describe('CommandPalette keyboard navigation',()=>{
   it('moves the selection with the arrow keys',()=>{
     const input=renderPalette()
     fireEvent.keyDown(input,{key:'ArrowDown'})
-    expect(selected()).toContain('Add company')
+    expect(selected()).toContain('Add client')
     fireEvent.keyDown(input,{key:'ArrowUp'})
     expect(selected()).toContain('Add candidate')
   })
@@ -41,7 +41,7 @@ describe('CommandPalette keyboard navigation',()=>{
   it('wraps around at both ends rather than dead-ending',()=>{
     const input=renderPalette()
     fireEvent.keyDown(input,{key:'ArrowUp'})
-    expect(selected()).toContain('Open contacts')
+    expect(selected()).toContain('Open my settings')
     fireEvent.keyDown(input,{key:'ArrowDown'})
     expect(selected()).toContain('Add candidate')
   })
@@ -50,7 +50,7 @@ describe('CommandPalette keyboard navigation',()=>{
     const input=renderPalette()
     fireEvent.keyDown(input,{key:'ArrowDown'})
     fireEvent.keyDown(input,{key:'Enter'})
-    expect(navigate).toHaveBeenCalledWith('/app/northstar/companies?new=1')
+    expect(navigate).toHaveBeenCalledWith('/app/northstar/clients?new=1')
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -73,10 +73,10 @@ describe('CommandPalette keyboard navigation',()=>{
     const input=renderPalette()
     fireEvent.keyDown(input,{key:'End'})
     fireEvent.change(input,{target:{value:'settings'}})
-    // Only "Open settings" survives the filter; the old End index would point past the list.
-    await waitFor(()=>expect(selected()).toContain('Open settings'))
+    // Only "Open my settings" survives the filter; the old End index would point past the list.
+    await waitFor(()=>expect(selected()).toContain('Open my settings'))
     fireEvent.keyDown(input,{key:'Enter'})
-    expect(navigate).toHaveBeenCalledWith('/app/northstar/settings')
+    expect(navigate).toHaveBeenCalledWith('/app/northstar/admin/personal')
   })
 
   it('puts workspace results above the built-in commands',async()=>{

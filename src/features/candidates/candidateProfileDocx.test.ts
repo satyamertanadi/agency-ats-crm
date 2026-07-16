@@ -1,53 +1,24 @@
 import {describe,expect,it} from 'vitest'
-import {candidateProfileAnalysisSchema} from './candidateProfile'
-import {buildCandidateProfileDocx,formatEmploymentRange,informationRows,profileFilename,relevanceFor,type ProfileCandidate} from './candidateProfileDocx'
+import {mkdir,writeFile} from 'node:fs/promises'
+import {resolve} from 'node:path'
+import {buildCandidateProfileDocx} from './candidateProfileDocx'
+import {buildCandidateProfilePdf} from './candidateProfilePdf'
+import {calculateEvidenceScore,candidateProfileDraftSchema,candidateProfileTemplateConfigSchema,defaultCandidateProfileTemplate,hasStaleProfileInputs} from './candidateProfile'
+import {buildCandidateProfileViewModel,formatEmploymentRange,profileFilename,relevanceFor,type ProfileCandidate} from './candidateProfileViewModel'
 
-const analysis=candidateProfileAnalysisSchema.parse({
-  candidate_summary:['Para one.','Para two.'],
-  strengths_opportunities:'Strong operator.',
-  risks_challenges:'P&L depth to confirm.',
-  points_to_validate:['Salary','Notice period'],
-  experience_relevance:[{company_name:'Betterplace',title:'Hotel Manager',relevance:['Runs property operations.']}],
-})
+const draft=candidateProfileDraftSchema.parse({candidate_summary:['Experienced hospitality operator.','Evidence is limited to the supplied record.'],strengths_opportunities:'Direct property operations experience.',risks_challenges:'P&L ownership remains to be confirmed.',points_to_validate:['Confirm P&L ownership.'],experience_relevance:[{company_name:'Betterplace',title:'Hotel Manager',relevance:['Runs property operations.']}],requirement_evidence:[{requirement:'Property operations',classification:'matched',source:'candidate_record',source_path:'candidate.employment[0].title',excerpt:'Hotel Manager',explanation:'Current title supports operational experience.'},{requirement:'P&L ownership',classification:'missing',source:'none',source_path:'',excerpt:'',explanation:'No supplied fact confirms P&L ownership.'}],score:50})
+const candidate:ProfileCandidate={full_name:'Franco George Wenas',current_position:'Hotel Manager',current_company:'Betterplace',location:'Bali, Indonesia',employment:[{company_name:'Betterplace',title:'Hotel Manager',started_on:'2025-11-01',ended_on:null,started_on_precision:'month',ended_on_precision:null,is_current:true}],education:[{degree:'Diploma III',field_of_study:'Hotel Management',institution:'AKPAR NHI'}],languages:['Indonesian','English','Italian']}
 
-const candidate:ProfileCandidate={
-  full_name:'Franco George Wenas',current_position:'Hotel Manager',current_company:'Betterplace',location:'Bali, Indonesia',
-  employment:[{company_name:'Betterplace',title:'Hotel Manager',started_on:'2025-11-01',ended_on:null,started_on_precision:'month',ended_on_precision:null,is_current:true}],
-  education:[{degree:'Diploma III',field_of_study:'Hotel Management',institution:'AKPAR NHI'}],
-  languages:['Indonesian','English','Italian'],
-}
+function view(anonymized=false,language:'en'|'id'='en'){return buildCandidateProfileViewModel({candidate,job:{title:'Operations Manager',company_name:'House of Kairos'},draft,template:defaultCandidateProfileTemplate(language),preparedBy:'Felina Kuswanto',preparedDate:'16 July 2026',organizationName:'Agency ATS',accent:'#196f52',anonymized})}
 
-describe('candidate profile document',()=>{
-  it('auto-fills known fields and leaves unknown fields as "To be confirmed"',()=>{
-    const rows=Object.fromEntries(informationRows(candidate,analysis))
-    expect(rows.Name).toBe('Franco George Wenas')
-    expect(rows.Languages).toBe('Indonesian, English, Italian')
-    expect(rows['Current Location']).toBe('Bali, Indonesia')
-    expect(rows['Strengths & Opportunities']).toBe('Strong operator.')
-    expect(rows.Age).toBe('To be confirmed')
-    expect(rows.Nationality).toBe('To be confirmed')
-    expect(rows['Expected Salary']).toBe('To be confirmed')
-    expect(rows.Photo).toBe('')
-  })
-
-  const role=candidate.employment[0]!
-  it('formats employment ranges by precision and marks current roles',()=>{
-    expect(formatEmploymentRange(role)).toBe('November 2025 – Present')
-    expect(formatEmploymentRange({...role,is_current:false,ended_on:'2024-10-01',ended_on_precision:'month'})).toBe('November 2025 – October 2024')
-    expect(formatEmploymentRange({...role,started_on:null,is_current:false})).toBe('To be confirmed')
-  })
-
-  it('matches relevance to employment by company and title, not position',()=>{
-    const shuffled=candidateProfileAnalysisSchema.parse({experience_relevance:[{company_name:'Other',title:'X',relevance:['no']},{company_name:'Betterplace',title:'Hotel Manager',relevance:['yes']}]})
-    expect(relevanceFor(shuffled,role,0)).toEqual(['yes'])
-  })
-
-  it('builds a non-empty .docx blob',async()=>{
-    const blob=await buildCandidateProfileDocx({candidate,job:{title:'Operations Manager',company_name:'House of Kairos'},analysis,preparedBy:'Felina Kuswanto',date:'June 2026'})
-    expect(blob.size).toBeGreaterThan(0)
-  })
-
-  it('produces a safe filename',()=>{
-    expect(profileFilename(candidate,{title:'Operations Manager',company_name:'House of Kairos'})).toBe('Franco_George_Wenas_Operations_Manager_House_of_Kairos.docx')
-  })
+describe('evidence-backed candidate profile',()=>{
+  it('calculates the internal score deterministically',()=>{expect(calculateEvidenceScore(draft.requirement_evidence)).toBe(50);expect(calculateEvidenceScore([{...draft.requirement_evidence[0]!,classification:'partial'}])).toBe(50)})
+  it('rejects incomplete template section configurations',()=>{const invalid=defaultCandidateProfileTemplate();invalid.sections.pop();expect(candidateProfileTemplateConfigSchema.safeParse(invalid).success).toBe(false)})
+  it('rejects inferred facts classified as evidence',()=>{const invalid={...draft,requirement_evidence:[{requirement:'P&L ownership',classification:'matched',source:'candidate_record',source_path:'',excerpt:'',explanation:'Likely responsible based on title.'}]};expect(candidateProfileDraftSchema.safeParse(invalid).success).toBe(false)})
+  it('formats employment ranges in English and Indonesian',()=>{const role=candidate.employment[0]!;expect(formatEmploymentRange(role,'en')).toBe('November 2025 - Present');expect(formatEmploymentRange(role,'id')).toContain('November 2025')})
+  it('matches relevance by company and title',()=>{expect(relevanceFor(draft,candidate.employment[0]!,0)).toEqual(['Runs property operations.'])})
+  it('removes identifying candidate fields before either renderer receives data',()=>{const anonymous=view(true);const serialized=JSON.stringify(anonymous);expect(anonymous.candidateName).toBe('Confidential candidate');expect(Object.fromEntries(anonymous.information)['Current location']).toBe('Withheld');expect(serialized).not.toContain('Franco George Wenas');expect(serialized).not.toContain('Bali, Indonesia')})
+  it('uses one canonical approved view model for non-empty DOCX and PDF output',async()=>{const approved=view();const [docx,pdf]=await Promise.all([buildCandidateProfileDocx(approved),buildCandidateProfilePdf(approved)]);expect(docx.size).toBeGreaterThan(1000);expect(pdf.size).toBeGreaterThan(1000);expect(pdf.type).toBe('application/pdf');if(process.env.PROFILE_QA_OUTPUT){const output=resolve(process.env.PROFILE_QA_OUTPUT);await mkdir(output,{recursive:true});await Promise.all([writeFile(resolve(output,'candidate-profile.docx'),new Uint8Array(await docx.arrayBuffer())),writeFile(resolve(output,'candidate-profile.pdf'),new Uint8Array(await pdf.arrayBuffer()))])}})
+  it('uses bilingual labels and safe anonymous filenames',()=>{const indonesian=view(true,'id');expect(indonesian.sectionOrder[0]!.label).toBe('Ringkasan kandidat');expect(profileFilename(indonesian,'pdf')).toBe('confidential-candidate_Operations_Manager_House_of_Kairos.pdf')})
+  it('detects drafts whose source versions changed',()=>{expect(hasStaleProfileInputs({candidate_updated_at:'a',job_updated_at:'b',template_version:2},{candidateUpdatedAt:'a',jobUpdatedAt:'changed',templateVersion:2})).toBe(true);expect(hasStaleProfileInputs({candidate_updated_at:'a',job_updated_at:'b',template_version:2},{candidateUpdatedAt:'a',jobUpdatedAt:'b',templateVersion:2})).toBe(false)})
 })

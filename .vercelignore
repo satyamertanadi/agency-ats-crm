@@ -1,0 +1,9 @@
+outputs/
+playwright-report/
+test-results/
+tmp/
+coverage/
+.github/
+docs/
+tests/
+supabase/

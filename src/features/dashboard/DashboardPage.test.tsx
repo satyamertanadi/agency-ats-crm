@@ -34,9 +34,9 @@ describe('DashboardPage first run',()=>{
     dashboardSummary.mockResolvedValue(emptyWorkspace)
     renderDashboard()
     expect(await screen.findByRole('heading',{name:'Set up your agency'})).toBeInTheDocument()
-    expect(screen.getByText('0 of 6 done · next: add your first client company')).toBeInTheDocument()
-    expect(screen.getByRole('link',{name:'Add company'})).toHaveAttribute('href','/app/northstar/companies')
-    expect(screen.queryByRole('link',{name:'Create vacancy'})).not.toBeInTheDocument()
+    expect(screen.getByText('0 of 6 done · next: add your first client')).toBeInTheDocument()
+    expect(screen.getByRole('link',{name:'Add client'})).toHaveAttribute('href','/app/northstar/clients?new=1')
+    expect(screen.queryByRole('link',{name:'Create job'})).not.toBeInTheDocument()
     expect(screen.getAllByText('Earlier step first')).toHaveLength(5)
   })
 

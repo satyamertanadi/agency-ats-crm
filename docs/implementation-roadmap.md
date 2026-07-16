@@ -1,5 +1,11 @@
 # Implementation roadmap
 
+## Current six-month focus
+
+The product promise is: turn a CV into a reviewed, role-tailored, client-ready profile in under five minutes. The code path is implemented behind the `profile_v1` organization setting; the operating rollout is tracked in [design-partner-profile-rollout.md](design-partner-profile-rollout.md).
+
+Careers/apply remains conditional. It must not enter implementation until all three partners are live, each has two weekly active recruiters, median reviewed-profile time is at most five minutes, generation succeeds at least 95% of the time, and no severity-1/2 or tenant-isolation defect remains open.
+
 ## Code-complete pilot foundation
 
 - Invitation-only team access and pilot role matrix

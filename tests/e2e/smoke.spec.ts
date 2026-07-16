@@ -2,6 +2,9 @@ import {expect,test} from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
 test('production login is invitation-only Google and keyboard reachable',async({page})=>{
+  // Vercel serves these scripts only on a deployed URL; local `vite preview` cannot.
+  await page.route('**/_vercel/**/script.js',(route)=>route.fulfill({status:200,contentType:'application/javascript',body:''}))
+  const consoleErrors:string[]=[];const failedResponses:string[]=[];page.on('console',(message)=>{if(message.type()==='error')consoleErrors.push(message.text())});page.on('response',(response)=>{if(response.status()>=400)failedResponses.push(`${response.status()} ${response.url()}`)})
   await page.goto('/login?next=%2Fapp')
   await expect(page.getByRole('heading',{name:'Welcome back'})).toBeVisible()
   const google=page.getByRole('button',{name:'Continue with Google'})
@@ -10,6 +13,9 @@ test('production login is invitation-only Google and keyboard reachable',async({
   await expect(page.getByLabel('Email')).toHaveCount(0)
   await page.keyboard.press('Tab')
   await expect(google).toBeFocused()
+  await expect(page.locator('.vite-error-overlay, #webpack-dev-server-client-overlay')).toHaveCount(0)
+  expect((await page.locator('body').innerText()).trim().length).toBeGreaterThan(0)
+  expect(consoleErrors,failedResponses.join('\n')).toEqual([])
 })
 
 test('self-service signup is not exposed',async({page})=>{

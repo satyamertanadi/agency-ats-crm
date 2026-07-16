@@ -16,7 +16,7 @@ Status is conservative: **implemented** means code and local gates exist; **exte
 | Reporting | Implemented | Date-range agency funnel, conversions, placements, fees, overdue work, and consultant performance. |
 | Full business migration | Implemented / client mapping gate | CSV/XLSX column mapping, dry run, validation, legacy relationships, idempotent commit, reconciliation, error CSV, and batch rollback across all pilot entities. Client files and rehearsal approval remain external. |
 | Monitoring and release automation | Implemented / environment gate | PII-scrubbed Sentry hooks, Vercel Analytics/Speed Insights, security headers, clean-schema CI, dependency scanning, production smoke workflow, and runbooks. Environment provisioning remains external. |
-| Templates and autonomous AI | Hidden/deferred | Not shown in production navigation. |
+| Evidence-backed client profiles | Implemented / controlled rollout gate | Owner-managed bilingual templates, tracked provider evidence, deterministic internal scoring, immutable reviewed versions, anonymization before rendering, and private DOCX/PDF finalization are implemented. Each organization remains disabled until service staff run the founding-partner configuration and production UAT passes. AI never sends, rejects, or ranks automatically. |
 | Gmail, two-way Calendar, job boards, billing | Deferred | Outside the 30-day pilot scope. |
 
 ## Verified locally
@@ -25,7 +25,7 @@ Status is conservative: **implemented** means code and local gates exist; **exte
 - ESLint and strict TypeScript against generated Supabase types
 - Unit tests and production build
 - Clean Supabase reset from migrations and seed
-- Seven RLS tests covering two tenants, role permissions, secret denial, invitations, and suspension
+- RLS coverage across two tenants, role permissions, profile/template boundaries, secret denial, invitations, and immediate suspension
 
 ## Pilot blockers that code cannot close
 

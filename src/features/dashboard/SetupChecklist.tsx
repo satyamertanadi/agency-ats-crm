@@ -11,12 +11,12 @@ export interface SetupStep {key:string;title:string;description:string;done:bool
  */
 export function buildSetupSteps(data:{companies:number;contacts:number;activeJobs:number;candidates:number;pipelineEntries:number;members:number},base:string):SetupStep[]{
   const steps:Array<Omit<SetupStep,'blocked'>>=[
-    {key:'company',title:'Add your first client company',description:'Everything else hangs off a client, so this comes first.',done:data.companies>0,href:`${base}/companies`,cta:'Add company'},
-    {key:'contact',title:'Add a hiring contact',description:'The person you send candidates to for review.',done:data.contacts>0,href:`${base}/contacts`,cta:'Add contact'},
-    {key:'job',title:'Open your first vacancy',description:'Each vacancy gets its own pipeline, copied from your default stages.',done:data.activeJobs>0,href:`${base}/jobs`,cta:'Create vacancy'},
-    {key:'candidate',title:'Add a candidate',description:'Upload a CV to fill the profile automatically, or enter one by hand.',done:data.candidates>0,href:`${base}/candidates`,cta:'Add candidate'},
+    {key:'company',title:'Add your first client',description:'Everything else hangs off a client, so this comes first.',done:data.companies>0,href:`${base}/clients?new=1`,cta:'Add client'},
+    {key:'contact',title:'Add a hiring contact',description:'The person you send candidates to for review.',done:data.contacts>0,href:`${base}/clients?new=1`,cta:'Add contact'},
+    {key:'job',title:'Open your first job',description:'Each job gets a pipeline automatically.',done:data.activeJobs>0,href:`${base}/jobs?new=1`,cta:'Create job'},
+    {key:'candidate',title:'Add a candidate',description:'Upload a CV to fill the profile automatically, or enter one by hand.',done:data.candidates>0,href:`${base}/candidates?new=1`,cta:'Add candidate'},
     {key:'pipeline',title:'Move a candidate into a pipeline',description:'This is where day-to-day delivery happens.',done:data.pipelineEntries>0,href:`${base}/jobs`,cta:'Open pipelines'},
-    {key:'team',title:'Invite your team',description:'Consultants get their own logins and permissions.',done:data.members>1,href:`${base}/settings`,cta:'Invite team'},
+    {key:'team',title:'Invite your team',description:'Consultants get their own logins and permissions.',done:data.members>1,href:`${base}/admin/workspace`,cta:'Invite team'},
   ]
   // A step is blocked while any earlier step is outstanding — the same dependency the pages
   // already enforce by disabling their own create buttons, surfaced up front instead of on arrival.

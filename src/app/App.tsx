@@ -1,5 +1,5 @@
 import { lazy,Suspense } from 'react'
-import { Navigate,Route,Routes,useLocation } from 'react-router-dom'
+import { Navigate,Route,Routes,useLocation,useParams } from 'react-router-dom'
 import { useAuth } from './AuthProvider'
 import { useOrganization } from './OrganizationProvider'
 import { AppShell } from './AppShell'
@@ -7,13 +7,18 @@ import { LoadingState } from '../shared/ui/States'
 import { AccessPendingPage,LoginPage,OnboardingPage,ResetPasswordPage,SignupPage } from '../features/auth/AuthPages'
 import { InvitePage } from '../features/auth/InvitePage'
 import { env } from '../shared/lib/env'
+import {useWorkspaceCapabilities} from './useWorkspaceCapabilities'
+import type {WorkspaceCapabilities} from '../shared/types/domain'
 
+const TodayPage=lazy(()=>import('../features/dashboard/TodayPage').then((module)=>({default:module.TodayPage})))
 const DashboardPage=lazy(()=>import('../features/dashboard/DashboardPage').then((module)=>({default:module.DashboardPage})))
 const CandidatesPage=lazy(()=>import('../features/candidates/CandidatesPage').then((module)=>({default:module.CandidatesPage})))
 const CandidateDetailPage=lazy(()=>import('../features/candidates/CandidateDetailPage').then((module)=>({default:module.CandidateDetailPage})))
 const CompaniesPage=lazy(()=>import('../features/companies/CompaniesPage').then((module)=>({default:module.CompaniesPage})))
 const ContactsPage=lazy(()=>import('../features/contacts/ContactsPage').then((module)=>({default:module.ContactsPage})))
 const JobsPage=lazy(()=>import('../features/jobs/JobsPage').then((module)=>({default:module.JobsPage})))
+const JobWorkspacePage=lazy(()=>import('../features/jobs/JobWorkspacePage').then((module)=>({default:module.JobWorkspacePage})))
+const ClientsPage=lazy(()=>import('../features/clients/ClientsPage').then((module)=>({default:module.ClientsPage})))
 const CompanyDetailPage=lazy(()=>import('../features/core/RecordDetailPages').then((module)=>({default:module.CompanyDetailPage})))
 const ContactDetailPage=lazy(()=>import('../features/core/RecordDetailPages').then((module)=>({default:module.ContactDetailPage})))
 const JobDetailPage=lazy(()=>import('../features/core/RecordDetailPages').then((module)=>({default:module.JobDetailPage})))
@@ -27,6 +32,10 @@ const SearchPage=lazy(()=>import('../features/search/SearchPage').then((module)=
 const SettingsPage=lazy(()=>import('../features/settings/SettingsPage').then((module)=>({default:module.SettingsPage})))
 const ReportsPage=lazy(()=>import('../features/reports/ReportsPage').then((module)=>({default:module.ReportsPage})))
 const ImportsPage=lazy(()=>import('../features/imports/ImportsPage').then((module)=>({default:module.ImportsPage})))
+const TemplatesPage=lazy(()=>import('../features/templates/TemplatesPage').then((module)=>({default:module.TemplatesPage})))
+const AdminCenterPage=lazy(()=>import('../features/settings/AdminCenterPage').then((module)=>({default:module.AdminCenterPage})))
+const PersonalSettingsPage=lazy(()=>import('../features/settings/PersonalSettingsPage').then((module)=>({default:module.PersonalSettingsPage})))
+const PipelineSettingsPage=lazy(()=>import('../features/settings/PipelineSettingsPage').then((module)=>({default:module.PipelineSettingsPage})))
 // Dev-only design system specimen. The DEV guard must wrap the import() itself, not just the
 // <Route>: a top-level lazy(()=>import(...)) is emitted as a chunk by Rollup whether or not the
 // route is reachable, so guarding only the route still ships the page. With the ternary, Vite
@@ -38,11 +47,16 @@ const StyleguidePage=import.meta.env.DEV
   :()=>null
 
 function Protected(){const {user,loading}=useAuth();const {memberships,loading:orgLoading}=useOrganization();const location=useLocation();if(loading||orgLoading)return <LoadingState label="Opening workspace…"/>;if(!user)return <Navigate to={`/login?next=${encodeURIComponent(location.pathname+location.search)}`} replace/>;if(memberships.length===0)return <Navigate to={env.allowSelfServiceOnboarding?'/onboarding':'/access-pending'} replace/>;return <AppShell/>}
-function WorkspaceIndex(){const {organization}=useOrganization();return <Navigate to={`/app/${organization?.slug||'workspace'}/dashboard`} replace/>}
+function WorkspaceIndex(){const {organization}=useOrganization();return <Navigate to={`/app/${organization?.slug||'workspace'}/${organization?.consultant_first_enabled===false?'dashboard':'today'}`} replace/>}
+function WorkspaceHome(){const {organization}=useOrganization();return <Navigate to={organization?.consultant_first_enabled===false?'dashboard':'today'} replace/>}
+function LegacyRedirect({area}:{area:string}){const {organizationSlug='workspace',companyId,jobId}=useParams();const location=useLocation();const suffix=companyId?`/${companyId}`:jobId?`/${jobId}`:'';return <Navigate to={`/app/${organizationSlug}/${area}${suffix}${location.search}`} replace/>}
+function ExperienceRoute({legacy,simplified}:{legacy:React.ReactNode;simplified:React.ReactNode}){const {organization}=useOrganization();return organization?.consultant_first_enabled===false?legacy:simplified}
+function CapabilityRoute({capability,children}:{capability:keyof WorkspaceCapabilities;children:React.ReactNode}){const {organization}=useOrganization();const capabilities=useWorkspaceCapabilities();if(capabilities.isLoading)return <LoadingState label="Checking access…"/>;return capabilities.data?.[capability]?children:<Navigate to={`/app/${organization!.slug}/today`} replace/>}
 
 export function App(){return <Suspense fallback={<LoadingState label="Loading view…"/>}><Routes>
   <Route path="/login" element={<LoginPage/>}/><Route path="/signup" element={<SignupPage/>}/><Route path="/reset-password" element={<ResetPasswordPage/>}/><Route path="/onboarding" element={<OnboardingPage/>}/><Route path="/access-pending" element={<AccessPendingPage/>}/><Route path="/invite/:token" element={<InvitePage/>}/><Route path="/review/:token" element={<PublicReviewPage/>}/>
-  <Route element={<Protected/>}><Route path="/app" element={<WorkspaceIndex/>}/><Route path="/app/:organizationSlug"><Route index element={<Navigate to="dashboard" replace/>}/><Route path="dashboard" element={<DashboardPage/>}/><Route path="candidates" element={<CandidatesPage/>}/><Route path="candidates/:candidateId" element={<CandidateDetailPage/>}/><Route path="companies" element={<CompaniesPage/>}/><Route path="companies/:companyId" element={<CompanyDetailPage/>}/><Route path="contacts" element={<ContactsPage/>}/><Route path="contacts/:contactId" element={<ContactDetailPage/>}/><Route path="jobs" element={<JobsPage/>}/><Route path="jobs/:jobId" element={<JobDetailPage/>}/><Route path="jobs/:jobId/pipeline" element={<PipelinePage/>}/><Route path="submissions" element={<SubmissionsPage/>}/><Route path="delivery" element={<DeliveryPage/>}/><Route path="placements" element={<PlacementsPage/>}/><Route path="tasks" element={<TasksPage/>}/><Route path="search" element={<SearchPage/>}/><Route path="reports" element={<ReportsPage/>}/><Route path="imports" element={<ImportsPage/>}/><Route path="settings" element={<SettingsPage/>}/></Route></Route>
+  <Route element={<Protected/>}><Route path="/app" element={<WorkspaceIndex/>}/><Route path="/app/:organizationSlug"><Route index element={<WorkspaceHome/>}/><Route path="today" element={<TodayPage/>}/><Route path="candidates" element={<CandidatesPage/>}/><Route path="candidates/:candidateId" element={<CandidateDetailPage/>}/><Route path="clients" element={<ClientsPage/>}/><Route path="clients/:companyId" element={<CompanyDetailPage/>}/><Route path="clients/:companyId/contacts/:contactId" element={<ContactDetailPage/>}/><Route path="jobs" element={<JobsPage/>}/><Route path="jobs/:jobId" element={<ExperienceRoute legacy={<JobDetailPage/>} simplified={<JobWorkspacePage/>}/>}/><Route path="admin" element={<AdminCenterPage/>}/><Route path="admin/personal" element={<PersonalSettingsPage/>}/><Route path="admin/reports" element={<CapabilityRoute capability="canViewTeamReports"><ReportsPage/></CapabilityRoute>}/><Route path="admin/finance" element={<CapabilityRoute capability="canManageFinance"><PlacementsPage/></CapabilityRoute>}/><Route path="admin/imports" element={<CapabilityRoute capability="canImport"><ImportsPage/></CapabilityRoute>}/><Route path="admin/templates" element={<CapabilityRoute capability="canManageTemplates"><TemplatesPage/></CapabilityRoute>}/><Route path="admin/workspace" element={<CapabilityRoute capability="canManageWorkspace"><SettingsPage/></CapabilityRoute>}/><Route path="admin/pipeline" element={<CapabilityRoute capability="canManageWorkspace"><PipelineSettingsPage/></CapabilityRoute>}/>
+  <Route path="dashboard" element={<ExperienceRoute legacy={<DashboardPage/>} simplified={<LegacyRedirect area="today"/>}/>}/><Route path="companies" element={<ExperienceRoute legacy={<CompaniesPage/>} simplified={<LegacyRedirect area="clients"/>}/>}/><Route path="companies/:companyId" element={<ExperienceRoute legacy={<CompanyDetailPage/>} simplified={<LegacyRedirect area="clients"/>}/>}/><Route path="contacts" element={<ExperienceRoute legacy={<ContactsPage/>} simplified={<LegacyRedirect area="clients"/>}/>}/><Route path="contacts/:contactId" element={<ContactDetailPage/>}/><Route path="jobs/:jobId/pipeline" element={<ExperienceRoute legacy={<PipelinePage/>} simplified={<LegacyRedirect area="jobs"/>}/>}/><Route path="submissions" element={<ExperienceRoute legacy={<SubmissionsPage/>} simplified={<LegacyRedirect area="today"/>}/>}/><Route path="delivery" element={<ExperienceRoute legacy={<DeliveryPage/>} simplified={<LegacyRedirect area="today"/>}/>}/><Route path="tasks" element={<ExperienceRoute legacy={<TasksPage/>} simplified={<LegacyRedirect area="today"/>}/>}/><Route path="search" element={<ExperienceRoute legacy={<SearchPage/>} simplified={<LegacyRedirect area="today"/>}/>}/><Route path="placements" element={<ExperienceRoute legacy={<PlacementsPage/>} simplified={<LegacyRedirect area="admin/finance"/>}/>}/><Route path="reports" element={<ExperienceRoute legacy={<ReportsPage/>} simplified={<LegacyRedirect area="admin/reports"/>}/>}/><Route path="imports" element={<ExperienceRoute legacy={<ImportsPage/>} simplified={<LegacyRedirect area="admin/imports"/>}/>}/><Route path="templates" element={<LegacyRedirect area="admin/templates"/>}/><Route path="settings" element={<ExperienceRoute legacy={<SettingsPage/>} simplified={<LegacyRedirect area="admin/personal"/>}/>}/></Route></Route>
   {import.meta.env.DEV&&<Route path="/styleguide" element={<StyleguidePage/>}/>}
   <Route path="*" element={<Navigate to="/app" replace/>}/>
 </Routes></Suspense>}

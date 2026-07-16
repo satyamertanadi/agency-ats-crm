@@ -1,0 +1,121 @@
+import type {Interview,Job,JobCandidate,Offer,PipelinePhaseKey,PipelineStage,Task} from '../../shared/types/domain'
+
+export type {PipelinePhaseKey} from '../../shared/types/domain'
+export type NextActionKey='add_candidates'|'submit'|'check_feedback'|'schedule_interview'|'record_outcome'|'record_offer'|'create_placement'|'resolve_delivery'|'complete_job'
+export type TodayWorkKind='blocked'|'overdue'|'today'|'upcoming'|'recommended'
+
+export interface NextAction {key:NextActionKey;label:string;reason:string}
+export interface TodayWorkItem {id:string;kind:TodayWorkKind;title:string;reason:string;href:string;cta:string;dueAt?:string|null}
+
+export const pipelinePhases:Array<{key:PipelinePhaseKey;label:string}>=[
+  {key:'sourcing',label:'Sourcing'},
+  {key:'screening',label:'Screening'},
+  {key:'shortlist',label:'Shortlist'},
+  {key:'client_review',label:'Client review'},
+  {key:'interview',label:'Interview'},
+  {key:'offer',label:'Offer'},
+  {key:'placed',label:'Placed'},
+]
+
+const keyPhase:Record<string,PipelinePhaseKey>={
+  sourced:'sourcing',contacted:'sourcing',interested:'screening',screening:'screening',
+  longlisted:'shortlist',shortlisted:'shortlist',assessment:'shortlist',reference_check:'shortlist',
+  submitted_to_client:'client_review',client_reviewing:'client_review',
+  interview_scheduled:'interview',interview_completed:'interview',offer:'offer',placed:'placed',
+}
+
+export function phaseForStage(stage:Pick<PipelineStage,'stage_key'|'stage_type'|'phase_key'>):PipelinePhaseKey{
+  if(stage.phase_key)return stage.phase_key
+  if(stage.stage_type==='placed')return 'placed'
+  return keyPhase[stage.stage_key]??'other'
+}
+
+export function groupPipelineStages(stages:PipelineStage[]){
+  return pipelinePhases.map((phase)=>({
+    ...phase,
+    stages:stages.filter((stage)=>phaseForStage(stage)===phase.key),
+  })).filter((phase)=>phase.stages.length>0)
+}
+
+export function recommendedCandidateAction(input:{stage:PipelineStage;hasSubmission:boolean;interviews:Interview[];offers:Offer[];hasPlacement:boolean}):NextAction{
+  const {stage,hasSubmission,interviews,offers,hasPlacement}=input
+  const phase=phaseForStage(stage)
+  const activeInterview=interviews.find((item)=>item.status==='scheduled')
+  const completedInterview=interviews.find((item)=>item.status==='completed')
+  const offer=offers.find((item)=>!['declined','withdrawn'].includes(item.status))
+  if(phase==='shortlist'&&!hasSubmission)return {key:'submit',label:'Submit to client',reason:'This candidate is shortlisted and ready for client review.'}
+  if(phase==='client_review'&&!activeInterview)return {key:'check_feedback',label:'Check client feedback',reason:'The candidate is with the client and needs a follow-up.'}
+  if(phase==='interview'&&!activeInterview&&!completedInterview)return {key:'schedule_interview',label:'Schedule interview',reason:'No interview has been scheduled for this candidate.'}
+  if(completedInterview&&!offer)return {key:'record_outcome',label:'Record outcome',reason:'The latest interview is complete and has no recorded outcome.'}
+  if((phase==='offer'||completedInterview)&&!offer)return {key:'record_offer',label:'Record offer',reason:'The candidate has reached the offer milestone.'}
+  if(offer?.status==='accepted'&&!hasPlacement)return {key:'create_placement',label:'Create placement',reason:'The offer is accepted and the placement is not yet recorded.'}
+  return {key:'complete_job',label:'Review candidate',reason:`Currently in ${stage.name}.`}
+}
+
+const dayKey=(value:Date)=>`${value.getFullYear()}-${value.getMonth()}-${value.getDate()}`
+
+export function buildTodayWorkItems(input:{
+  base:string;now:Date;currentMemberId?:string;tasks:Task[];interviews:Interview[];offers:Offer[];jobs:Job[]
+  deliveryIssues?:Array<{id:string;status:string;email_type:string;related_entity_id:string|null;error_message:string|null;updated_at:string}>
+  submissions?:Array<{id:string;job_id:string;title:string;public_submission_links:Array<{id:string;expires_at:string;revoked_at:string|null}>}>
+}):TodayWorkItem[]{
+  const {base,now,currentMemberId}=input
+  const items:TodayWorkItem[]=[]
+  for(const task of input.tasks){
+    if(task.status==='completed'||task.status==='cancelled')continue
+    if(currentMemberId&&task.owner_member_id&&task.owner_member_id!==currentMemberId)continue
+    const link=task.task_links?.[0]
+    const href=link?.job_id?`${base}/jobs/${link.job_id}`:link?.candidate_id?`${base}/candidates/${link.candidate_id}`:link?.company_id?`${base}/clients/${link.company_id}`:`${base}/today`
+    const due=task.due_at?new Date(task.due_at):null
+    const kind:TodayWorkKind=!due?'recommended':due<now?'overdue':dayKey(due)===dayKey(now)?'today':'upcoming'
+    items.push({id:`task-${task.id}`,kind,title:task.title,reason:link?.jobs?.title||link?.candidates?.full_name||link?.companies?.name||task.description||'Owned follow-up',href,cta:'Open',dueAt:task.due_at})
+  }
+  for(const interview of input.interviews){
+    const job=interview.job_candidates?.jobs
+    if(interview.status==='cancelled')continue
+    if(currentMemberId&&interview.organizer_member_id&&interview.organizer_member_id!==currentMemberId&&job?.owner_member_id!==currentMemberId)continue
+    const failed=interview.calendar_sync_status==='failed'
+    const starts=new Date(interview.starts_at)
+    if(!failed&&starts<now)continue
+    items.push({
+      id:`interview-${interview.id}`,
+      kind:failed?'blocked':dayKey(starts)===dayKey(now)?'today':'upcoming',
+      title:failed?'Resolve Calendar sync':`Interview · ${interview.job_candidates?.candidates?.full_name||'Candidate'}`,
+      reason:failed?interview.calendar_last_error||'Calendar synchronization failed.':`${job?.title||'Job'} · ${starts.toLocaleString()}`,
+      href:job?.id?`${base}/jobs/${job.id}?candidate=${interview.job_candidate_id}&action=interview`:`${base}/today`,
+      cta:failed?'Resolve':'Open',dueAt:interview.starts_at,
+    })
+  }
+  for(const offer of input.offers){
+    if(!['presented','accepted'].includes(offer.status))continue
+    const job=offer.job_candidates?.jobs
+    if(currentMemberId&&job?.owner_member_id&&job.owner_member_id!==currentMemberId)continue
+    items.push({
+      id:`offer-${offer.id}`,kind:'recommended',
+      title:offer.status==='accepted'?'Create placement':'Review offer',
+      reason:`${offer.job_candidates?.candidates?.full_name||'Candidate'} · ${job?.title||'Job'}`,
+      href:job?.id?`${base}/jobs/${job.id}?candidate=${offer.job_candidate_id}&action=${offer.status==='accepted'?'placement':'offer'}`:`${base}/today`,
+      cta:offer.status==='accepted'?'Create placement':'Open offer',
+    })
+  }
+  for(const job of input.jobs){
+    if(job.status!=='open'||(currentMemberId&&job.owner_member_id&&job.owner_member_id!==currentMemberId))continue
+    if(!job.owner_member_id)items.push({id:`job-owner-${job.id}`,kind:'blocked',title:`Assign an owner · ${job.title}`,reason:'This open job has no accountable consultant.',href:`${base}/jobs/${job.id}?view=details`,cta:'Complete setup'})
+  }
+  const deliveryPackages=new Set<string>()
+  for(const delivery of input.deliveryIssues||[]){
+    const pack=input.submissions?.find((entry)=>entry.id===delivery.related_entity_id);if(pack)deliveryPackages.add(pack.id)
+    items.push({id:`delivery-${delivery.id}`,kind:'blocked',title:`Resolve ${delivery.status} delivery`,reason:delivery.error_message||`A ${delivery.email_type.replaceAll('_',' ')} email could not be delivered.`,href:pack?`${base}/jobs/${pack.job_id}`:`${base}/today`,cta:'Resolve',dueAt:delivery.updated_at})
+  }
+  for(const pack of input.submissions||[]){
+    if(deliveryPackages.has(pack.id))continue
+    const expired=pack.public_submission_links?.find((link)=>!link.revoked_at&&new Date(link.expires_at)<now)
+    if(expired)items.push({id:`submission-expired-${expired.id}`,kind:'blocked',title:'Renew expired submission link',reason:pack.title,href:`${base}/jobs/${pack.job_id}`,cta:'Resolve',dueAt:expired.expires_at})
+  }
+  const order:Record<TodayWorkKind,number>={blocked:0,overdue:1,today:2,upcoming:3,recommended:4}
+  return items.sort((a,b)=>order[a.kind]-order[b.kind]||(a.dueAt||'9999').localeCompare(b.dueAt||'9999'))
+}
+
+export function jobNeedsCandidateAction(items:JobCandidate[]):NextAction|null{
+  return items.length?null:{key:'add_candidates',label:'Add candidates',reason:'This job has no candidates yet.'}
+}

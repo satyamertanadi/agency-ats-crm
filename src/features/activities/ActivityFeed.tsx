@@ -7,6 +7,7 @@ import {Button} from '../../shared/ui/Button'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Panel} from '../../shared/ui/Page'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
+import {formatDate,formatDateTime} from '../../shared/lib/format'
 import type {ActivityType} from '../../shared/types/domain'
 
 const manualTypes=[{value:'call',label:'Call'},{value:'email',label:'Email'},{value:'whatsapp',label:'WhatsApp'},{value:'meeting',label:'Meeting'},{value:'other',label:'Other'}] as const
@@ -18,14 +19,14 @@ const relative=(iso:string)=>{const diff=Date.now()-new Date(iso).getTime();cons
   if(mins<1)return 'just now';if(mins<60)return `${mins}m ago`
   const hours=Math.round(mins/60);if(hours<24)return `${hours}h ago`
   const days=Math.round(hours/24);if(days<30)return `${days}d ago`
-  return new Date(iso).toLocaleDateString()}
+  return formatDate(iso)}
 
 /**
  * Reads and writes the shared activity journal for one record. `links` names every record the
  * entry should appear on: logging a call from a vacancy's pipeline can file it against the
  * candidate and the vacancy at once.
  */
-export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, and meetings, plus pipeline movement recorded automatically.'}:{links:ActivityLink[];title?:string;subtitle?:string}){
+export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, and meetings, plus pipeline movement recorded automatically.',readOnly=false}:{links:ActivityLink[];title?:string;subtitle?:string;readOnly?:boolean}){
   const {organization}=useOrganization();const cache=useQueryClient()
   const primary=links[0]
   const [open,setOpen]=useState(false)
@@ -42,13 +43,13 @@ export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, an
     onSuccess:async()=>{reset();setOpen(false)
       await cache.invalidateQueries({queryKey:['activities',organization?.id]})
       // The dashboard reads the same journal, so its feed would otherwise lag behind this one.
-      await cache.invalidateQueries({queryKey:['dashboard',organization?.id]})},
+      await Promise.all([cache.invalidateQueries({queryKey:['dashboard',organization?.id]}),cache.invalidateQueries({queryKey:['today',organization?.id]})])},
   })
   const submit=(event:FormEvent)=>{event.preventDefault();if(summary.trim())log.mutate()}
 
   return <Panel title={title} subtitle={subtitle} elevation="raised"
-    action={<Button variant={open?'quiet':'secondary'} onClick={()=>{setOpen(!open);log.reset()}} aria-expanded={open}>{open?'Cancel':'Log activity'}</Button>}>
-    {open&&<form className="form-grid activity-form" onSubmit={submit}>
+    action={!readOnly&&<Button variant={open?'quiet':'secondary'} onClick={()=>{setOpen(!open);log.reset()}} aria-expanded={open}>{open?'Cancel':'Log activity'}</Button>}>
+    {open&&!readOnly&&<form className="form-grid activity-form" onSubmit={submit}>
       <Field label="Type"><Select value={type} onChange={(event)=>setType(event.target.value)}>{manualTypes.map((item)=><option key={item.value} value={item.value}>{item.label}</option>)}</Select></Field>
       <Field label="Direction"><Select value={direction} onChange={(event)=>setDirection(event.target.value)}><option value="outbound">Outbound</option><option value="inbound">Inbound</option><option value="internal">Internal</option></Select></Field>
       <Field label="When"><Input type="datetime-local" max={localNow()} value={occurredAt} onChange={(event)=>setOccurredAt(event.target.value)}/></Field>
@@ -67,7 +68,7 @@ export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, an
             {activity.direction==='inbound'&&<ArrowDownLeft size={12} aria-label="Inbound"/>}
             {activity.direction==='outbound'&&<ArrowUpRight size={12} aria-label="Outbound"/>}</div>
           <p>{activity.summary}</p>
-          <small>{activity.profiles?.full_name||'A teammate'} · <time dateTime={activity.occurred_at} title={new Date(activity.occurred_at).toLocaleString()}>{relative(activity.occurred_at)}</time></small>
+          <small>{activity.profiles?.full_name||'A teammate'} · <time dateTime={activity.occurred_at} title={formatDateTime(activity.occurred_at)}>{relative(activity.occurred_at)}</time></small>
         </div>
       </li>})}</ol>}
   </Panel>

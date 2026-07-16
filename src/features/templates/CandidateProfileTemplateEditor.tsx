@@ -1,0 +1,22 @@
+import {ArrowDown,ArrowUp,Archive,Save} from 'lucide-react'
+import {useState} from 'react'
+import {Button} from '../../shared/ui/Button'
+import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
+import {defaultCandidateProfileTemplate,type CandidateProfileTemplate,type CandidateProfileTemplateConfig} from '../candidates/candidateProfile'
+
+export function CandidateProfileTemplateEditor({template,canManage,saving,onSave,onArchive}:{template:CandidateProfileTemplate|null;canManage:boolean;saving:boolean;onSave:(value:{id?:string;name:string;configuration:CandidateProfileTemplateConfig;isDefault:boolean})=>void;onArchive?:()=>void}){
+  const [name,setName]=useState(template?.name||'New client profile')
+  const [configuration,setConfiguration]=useState<CandidateProfileTemplateConfig>(()=>template?.configuration||defaultCandidateProfileTemplate())
+  const [isDefault,setIsDefault]=useState(template?.is_default??false)
+  const updateSection=(index:number,change:Partial<CandidateProfileTemplateConfig['sections'][number]>)=>setConfiguration((current)=>({...current,sections:current.sections.map((section,position)=>position===index?{...section,...change}:section)}))
+  const move=(index:number,direction:-1|1)=>setConfiguration((current)=>{const next=[...current.sections];const target=index+direction;if(target<0||target>=next.length)return current;const sourceSection=next[index];const targetSection=next[target];if(!sourceSection||!targetSection)return current;next[index]=targetSection;next[target]=sourceSection;return {...current,sections:next}})
+  const language=(value:'en'|'id')=>{const translated=defaultCandidateProfileTemplate(value);setConfiguration((current)=>({...translated,anonymize_by_default:current.anonymize_by_default,sections:translated.sections.map((section,index)=>({...section,visible:current.sections[index]?.visible??true}))}))}
+  return <form className="stack" onSubmit={(event)=>{event.preventDefault();onSave({id:template?.id,name,configuration,isDefault})}}>
+    {!canManage&&<p className="warning-box">Only organization owners and admins can change client profile templates. You can still review the active configuration.</p>}
+    <div className="form-grid"><Field label="Template name"><Input value={name} maxLength={80} required disabled={!canManage} onChange={(event)=>setName(event.target.value)}/></Field><Field label="Output language"><Select value={configuration.output_language} disabled={!canManage} onChange={(event)=>language(event.target.value as 'en'|'id')}><option value="en">English</option><option value="id">Bahasa Indonesia</option></Select></Field></div>
+    <div className="form-grid"><label><input type="checkbox" checked={isDefault} disabled={!canManage} onChange={(event)=>setIsDefault(event.target.checked)}/> Default template</label><label><input type="checkbox" checked={configuration.anonymize_by_default} disabled={!canManage} onChange={(event)=>setConfiguration((current)=>({...current,anonymize_by_default:event.target.checked}))}/> Anonymize by default</label></div>
+    <Field label="Confidentiality text"><Textarea rows={4} maxLength={1200} value={configuration.confidentiality_text} disabled={!canManage} onChange={(event)=>setConfiguration((current)=>({...current,confidentiality_text:event.target.value}))}/></Field>
+    <fieldset className="template-sections"><legend>Document sections</legend>{configuration.sections.map((section,index)=><div className="template-section-row" key={section.key}><label><input type="checkbox" checked={section.visible} disabled={!canManage} onChange={(event)=>updateSection(index,{visible:event.target.checked})}/><span className="sr-only">Show {section.label}</span></label><Input aria-label={`${section.key} section label`} value={section.label} maxLength={80} disabled={!canManage} onChange={(event)=>updateSection(index,{label:event.target.value})}/><Button type="button" size="sm" variant="quiet" aria-label={`Move ${section.label} up`} disabled={!canManage||index===0} onClick={()=>move(index,-1)}><ArrowUp size={14}/></Button><Button type="button" size="sm" variant="quiet" aria-label={`Move ${section.label} down`} disabled={!canManage||index===configuration.sections.length-1} onClick={()=>move(index,1)}><ArrowDown size={14}/></Button></div>)}</fieldset>
+    {canManage&&<div className="form-actions">{template&&onArchive&&<Button type="button" variant="danger" leadingIcon={<Archive size={14}/>} onClick={onArchive}>Archive</Button>}<Button loading={saving} leadingIcon={<Save size={14}/>}>Save template</Button></div>}
+  </form>
+}

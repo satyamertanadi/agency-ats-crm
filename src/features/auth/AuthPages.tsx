@@ -7,7 +7,7 @@ import {Button} from '../../shared/ui/Button'
 import {Field,Input} from '../../shared/ui/Field'
 import {useAuth} from '../../app/AuthProvider'
 
-function AuthFrame({title,subtitle,children}:{title:string;subtitle:string;children:React.ReactNode}){return <main className="auth-page"><section className="auth-brand"><p className="eyebrow">Recruitment operating system</p><div className="auth-product-title" aria-hidden="true">{env.productName}</div><p>One secure workspace for candidates, clients, vacancies, submissions, placements, and revenue.</p></section><section className="auth-card"><h1>{title}</h1><p>{subtitle}</p>{children}</section></main>}
+function AuthFrame({title,subtitle,children}:{title:string;subtitle:string;children:React.ReactNode}){return <main className="auth-page"><section className="auth-brand"><p className="eyebrow">Recruitment operating system</p><div className="auth-product-title" aria-hidden="true">{env.productName}</div><p>One secure workspace for candidates, clients, jobs, submissions, placements, and revenue.</p></section><section className="auth-card"><h1>{title}</h1><p>{subtitle}</p>{children}</section></main>}
 function safeNext(value:string|null){return value?.startsWith('/')&&!value.startsWith('//')?value:'/app'}
 
 export function LoginPage(){
