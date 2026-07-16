@@ -48,6 +48,8 @@ jobs:
           cache: npm
       - run: npm ci
       - uses: supabase/setup-cli@v1
+        with:
+          version: latest
       - run: supabase start
       - run: supabase db reset
       - run: supabase db lint --level warning
