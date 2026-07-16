@@ -1,0 +1,33 @@
+name: Debug RLS grants
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase start
+      - run: supabase db reset
+      - name: Inspect table grants and RLS state
+        run: |
+          export PGPASSWORD=postgres
+          echo "--- table privileges for organization_members / organizations / activities ---"
+          psql -h 127.0.0.1 -p 55322 -U postgres -d postgres -c "select table_name, grantee, privilege_type from information_schema.table_privileges where table_name in ('organization_members','organizations','activities','activity_links','pipeline_stages','roles') and grantee in ('anon','authenticated') order by table_name, grantee, privilege_type;"
+          echo "--- rowsecurity flag ---"
+          psql -h 127.0.0.1 -p 55322 -U postgres -d postgres -c "select relname, relrowsecurity, relforcerowsecurity from pg_class where relname in ('organization_members','organizations','activities') and relnamespace='public'::regnamespace;"
+          echo "--- role membership sanity ---"
+          psql -h 127.0.0.1 -p 55322 -U postgres -d postgres -c "select rolname, rolinherit, rolbypassrls from pg_roles where rolname in ('anon','authenticated','service_role','postgres','authenticator');"
+          echo "--- default privileges ---"
+          psql -h 127.0.0.1 -p 55322 -U postgres -d postgres -c "select defaclrole::regrole, defaclnamespace::regnamespace, defaclobjtype, defaclacl from pg_default_acl;"
+          echo "--- can authenticator role SET ROLE authenticated? ---"
+          psql -h 127.0.0.1 -p 55322 -U postgres -d postgres -c "select rolname, pg_has_role('authenticator', rolname, 'member') as authenticator_can_become from pg_roles where rolname in ('anon','authenticated','service_role');"
