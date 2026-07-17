@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
 
+// Set via vite.config.ts's `define`, from Vercel's own automatic build-time VERCEL=1 -- see the
+// comment there for why this exists instead of relying on @vercel/analytics's own detection.
+declare const __VERCEL_DEPLOYMENT__: boolean
+
 interface ImportMetaEnv {
   readonly VITE_PRODUCT_NAME?: string
   readonly VITE_SUPABASE_URL?: string

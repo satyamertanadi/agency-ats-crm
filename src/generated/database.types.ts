@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       activities: {
@@ -306,50 +311,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "audit_logs_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workflow_product_events: {
-        Row: {
-          action_key: string | null
-          actor_user_id: string | null
-          destination: string | null
-          event_name: string
-          id: string
-          metadata: Json
-          occurred_at: string
-          organization_id: string
-          surface: string
-        }
-        Insert: {
-          action_key?: string | null
-          actor_user_id?: string | null
-          destination?: string | null
-          event_name: string
-          id?: string
-          metadata?: Json
-          occurred_at?: string
-          organization_id: string
-          surface: string
-        }
-        Update: {
-          action_key?: string | null
-          actor_user_id?: string | null
-          destination?: string | null
-          event_name?: string
-          id?: string
-          metadata?: Json
-          occurred_at?: string
-          organization_id?: string
-          surface?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workflow_product_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -3246,6 +3207,7 @@ export type Database = {
           name: string
           onboarding_completed_at: string | null
           pilot_status: string
+          salary_period: string
           seat_limit: number
           slug: string
           status: string
@@ -3261,6 +3223,7 @@ export type Database = {
           name: string
           onboarding_completed_at?: string | null
           pilot_status?: string
+          salary_period?: string
           seat_limit?: number
           slug: string
           status?: string
@@ -3276,6 +3239,7 @@ export type Database = {
           name?: string
           onboarding_completed_at?: string | null
           pilot_status?: string
+          salary_period?: string
           seat_limit?: number
           slug?: string
           status?: string
@@ -3302,11 +3266,11 @@ export type Database = {
       pipeline_stages: {
         Row: {
           color: string | null
-          phase_key: string | null
           id: string
           is_client_visible: boolean
           name: string
           organization_id: string
+          phase_key: string | null
           pipeline_id: string
           position: number
           stage_key: string
@@ -3314,11 +3278,11 @@ export type Database = {
         }
         Insert: {
           color?: string | null
-          phase_key?: string | null
           id?: string
           is_client_visible?: boolean
           name: string
           organization_id: string
+          phase_key?: string | null
           pipeline_id: string
           position: number
           stage_key: string
@@ -3326,11 +3290,11 @@ export type Database = {
         }
         Update: {
           color?: string | null
-          phase_key?: string | null
           id?: string
           is_client_visible?: boolean
           name?: string
           organization_id?: string
+          phase_key?: string | null
           pipeline_id?: string
           position?: number
           stage_key?: string
@@ -4437,6 +4401,50 @@ export type Database = {
           },
         ]
       }
+      workflow_product_events: {
+        Row: {
+          action_key: string | null
+          actor_user_id: string | null
+          destination: string | null
+          event_name: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          organization_id: string
+          surface: string
+        }
+        Insert: {
+          action_key?: string | null
+          actor_user_id?: string | null
+          destination?: string | null
+          event_name: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          organization_id: string
+          surface: string
+        }
+        Update: {
+          action_key?: string | null
+          actor_user_id?: string | null
+          destination?: string | null
+          event_name?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          organization_id?: string
+          surface?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_product_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -4655,6 +4663,16 @@ export type Database = {
         Args: { p_link_id: string }
         Returns: undefined
       }
+      save_candidate_profile_template: {
+        Args: {
+          p_configuration: Json
+          p_is_default?: boolean
+          p_name: string
+          p_organization_id: string
+          p_template_id: string
+        }
+        Returns: string
+      }
       search_workspace: {
         Args: { p_limit?: number; p_organization_id: string; p_query: string }
         Returns: {
@@ -4664,16 +4682,6 @@ export type Database = {
           subtitle: string
           title: string
         }[]
-      }
-      save_candidate_profile_template: {
-        Args: {
-          p_configuration: Json
-          p_is_default?: boolean
-          p_name: string
-          p_organization_id: string
-          p_template_id: string | null
-        }
-        Returns: string
       }
       seed_organization_roles: {
         Args: { p_organization_id: string }

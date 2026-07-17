@@ -14,4 +14,7 @@ import '@fontsource-variable/newsreader'
 import './styles.css'
 
 initializeObservability()
-createRoot(document.getElementById('root')!).render(<StrictMode><QueryClientProvider client={queryClient}><BrowserRouter><AuthProvider><OrganizationProvider><App/></OrganizationProvider></AuthProvider></BrowserRouter></QueryClientProvider><Analytics/><SpeedInsights/></StrictMode>)
+// __VERCEL_DEPLOYMENT__ (see vite.config.ts): these two only work when Vercel's own platform is
+// actually serving the app -- rendering them unconditionally 404s on every local run and every CI
+// preview, since /_vercel/insights/* and /_vercel/speed-insights/* aren't real app routes.
+createRoot(document.getElementById('root')!).render(<StrictMode><QueryClientProvider client={queryClient}><BrowserRouter><AuthProvider><OrganizationProvider><App/></OrganizationProvider></AuthProvider></BrowserRouter></QueryClientProvider>{__VERCEL_DEPLOYMENT__&&<Analytics/>}{__VERCEL_DEPLOYMENT__&&<SpeedInsights/>}</StrictMode>)
