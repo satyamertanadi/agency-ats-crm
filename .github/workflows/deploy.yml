@@ -13,7 +13,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  VERCEL_CLI_VERSION: 48.10.1
+  # 48.10.1 rejects this project's configured Node.js Version (24.x) with "Found invalid Node.js
+  # Version" -- that CLI predates Vercel's Node 24 support. 56.2.1 is the first version confirmed to
+  # build this project successfully (verified by hand: `vercel build --prod` completes clean).
+  VERCEL_CLI_VERSION: 56.2.1
 
 jobs:
   quality:
