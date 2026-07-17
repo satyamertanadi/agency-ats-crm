@@ -4,7 +4,8 @@ export type {PipelinePhaseKey,TodayWorkKind} from '../../shared/types/domain'
 export type NextActionKey='add_candidates'|'submit'|'check_feedback'|'schedule_interview'|'record_outcome'|'record_offer'|'create_placement'|'resolve_delivery'|'complete_job'
 
 export interface NextAction {key:NextActionKey;label:string;reason:string}
-export interface TodayWorkItem {id:string;kind:TodayWorkKind;title:string;reason:string;href:string;cta:string;dueAt?:string|null}
+export interface TodayWorkItemGroup {label:string;href:string;cta:string}
+export interface TodayWorkItem {id:string;kind:TodayWorkKind;title:string;reason:string;href:string;cta:string;dueAt?:string|null;group?:TodayWorkItemGroup[]}
 
 export const pipelinePhases:Array<{key:PipelinePhaseKey;label:string}>=[
   {key:'sourcing',label:'Sourcing'},
@@ -137,9 +138,26 @@ export function buildTodayWorkItems(input:{
       cta:offer.status==='accepted'?'Create placement':'Open offer',
     })
   }
-  for(const job of input.jobs){
-    if(job.status!=='open'||(currentMemberId&&job.owner_member_id&&job.owner_member_id!==currentMemberId))continue
-    if(!job.owner_member_id)items.push({id:`job-owner-${job.id}`,kind:'blocked',title:`Assign an owner · ${job.title}`,reason:'This open job has no accountable consultant.',href:`${base}/jobs/${job.id}?view=details`,cta:'Complete setup'})
+  // Unowned jobs used to push one item each, but the reason string is always the same literal
+  // sentence -- six unowned jobs meant six back-to-back rows saying identically "This open job has
+  // no accountable consultant." Collapse 2+ into one row with a job per entry in `group`; a single
+  // unowned job still renders exactly as before (no disclosure UI for a group of one).
+  // (The old scope check `currentMemberId&&job.owner_member_id&&...` was already always false here
+  // -- job.owner_member_id is falsy for every job in this list -- so it's dropped, not weakened.)
+  const unownedJobs=input.jobs.filter((job)=>job.status==='open'&&!job.owner_member_id)
+  if(unownedJobs.length===1){
+    const job=unownedJobs[0]!
+    items.push({id:`job-owner-${job.id}`,kind:'blocked',title:`Assign an owner · ${job.title}`,reason:'This open job has no accountable consultant.',href:`${base}/jobs/${job.id}?view=details`,cta:'Complete setup'})
+  }else if(unownedJobs.length>1){
+    // href/cta here are never rendered (TodayPage shows the group list instead) -- set only because
+    // TodayWorkItem requires them. Each grouped job's own href/cta is what's actually clickable.
+    items.push({
+      id:'job-owner-group',kind:'blocked',
+      title:`Assign an owner · ${unownedJobs.length} jobs`,
+      reason:'These open jobs have no accountable consultant.',
+      href:`${base}/jobs/${unownedJobs[0]!.id}?view=details`,cta:'Complete setup',
+      group:unownedJobs.map((job)=>({label:job.title,href:`${base}/jobs/${job.id}?view=details`,cta:'Assign owner'})),
+    })
   }
   const deliveryPackages=new Set<string>()
   for(const delivery of input.deliveryIssues||[]){

@@ -2,6 +2,7 @@ import {readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {describe,expect,it} from 'vitest'
 import {buildPipelineColumns,buildTodayWorkItems,columnKeyForStage,groupPipelineStages,phaseForStage,recommendedCandidateAction,resolveStageForColumn} from './workflow'
+import type {Job} from '../../shared/types/domain'
 
 const stage=(stage_key:string,stage_type='active')=>({id:stage_key,pipeline_id:'p1',name:stage_key,stage_key,stage_type,position:0,color:null,phase_key:null})
 
@@ -115,5 +116,35 @@ describe('consultant workflow model',()=>{
     const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],tasks:[],offers:[],interviews:[],deliveryIssues:[{id:'d1',status:'bounced',email_type:'client_submission',related_entity_id:'p1',error_message:'Mailbox rejected the message',updated_at:'2026-07-15T10:00:00Z'}],submissions:[{id:'p1',job_id:'j1',title:'Engineer shortlist',public_submission_links:[{id:'l1',expires_at:'2026-07-14T10:00:00Z',revoked_at:null}]}]})
     expect(items).toHaveLength(1)
     expect(items[0]).toMatchObject({kind:'blocked',title:'Resolve bounced delivery',href:'/app/northstar/jobs/j1'})
+  })
+
+  const openJob=(id:string,title:string):Job=>({id,organization_id:'org1',company_id:'c1',pipeline_id:null,title,location:null,priority:'normal',status:'open',currency:null,placement_fee_percentage:null,owner_member_id:null,opened_at:null,updated_at:'2026-07-14T10:00:00Z'})
+
+  /* Regression guard for the Today dashboard bug: unowned jobs used to push one item each with a
+   * verbatim-identical reason string, so six unowned jobs rendered six back-to-back rows saying the
+   * exact same thing. A single unowned job must still render as a plain item (no group); 2+ must
+   * collapse into one item whose `group` carries one entry per job. */
+  it('renders a single unowned job as a plain item with no group',()=>{
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[openJob('j1','Engineering Manager')],tasks:[],offers:[],interviews:[]})
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({kind:'blocked',title:'Assign an owner · Engineering Manager',href:'/app/northstar/jobs/j1?view=details'})
+    expect(items[0]!.group).toBeUndefined()
+  })
+
+  it('collapses multiple unowned jobs into one item with a group entry per job',()=>{
+    const jobs=[openJob('j1','Engineering Manager'),openJob('j2','Senior Product Manager'),openJob('j3','Plant Engineering Manager')]
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs,tasks:[],offers:[],interviews:[]})
+    expect(items).toHaveLength(1)
+    expect(items[0]!.kind).toBe('blocked')
+    expect(items[0]!.title).toBe('Assign an owner · 3 jobs')
+    expect(items[0]!.group).toHaveLength(3)
+    expect(items[0]!.group).toEqual(jobs.map((job)=>({label:job.title,href:`/app/northstar/jobs/${job.id}?view=details`,cta:'Assign owner'})))
+  })
+
+  it('ignores closed jobs and jobs that already have an owner when grouping',()=>{
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[openJob('j1','Engineering Manager'),{...openJob('j2','Filled role'),status:'filled'},{...openJob('j3','Owned role'),owner_member_id:'m1'}],tasks:[],offers:[],interviews:[]})
+    expect(items).toHaveLength(1)
+    expect(items[0]!.group).toBeUndefined()
+    expect(items[0]!.title).toBe('Assign an owner · Engineering Manager')
   })
 })

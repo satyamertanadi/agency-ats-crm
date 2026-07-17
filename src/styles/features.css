@@ -966,7 +966,24 @@
 .today-brief>span{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--color-surface);color:var(--color-accent)}
 .today-brief h2,.today-brief p{margin:0}.today-brief .eyebrow{margin-bottom:3px}.today-brief-alert{background:linear-gradient(135deg,var(--color-warning-soft),var(--color-surface))}.today-brief-alert>span{color:var(--color-danger)}
 .today-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.75fr);gap:var(--space-5)}
-.work-queue{list-style:none;margin:0;padding:0;display:grid}.work-queue li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-4) 0;border-bottom:1px solid var(--color-line-soft)}.work-queue li:first-child{padding-top:0}.work-queue li:last-child{border-bottom:0;padding-bottom:0}.work-queue-main{display:flex;align-items:flex-start;gap:var(--space-3);min-width:0}.work-queue-main>.badge{margin-top:2px;min-width:78px;justify-content:center}.work-queue-main strong,.work-queue-main p,.work-queue-main time{display:block}.work-queue-main p{margin:2px 0;color:var(--color-muted)}.work-queue-main time{font-size:var(--text-xs);color:var(--color-faint)}
+.work-queue{list-style:none;margin:0;padding:0;display:grid}.work-queue li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-4) 0;border-bottom:1px solid var(--color-line-soft)}.work-queue li:first-child{padding-top:0}.work-queue li:last-child{border-bottom:0;padding-bottom:0}
+/* align-items:center (not flex-start) is what keeps the badge vertically centered against its sibling
+ * text stack regardless of whether that stack is 2 lines (title+reason) or 3 (title+reason+time) --
+ * the same effect `vertical-align:middle` gives badges inside a <td> elsewhere in the app. A fixed
+ * `margin-top` nudge used to stand in for this, tuned to the 2-line case only, so it drifted out of
+ * alignment on any row that also rendered a <time>. No forced badge min-width either, matching how
+ * badges size everywhere else -- this list was the one place fixing it to 78px regardless of label. */
+.work-queue-main{display:flex;align-items:center;gap:var(--space-3);min-width:0}.work-queue-main strong,.work-queue-main p,.work-queue-main time{display:block}.work-queue-main p{margin:2px 0;color:var(--color-muted)}.work-queue-main time{font-size:var(--text-xs);color:var(--color-faint)}
+/* A grouped row (e.g. "Assign an owner · 6 jobs") is a <details> so it needs to lay out as a block,
+ * not the flex row every other .work-queue li uses -- its own <summary> re-creates that flex row
+ * internally, badge+text on the left and the expand toggle on the right. */
+.work-queue li.work-queue-group{display:block}
+.work-queue-group summary{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);cursor:pointer;list-style:none}
+.work-queue-group summary::-webkit-details-marker{display:none}
+.work-queue-group-toggle{display:flex;align-items:center;gap:6px;color:var(--color-muted);font-size:var(--text-sm);font-weight:var(--weight-semibold);flex-shrink:0}
+.work-queue-group[open] .work-queue-group-toggle svg{transform:rotate(180deg);transition:transform .15s ease}
+.work-queue-group-list{list-style:none;margin:var(--space-3) 0 0;padding-left:var(--space-8);display:grid;gap:var(--space-2)}
+.work-queue-group-list li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);color:var(--color-muted);font-size:var(--text-sm)}
 .today-clear{display:flex;gap:var(--space-3);align-items:flex-start;color:var(--color-accent)}.today-clear strong{color:var(--color-ink)}.today-clear p{margin:3px 0 0;color:var(--color-muted)}
 .today-job-list{display:grid}.today-job-list>a{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--color-line-soft);color:inherit;text-decoration:none}.today-job-list>a>span{display:flex;gap:var(--space-3);align-items:flex-start}.today-job-list strong,.today-job-list small{display:block}.today-job-list small{margin-top:2px;color:var(--color-muted)}.panel-footer-action{padding-top:var(--space-4)}
 .today-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}.today-shortcuts a{gap:var(--space-3);padding:var(--space-4);border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface);color:inherit;text-decoration:none}.today-shortcuts a:hover{border-color:var(--color-accent)}.today-shortcuts strong,.today-shortcuts small{display:block}.today-shortcuts small{color:var(--color-muted);margin-top:2px}

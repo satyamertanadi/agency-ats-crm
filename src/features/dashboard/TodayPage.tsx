@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ArrowRight,BriefcaseBusiness,CalendarClock,CheckCircle2,Plus,TriangleAlert} from 'lucide-react'
+import {ArrowRight,BriefcaseBusiness,CalendarClock,CheckCircle2,ChevronDown,Plus,TriangleAlert} from 'lucide-react'
 import {Link,useSearchParams} from 'react-router-dom'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
@@ -39,7 +39,10 @@ export function TodayPage(){
     {setupComplete&&<section className={`today-brief ${urgent?'today-brief-alert':''}`}><span>{urgent?<TriangleAlert size={21}/>:<CheckCircle2 size={21}/>}</span><div><p className="eyebrow">Operating brief</p><h2>{urgent?`${urgent} action${urgent===1?'':'s'} need attention`:'You are clear for today'}</h2><p>{items.length?`${items.length} total items · ${activeJobs.length} active jobs in this view`:'No overdue or upcoming work is waiting.'}</p></div></section>}
     <div className="today-layout">
       <Panel title="Next actions" subtitle="One click opens the right record with its context preserved." elevation="raised">
-        {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<ol className="work-queue">{items.map((item)=><li key={item.id}><div className="work-queue-main"><StatusBadge map={todayWorkKind} value={item.kind}/><div><strong>{item.title}</strong><p>{item.reason}</p>{item.dueAt&&<time dateTime={item.dueAt}>{formatDateTime(item.dueAt)}</time>}</div></div><Link className="button button-secondary button-sm" to={item.href}>{item.cta}<ArrowRight size={13}/></Link></li>)}</ol>}
+        {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<ol className="work-queue">{items.map((item)=>item.group
+          ?<li key={item.id} className="work-queue-group"><details><summary><div className="work-queue-main"><StatusBadge map={todayWorkKind} value={item.kind}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><span className="work-queue-group-toggle">{item.group.length} jobs<ChevronDown size={14}/></span></summary><ul className="work-queue-group-list">{item.group.map((sub)=><li key={sub.href}><span>{sub.label}</span><Link className="button button-secondary button-sm" to={sub.href}>{sub.cta}<ArrowRight size={13}/></Link></li>)}</ul></details></li>
+          :<li key={item.id}><div className="work-queue-main"><StatusBadge map={todayWorkKind} value={item.kind}/><div><strong>{item.title}</strong><p>{item.reason}</p>{item.dueAt&&<time dateTime={item.dueAt}>{formatDateTime(item.dueAt)}</time>}</div></div><Link className="button button-secondary button-sm" to={item.href}>{item.cta}<ArrowRight size={13}/></Link></li>
+        )}</ol>}
       </Panel>
       <Panel title={scope==='mine'?'My active jobs':'Active jobs'} subtitle="Jobs most likely to need your attention next.">
         <div className="today-job-list">{activeJobs.slice(0,6).map((job)=><Link to={`${base}/jobs/${job.id}`} key={job.id}><span><BriefcaseBusiness size={16}/><span><strong>{job.title}</strong><small>{job.companies?.name||'Client'} · {job.location||'Location not set'}</small></span></span><ArrowRight size={14}/></Link>)}{activeJobs.length===0&&<p className="muted">No active jobs in this view.</p>}</div>
