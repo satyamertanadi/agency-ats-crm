@@ -108,7 +108,13 @@ export function buildTodayWorkItems(input:{
     const href=link?.job_id?`${base}/jobs/${link.job_id}`:link?.candidate_id?`${base}/candidates/${link.candidate_id}`:link?.company_id?`${base}/clients/${link.company_id}`:`${base}/today`
     const due=task.due_at?new Date(task.due_at):null
     const kind:TodayWorkKind=!due?'recommended':due<now?'overdue':dayKey(due)===dayKey(now)?'today':'upcoming'
-    items.push({id:`task-${task.id}`,kind,title:task.title,reason:link?.jobs?.title||link?.candidates?.full_name||link?.companies?.name||task.description||'Owned follow-up',href,cta:'Open',dueAt:task.due_at})
+    // The bold title must be whatever tells two rows apart at a glance, not whatever's the same
+    // across all of them. A batch of follow-up tasks shares one task title ("Follow up on candidate
+    // availability") but each is tied to a different candidate/job/company -- that name is the
+    // differentiator, so it leads; the task's own title becomes the supporting line. Untethered
+    // tasks have no name to lead with, so they fall back to the task's own title as before.
+    const who=link?.jobs?.title||link?.candidates?.full_name||link?.companies?.name
+    items.push({id:`task-${task.id}`,kind,title:who||task.title,reason:who?task.title:(task.description||'Owned follow-up'),href,cta:'Open',dueAt:task.due_at})
   }
   for(const interview of input.interviews){
     const job=interview.job_candidates?.jobs
@@ -132,8 +138,10 @@ export function buildTodayWorkItems(input:{
     if(currentMemberId&&job?.owner_member_id&&job.owner_member_id!==currentMemberId)continue
     items.push({
       id:`offer-${offer.id}`,kind:'recommended',
-      title:offer.status==='accepted'?'Create placement':'Review offer',
-      reason:`${offer.job_candidates?.candidates?.full_name||'Candidate'} · ${job?.title||'Job'}`,
+      // Same fix as the task loop above: two accepted offers used to both read "Create placement" in
+      // bold with the candidate buried underneath. The candidate+job pairing is what tells them apart.
+      title:`${offer.job_candidates?.candidates?.full_name||'Candidate'} · ${job?.title||'Job'}`,
+      reason:offer.status==='accepted'?'Offer accepted — ready to record the placement.':'Offer presented, awaiting the candidate’s decision.',
       href:job?.id?`${base}/jobs/${job.id}?candidate=${offer.job_candidate_id}&action=${offer.status==='accepted'?'placement':'offer'}`:`${base}/today`,
       cta:offer.status==='accepted'?'Create placement':'Open offer',
     })
@@ -167,7 +175,9 @@ export function buildTodayWorkItems(input:{
   for(const pack of input.submissions||[]){
     if(deliveryPackages.has(pack.id))continue
     const expired=pack.public_submission_links?.find((link)=>!link.revoked_at&&new Date(link.expires_at)<now)
-    if(expired)items.push({id:`submission-expired-${expired.id}`,kind:'blocked',title:'Renew expired submission link',reason:pack.title,href:`${base}/jobs/${pack.job_id}`,cta:'Resolve',dueAt:expired.expires_at})
+    // Same fix again: every expired link used to say "Renew expired submission link" in bold with
+    // which package it was buried in the muted line -- swap so the package name leads.
+    if(expired)items.push({id:`submission-expired-${expired.id}`,kind:'blocked',title:pack.title,reason:'The client review link for this submission has expired.',href:`${base}/jobs/${pack.job_id}`,cta:'Resolve',dueAt:expired.expires_at})
   }
   const order:Record<TodayWorkKind,number>={blocked:0,overdue:1,today:2,upcoming:3,recommended:4}
   return items.sort((a,b)=>order[a.kind]-order[b.kind]||(a.dueAt||'9999').localeCompare(b.dueAt||'9999'))

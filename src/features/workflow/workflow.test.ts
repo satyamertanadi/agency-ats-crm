@@ -2,7 +2,7 @@ import {readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {describe,expect,it} from 'vitest'
 import {buildPipelineColumns,buildTodayWorkItems,columnKeyForStage,groupPipelineStages,phaseForStage,recommendedCandidateAction,resolveStageForColumn} from './workflow'
-import type {Job} from '../../shared/types/domain'
+import type {Job,Offer,Task} from '../../shared/types/domain'
 
 const stage=(stage_key:string,stage_type='active')=>({id:stage_key,pipeline_id:'p1',name:stage_key,stage_key,stage_type,position:0,color:null,phase_key:null})
 
@@ -116,6 +116,33 @@ describe('consultant workflow model',()=>{
     const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],tasks:[],offers:[],interviews:[],deliveryIssues:[{id:'d1',status:'bounced',email_type:'client_submission',related_entity_id:'p1',error_message:'Mailbox rejected the message',updated_at:'2026-07-15T10:00:00Z'}],submissions:[{id:'p1',job_id:'j1',title:'Engineer shortlist',public_submission_links:[{id:'l1',expires_at:'2026-07-14T10:00:00Z',revoked_at:null}]}]})
     expect(items).toHaveLength(1)
     expect(items[0]).toMatchObject({kind:'blocked',title:'Resolve bounced delivery',href:'/app/northstar/jobs/j1'})
+  })
+
+  const task=(id:string,overrides:Partial<Task> ={}):Task=>({id,title:'Follow up on candidate availability',description:null,status:'open',priority:'normal',due_at:null,owner_member_id:null,created_at:'2026-07-14T10:00:00Z',task_links:[],...overrides})
+
+  /* Regression guard for the second half of the repetition bug: fixing the six identical "assign an
+   * owner" rows just exposed that a batch of follow-up tasks all share one task title too. The bold
+   * title must be the thing that actually differs between rows -- the linked candidate/job/company --
+   * not the generic task title every row in the batch shares. */
+  it('leads a linked task with the candidate/job/company name, not the shared task title',()=>{
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],offers:[],interviews:[],tasks:[
+      task('t1',{task_links:[{candidate_id:'c1',company_id:null,contact_id:null,job_id:null,candidates:{full_name:'Aditya Nugroho'}}]}),
+      task('t2',{task_links:[{candidate_id:'c2',company_id:null,contact_id:null,job_id:null,candidates:{full_name:'Alya Maharani'}}]}),
+    ]})
+    expect(items.map((item)=>item.title)).toEqual(['Aditya Nugroho','Alya Maharani'])
+    expect(items.map((item)=>item.reason)).toEqual(['Follow up on candidate availability','Follow up on candidate availability'])
+  })
+
+  it('falls back to the task title when a task has no linked record to differentiate it by',()=>{
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],offers:[],interviews:[],tasks:[task('t1',{title:'Chase the finance invoice',description:'Awaiting sign-off.'})]})
+    expect(items[0]).toMatchObject({title:'Chase the finance invoice',reason:'Awaiting sign-off.'})
+  })
+
+  it('leads an offer item with the candidate/job pairing, not the shared action label',()=>{
+    const offer=(id:string,status:'presented'|'accepted',name:string):Offer=>({id,job_candidate_id:`jc-${id}`,salary:0,currency:'IDR',offered_at:'2026-07-14T10:00:00Z',start_date:null,status,notes:null,job_candidates:{candidates:{id:`c-${id}`,full_name:name},jobs:{id:'j1',title:'Engineering Manager',owner_member_id:null}}})
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],tasks:[],interviews:[],offers:[offer('o1','accepted','Aditya Nugroho'),offer('o2','accepted','Alya Maharani')]})
+    expect(items.map((item)=>item.title)).toEqual(['Aditya Nugroho · Engineering Manager','Alya Maharani · Engineering Manager'])
+    expect(items.every((item)=>item.reason==='Offer accepted — ready to record the placement.')).toBe(true)
   })
 
   const openJob=(id:string,title:string):Job=>({id,organization_id:'org1',company_id:'c1',pipeline_id:null,title,location:null,priority:'normal',status:'open',currency:null,placement_fee_percentage:null,owner_member_id:null,opened_at:null,updated_at:'2026-07-14T10:00:00Z'})
