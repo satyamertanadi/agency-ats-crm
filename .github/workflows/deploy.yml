@@ -159,6 +159,10 @@ jobs:
       - run: npm run test:e2e -- --project=desktop
         env:
           PLAYWRIGHT_BASE_URL: ${{ needs.build-vercel-candidate.outputs.deployment_url }}
+          # The candidate URL sits behind Vercel's own Deployment Protection (a login wall), which is
+          # deliberate -- it's what stops the unreviewed build from being publicly viewable before this
+          # gate approves it. This bypass secret is scoped to automation only; see playwright.config.ts.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
 
   promote-production:
     needs: [build-vercel-candidate,browser-gate]
@@ -182,3 +186,7 @@ jobs:
         run: npm run test:e2e -- --project=desktop
         env:
           PLAYWRIGHT_BASE_URL: ${{ secrets.PRODUCTION_APP_URL }}
+          # The live production domain isn't behind Deployment Protection today (confirmed: it serves
+          # the app directly), but playwright.config.ts requires this whenever a remote URL is in play
+          # so the check keeps working unattended if that ever changes.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
