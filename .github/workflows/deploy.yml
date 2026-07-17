@@ -122,8 +122,13 @@ jobs:
       - id: deploy
         name: Deploy candidate without production alias
         shell: bash
+        # The artifact was built with `vercel build --prod`, so its embedded target is production;
+        # newer CLI versions reject a deploy whose --prod flag doesn't match that (older 48.10.1
+        # tolerated the mismatch and quietly treated it as unaliased). --skip-domain is what keeps
+        # this deployment off the live domain despite --prod, per Vercel's own docs -- promote-production
+        # aliases it explicitly later, once browser-gate has passed.
         run: |
-          url="$(npx --yes vercel@${VERCEL_CLI_VERSION} deploy --prebuilt --token='${{ secrets.VERCEL_TOKEN }}')"
+          url="$(npx --yes vercel@${VERCEL_CLI_VERSION} deploy --prebuilt --prod --skip-domain --token='${{ secrets.VERCEL_TOKEN }}')"
           echo "url=$url" >> "$GITHUB_OUTPUT"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
