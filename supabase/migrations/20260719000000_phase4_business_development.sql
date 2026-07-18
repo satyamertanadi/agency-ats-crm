@@ -51,6 +51,17 @@ returns table(
     from public.tasks t join public.task_links tl on tl.task_id=t.id
     where tl.company_id=c.id and t.deleted_at is null and t.status not in ('completed','cancelled') and t.due_at is not null
   ) tasks on true
+  -- `terms` has to precede `jobs` in the FROM clause: a LATERAL subquery can only see FROM-items to
+  -- its left, and the jobs subquery below reads terms.fee_type/terms.fixed_fee for expected_open_fee.
+  -- Ordered after `jobs` originally, which failed staging outright (42P01, "missing FROM-clause entry
+  -- for table terms") before touching any real data -- the migration is wrapped in begin/commit, so
+  -- nothing partially applied.
+  left join lateral (
+    select ct.id,ct.fee_type,ct.fee_percentage,ct.fixed_fee,ct.currency,ct.guarantee_days,ct.effective_to
+    from public.commercial_terms ct
+    where ct.company_id=c.id and ct.organization_id=p_organization_id and ct.status='active'
+    order by ct.effective_from desc limit 1
+  ) terms on true
   left join lateral (
     select
       count(*) filter (where j.status='open') as open_jobs,
@@ -79,12 +90,6 @@ returns table(
   left join lateral (
     select count(*) as total from public.placements p where p.company_id=c.id and p.status<>'cancelled'
   ) placed on true
-  left join lateral (
-    select ct.id,ct.fee_type,ct.fee_percentage,ct.fixed_fee,ct.currency,ct.guarantee_days,ct.effective_to
-    from public.commercial_terms ct
-    where ct.company_id=c.id and ct.organization_id=p_organization_id and ct.status='active'
-    order by ct.effective_from desc limit 1
-  ) terms on true
   where c.organization_id=p_organization_id and c.deleted_at is null
     and public.has_permission(p_organization_id,'companies.read')
   order by c.name;
