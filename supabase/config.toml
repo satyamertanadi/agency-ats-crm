@@ -74,6 +74,10 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+[functions.parse-linkedin-profile]
+enabled = true
+verify_jwt = false
+
 [functions.calendar-auth-start]
 enabled = true
 verify_jwt = false

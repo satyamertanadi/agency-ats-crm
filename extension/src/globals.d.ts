@@ -11,7 +11,7 @@ declare namespace chrome {
     const lastError: { message?: string } | undefined
     function sendMessage<T = unknown>(message: unknown): Promise<T>
     const onMessage: {
-      addListener(cb: (message: any, sender: unknown, sendResponse: (response?: unknown) => void) => boolean | void | Promise<unknown>): void
+      addListener(cb: (message: any, sender: { tab?: { id?: number; url?: string } }, sendResponse: (response?: unknown) => void) => boolean | void | Promise<unknown>): void
     }
   }
   namespace storage {

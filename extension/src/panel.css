@@ -30,3 +30,27 @@
 .ats-note{font-size:12px;color:#666;margin:0}
 .ats-error{font-size:12px;color:#b42318;margin:0}
 .ats-success{font-size:12px;color:#287A72;font-weight:600;margin:0}
+.ats-row{display:flex;gap:8px}
+.ats-row>.ats-btn{flex:1}
+.ats-btn-ghost{background:#f2f2f2;color:#287A72}
+.ats-btn-ghost:hover{background:#e7efee}
+.ats-btn-ghost:disabled{opacity:.6;cursor:default}
+.ats-radar{display:flex}
+.ats-radar-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.ats-radar-in{background:#e7f4ef;color:#1f6b56}
+.ats-radar-out{background:#f2f2f2;color:#888}
+textarea.ats-input{resize:vertical;min-height:38px;font-family:inherit}
+
+/* Bulk-capture bar on list surfaces + per-row controls injected next to each person. */
+.ats-bulk-bar{
+  position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483646;
+  display:flex;align-items:center;gap:10px;padding:10px 14px;max-width:94vw;flex-wrap:wrap;
+  background:#fff;color:#1a1a1a;border:1px solid #e2e2e2;border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.28);font:14px system-ui,-apple-system,sans-serif;
+}
+.ats-bulk-count{font-weight:600;color:#287A72;white-space:nowrap}
+.ats-bulk-into{color:#999}
+.ats-bulk-select{width:auto;min-width:150px}
+.ats-row-controls{display:inline-flex;align-items:center;gap:6px;margin-right:6px;vertical-align:middle}
+.ats-row-check{width:16px;height:16px;accent-color:#287A72;cursor:pointer}
+.ats-row-slot{display:inline-flex}

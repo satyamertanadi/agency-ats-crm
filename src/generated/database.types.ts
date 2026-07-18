@@ -7,6 +7,9 @@ export type Json =
   | Json[]
 
 export type Database = {
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       activities: {
@@ -4657,6 +4660,15 @@ export type Database = {
         }
         Returns: Json
       }
+      capture_prospects_bulk: {
+        Args: {
+          p_items: Json
+          p_job_id?: string
+          p_kind: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       configure_founding_partner: {
         Args: { p_enabled?: boolean; p_organization_id: string }
         Returns: undefined
@@ -4773,6 +4785,10 @@ export type Database = {
           p_type: string
         }
         Returns: string
+      }
+      lookup_prospects_by_linkedin: {
+        Args: { p_linkedin_urls: string[]; p_organization_id: string }
+        Returns: Json
       }
       mark_calendar_sync_failed: {
         Args: { p_interview_id: string; p_message: string }

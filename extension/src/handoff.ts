@@ -5,4 +5,9 @@ import {readSupabaseSession} from './session'
 // background didn't open this tab: it only forwards the tokens; the background closes the tab only if
 // it was the one it opened for a connect.
 const session=readSupabaseSession()
-if(session)chrome.runtime.sendMessage({type:'session',session}).catch(()=>{/* background may be asleep; ignored */})
+console.log('[ATS ext] handoff running on',location.href,'session found?',Boolean(session))
+if(session){
+  chrome.runtime.sendMessage({type:'session',session})
+    .then((response)=>console.log('[ATS ext] handoff: background acknowledged',response))
+    .catch((err)=>console.log('[ATS ext] handoff: sendMessage failed (background may be asleep or extension reloaded -- refresh this tab)',err))
+}
