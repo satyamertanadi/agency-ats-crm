@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BriefcaseBusiness, Building2, LayoutDashboard, Plus, Search, Settings, UserRoundSearch, X } from 'lucide-react'
+import { BriefcaseBusiness, Building2, CheckSquare, LayoutDashboard, Plus, Search, Settings, UserRoundSearch, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { searchWorkspace } from '../features/core/repository'
 import { Input } from '../shared/ui/Field'
@@ -20,6 +20,8 @@ const actionItems=[
   {path:'candidates?new=1',label:'Add candidate',hint:'Upload a CV or enter manually',icon:Plus},
   {path:'clients?new=1',label:'Add client',hint:'Account and optional primary contact',icon:Plus},
   {path:'jobs?new=1',label:'Create job',hint:'Starts with a default pipeline',icon:Plus},
+  {path:'today?task=1',label:'Add task',hint:'Capture a dated next action',icon:CheckSquare},
+  {path:'candidates?addToJob=1',label:'Add candidate to job',hint:'Choose a candidate, vacancy, and starting stage',icon:BriefcaseBusiness},
 ] as const
 
 export function CommandPalette({open,onClose,organizationId,organizationSlug}:CommandPaletteProps){
@@ -29,7 +31,7 @@ export function CommandPalette({open,onClose,organizationId,organizationSlug}:Co
   const results=useQuery({queryKey:['command-search',organizationId,query],enabled:open&&query.trim().length>=2,queryFn:()=>searchWorkspace(organizationId,query.trim())})
   const needle=query.trim().toLowerCase()
   const routes=useMemo(()=>needle?routeItems.filter((item)=>`${item.label} ${item.hint}`.toLowerCase().includes(needle)):routeItems.slice(0,5),[needle])
-  const actions=useMemo(()=>needle?actionItems.filter((item)=>`${item.label} ${item.hint}`.toLowerCase().includes(needle)):actionItems.slice(0,3),[needle])
+  const actions=useMemo(()=>needle?actionItems.filter((item)=>`${item.label} ${item.hint}`.toLowerCase().includes(needle)):actionItems.slice(0,5),[needle])
 
   const resultPath=(type:string,id:string)=>`${type==='candidate'?'candidates':type==='company'?'clients':type==='contact'?'contacts':'jobs'}/${id}`
   // One flat list in render order, so arrow keys traverse exactly what the eye sees.

@@ -39,11 +39,15 @@
   font-weight: var(--weight-medium);
 }
 .kpi strong {
+  display: block;
   font-family: var(--font-editorial);
   font-size: var(--text-2xl);
   font-weight: var(--weight-semibold);
   letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
 }
+.kpi > div {min-width:0}
+.report-context {margin:0;color:var(--color-muted);font-size:var(--text-sm)}
 .kpi-alert {
   border-color: var(--tone-bad-border);
 }
@@ -221,6 +225,14 @@
   padding: 0;
   display: grid;
 }
+
+.activity-time{position:relative;display:inline-flex;outline:none}.activity-time-exact{position:absolute;z-index:4;left:0;bottom:calc(100% + 6px);display:none;width:max-content;padding:5px 8px;border:1px solid var(--color-line);border-radius:var(--radius-xs);background:var(--color-surface);box-shadow:var(--shadow-sm);color:var(--color-ink)}.activity-time:hover .activity-time-exact,.activity-time:focus .activity-time-exact{display:block}
+.candidate-row-muted{opacity:.58}.candidate-row-muted:hover{opacity:.78}
+.filter-panel{margin:12px 0}.filter-panel>summary{cursor:pointer;color:var(--color-muted);font-weight:var(--weight-semibold)}.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px}
+.task-date-shortcuts{display:flex;flex-wrap:wrap;gap:6px}
+.job-choice-context{display:flex;gap:12px;padding:14px;border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface-soft)}.job-choice-context dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 24px;margin:0;flex:1}.job-choice-context dt{font-size:var(--text-xs);color:var(--color-muted)}.job-choice-context dd{margin:2px 0 0;font-weight:var(--weight-semibold)}
+.pipeline-mini{display:flex;height:8px;min-width:130px;overflow:hidden;border-radius:var(--radius-pill);background:var(--color-surface-soft)}.pipeline-mini span{min-width:6px}.pipeline-mini .phase-sourcing{background:var(--color-faint)}.pipeline-mini .phase-screening{background:var(--color-info)}.pipeline-mini .phase-shortlist{background:var(--color-accent)}.pipeline-mini .phase-client_review{background:var(--color-bronze)}.pipeline-mini .phase-interview{background:var(--color-warning)}.pipeline-mini .phase-offer{background:var(--color-danger)}.pipeline-mini .phase-placed{background:var(--color-accent-hover)}.job-health-filters{max-width:100%;overflow-x:auto}
+@media (max-width:700px){.job-choice-context dl{grid-template-columns:1fr}.job-health-filters{width:100%}}
 .activity-item {
   display: flex;
   gap: var(--space-3);

@@ -107,6 +107,11 @@ describe('consultant workflow model',()=>{
     expect(recommendedCandidateAction({stage:stage('offer'),hasSubmission:true,interviews:[],offers:[],hasPlacement:false}).key).toBe('record_offer')
   })
 
+  it('describes a new offer without contradicting a withdrawn previous offer',()=>{
+    const withdrawn={id:'o1',job_candidate_id:'jc1',salary:0,currency:'IDR',offered_at:'2026-07-14T10:00:00Z',start_date:null,status:'withdrawn' as const,notes:null}
+    expect(recommendedCandidateAction({stage:stage('offer'),hasSubmission:true,interviews:[],offers:[withdrawn],hasPlacement:false})).toEqual({key:'record_offer',label:'Record a new offer',reason:'The previous offer was withdrawn. Record a new offer only when the candidate and client are ready.'})
+  })
+
   it('ranks blocked work before overdue and recommended work',()=>{
     const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),currentMemberId:'m1',jobs:[],tasks:[{id:'t1',title:'Call client',description:null,status:'open',priority:'normal',due_at:'2026-07-15T10:00:00Z',owner_member_id:'m1',created_at:'2026-07-14T10:00:00Z',task_links:[]}],offers:[],interviews:[{id:'i1',job_candidate_id:'jc1',interview_type:null,stage_label:null,starts_at:'2026-07-17T10:00:00Z',ends_at:'2026-07-17T11:00:00Z',timezone:'UTC',location:null,meeting_url:null,status:'scheduled',organizer_member_id:'m1',attendee_emails:[],create_google_meet:false,calendar_event_id:null,calendar_event_url:null,calendar_sync_status:'failed',calendar_last_error:'Reconnect Calendar',calendar_last_synced_at:null,calendar_retry_count:1,calendar_sync_version:1,calendar_synced_version:0}]})
     expect(items.map((item)=>item.kind)).toEqual(['blocked','overdue'])
@@ -143,6 +148,19 @@ describe('consultant workflow model',()=>{
     const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],tasks:[],interviews:[],offers:[offer('o1','accepted','Aditya Nugroho'),offer('o2','accepted','Alya Maharani')]})
     expect(items.map((item)=>item.title)).toEqual(['Aditya Nugroho · Engineering Manager','Alya Maharani · Engineering Manager'])
     expect(items.every((item)=>item.reason==='Offer accepted — ready to record the placement.')).toBe(true)
+  })
+
+  it('dismisses an accepted-offer recommendation as soon as a placement exists',()=>{
+    const accepted:Offer={id:'o1',job_candidate_id:'jc-o1',salary:0,currency:'IDR',offered_at:'2026-07-14T10:00:00Z',start_date:null,status:'accepted',notes:null,job_candidates:{candidates:{id:'c1',full_name:'Aditya Nugroho'},jobs:{id:'j1',title:'Engineering Manager',owner_member_id:null}}}
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],tasks:[],interviews:[],offers:[accepted],placements:[{job_candidate_id:'jc-o1',status:'confirmed'}]})
+    expect(items).toEqual([])
+  })
+
+  it('emits at most one live offer recommendation per candidate/job pair',()=>{
+    const make=(id:string,status:'presented'|'accepted'):Offer=>({id,job_candidate_id:'jc1',salary:0,currency:'IDR',offered_at:'2026-07-14T10:00:00Z',start_date:null,status,notes:null,job_candidates:{candidates:{id:'c1',full_name:'Aditya Nugroho'},jobs:{id:'j1',title:'Engineering Manager',owner_member_id:null}}})
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],tasks:[],interviews:[],offers:[make('accepted','accepted'),make('presented','presented')]})
+    expect(items).toHaveLength(1)
+    expect(items[0]!.cta).toBe('Create placement')
   })
 
   const openJob=(id:string,title:string):Job=>({id,organization_id:'org1',company_id:'c1',pipeline_id:null,title,location:null,priority:'normal',status:'open',currency:null,placement_fee_percentage:null,owner_member_id:null,opened_at:null,updated_at:'2026-07-14T10:00:00Z'})

@@ -11,6 +11,7 @@ export type Database = {
     Tables: {
       activities: {
         Row: {
+          actor_name_snapshot: string | null
           activity_type: string
           created_at: string
           created_by: string
@@ -23,6 +24,7 @@ export type Database = {
           summary: string
         }
         Insert: {
+          actor_name_snapshot?: string | null
           activity_type: string
           created_at?: string
           created_by: string
@@ -35,6 +37,7 @@ export type Database = {
           summary: string
         }
         Update: {
+          actor_name_snapshot?: string | null
           activity_type?: string
           created_at?: string
           created_by?: string
@@ -4627,6 +4630,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_candidates_to_job: {
+        Args: {
+          p_candidate_ids: string[]
+          p_job_id: string
+          p_organization_id: string
+          p_stage_id?: string
+        }
+        Returns: Database["public"]["Tables"]["job_candidates"]["Row"][]
+      }
       accept_candidate_cv_parse: {
         Args: {
           p_organization_id: string
@@ -4676,6 +4688,87 @@ export type Database = {
           p_organization_id: string
           p_owner_member_id?: string
           p_title: string
+        }
+        Returns: string
+      }
+      list_job_health: {
+        Args: { p_candidate_id?: string; p_organization_id: string }
+        Returns: {
+          already_in_job: boolean
+          candidate_count: number
+          company_id: string
+          company_name: string
+          currency: string | null
+          days_open: number
+          expected_fee: number | null
+          fee_percentage: number | null
+          fee_source: string | null
+          fixed_fee: number | null
+          id: string
+          last_activity_at: string | null
+          location: string | null
+          next_action: string | null
+          opened_at: string | null
+          owner_member_id: string | null
+          owner_name: string | null
+          phase_counts: Json
+          pipeline_id: string
+          priority: string
+          salary_max: number | null
+          salary_min: number | null
+          status: string
+          title: string
+          updated_at: string
+          waiting_count: number
+        }[]
+      }
+      search_candidates_page: {
+        Args: {
+          p_availability?: string
+          p_consent_status?: string
+          p_direction?: string
+          p_limit?: number
+          p_location?: string
+          p_offset?: number
+          p_organization_id: string
+          p_owner_member_id?: string
+          p_query?: string
+          p_skill?: string
+          p_sort?: string
+          p_source?: string
+          p_status?: string
+          p_tag?: string
+        }
+        Returns: {
+          availability: string | null
+          consent_status: string | null
+          created_at: string
+          current_company: string | null
+          current_position: string | null
+          full_name: string
+          id: string
+          linkedin_url: string | null
+          location: string | null
+          organization_id: string
+          owner_member_id: string | null
+          owner_name: string | null
+          skill_names: string[]
+          source: string | null
+          status: string
+          tag_names: string[]
+          total_count: number
+          updated_at: string
+        }[]
+      }
+      set_company_default_fee: {
+        Args: {
+          p_company_id: string
+          p_currency: string
+          p_fee_percentage: number | null
+          p_fee_type: string
+          p_fixed_fee: number | null
+          p_guarantee_days?: number
+          p_organization_id: string
         }
         Returns: string
       }
@@ -5071,4 +5164,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

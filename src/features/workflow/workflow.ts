@@ -83,9 +83,11 @@ export function recommendedCandidateAction(input:{stage:PipelineStage;hasSubmiss
   const activeInterview=interviews.find((item)=>item.status==='scheduled')
   const completedInterview=interviews.find((item)=>item.status==='completed')
   const offer=offers.find((item)=>!['declined','withdrawn'].includes(item.status))
+  const closedOffer=offers.find((item)=>['declined','withdrawn'].includes(item.status))
   if(phase==='shortlist'&&!hasSubmission)return {key:'submit',label:'Submit to client',reason:'This candidate is shortlisted and ready for client review.'}
   if(phase==='client_review'&&!activeInterview)return {key:'check_feedback',label:'Check client feedback',reason:'The candidate is with the client and needs a follow-up.'}
   if(phase==='interview'&&!activeInterview&&!completedInterview)return {key:'schedule_interview',label:'Schedule interview',reason:'No interview has been scheduled for this candidate.'}
+  if(phase==='offer'&&closedOffer&&!offer)return {key:'record_offer',label:'Record a new offer',reason:`The previous offer was ${closedOffer.status}. Record a new offer only when the candidate and client are ready.`}
   if(completedInterview&&!offer)return {key:'record_outcome',label:'Record outcome',reason:'The latest interview is complete and has no recorded outcome.'}
   if((phase==='offer'||completedInterview)&&!offer)return {key:'record_offer',label:'Record offer',reason:'The candidate has reached the offer milestone.'}
   if(offer?.status==='accepted'&&!hasPlacement)return {key:'create_placement',label:'Create placement',reason:'The offer is accepted and the placement is not yet recorded.'}
@@ -96,6 +98,7 @@ const dayKey=(value:Date)=>`${value.getFullYear()}-${value.getMonth()}-${value.g
 
 export function buildTodayWorkItems(input:{
   base:string;now:Date;currentMemberId?:string;tasks:Task[];interviews:Interview[];offers:Offer[];jobs:Job[]
+  placements?:Array<{job_candidate_id:string;status?:string}>
   deliveryIssues?:Array<{id:string;status:string;email_type:string;related_entity_id:string|null;error_message:string|null;updated_at:string}>
   submissions?:Array<{id:string;job_id:string;title:string;public_submission_links:Array<{id:string;expires_at:string;revoked_at:string|null}>}>
 }):TodayWorkItem[]{
@@ -132,8 +135,13 @@ export function buildTodayWorkItems(input:{
       cta:failed?'Resolve':'Open',dueAt:interview.starts_at,
     })
   }
+  const placedCandidates=new Set((input.placements||[]).filter((placement)=>placement.status!=='cancelled').map((placement)=>placement.job_candidate_id))
+  const seenOfferCandidates=new Set<string>()
   for(const offer of input.offers){
     if(!['presented','accepted'].includes(offer.status))continue
+    if(seenOfferCandidates.has(offer.job_candidate_id))continue
+    seenOfferCandidates.add(offer.job_candidate_id)
+    if(offer.status==='accepted'&&placedCandidates.has(offer.job_candidate_id))continue
     const job=offer.job_candidates?.jobs
     if(currentMemberId&&job?.owner_member_id&&job.owner_member_id!==currentMemberId)continue
     items.push({

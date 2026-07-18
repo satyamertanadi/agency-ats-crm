@@ -11,13 +11,16 @@ import { Button } from '../shared/ui/Button'
 import { CommandPalette } from './CommandPalette'
 import {useWorkspaceCapabilities} from './useWorkspaceCapabilities'
 import {recordWorkflowEvent} from '../shared/lib/productAnalytics'
+import {QuickTaskModal} from '../features/activities/QuickTaskModal'
 
 // `?new=1` is consumed by each destination page (see useOpenOnNewParam), so quick add starts the
 // action rather than dropping the user on a list to find the create button themselves.
 const quickAddItems=[
   ['candidates?new=1','Candidate',UserRoundSearch],
+  ['candidates?addToJob=1','Candidate to job',BriefcaseBusiness],
   ['clients?new=1','Client',Building2],
   ['jobs?new=1','Job',BriefcaseBusiness],
+  ['today?task=1','Task',CheckSquare],
 ] as const
 
 const legacyQuickAddItems=[
@@ -68,5 +71,6 @@ export function AppShell() {
     {mobileOpen&&<button className="mobile-scrim" aria-label="Close navigation" onClick={()=>setMobileOpen(false)}/>} 
     <div className="workspace"><header className="topbar"><button className="icon-button mobile-only" onClick={()=>setMobileOpen(true)} aria-label="Open navigation"><Menu size={19}/></button><div className="topbar-identity"><strong>{organization?.name}</strong><span>{workspaceSubtitle({simplified,readOnly:capabilities.data?.readOnly})}</span></div><div className="topbar-actions"><button className="global-search" onClick={()=>setCommandOpen(true)}><Search size={16}/><span>{simplified?'Search candidates, jobs, or clients':'Search workspace'}</span><kbd>Ctrl K</kbd></button><div className="topbar-menus" ref={topbarMenus}>{!capabilities.data?.readOnly&&<div className="quick-add"><Button size="sm" variant="bronze" leadingIcon={<Plus size={13}/>} aria-expanded={quickAddOpen} aria-haspopup="menu" onClick={()=>{setQuickAddOpen((value)=>!value);setUserMenuOpen(false)}}>{simplified?'Add':'Quick add'}</Button>{quickAddOpen&&<div className="quick-add-popover" role="menu" aria-label="Create">{(simplified?quickAddItems:legacyQuickAddItems).filter(([path])=>path.startsWith('candidates')?capabilities.data?.canWriteCandidates:path.startsWith('clients')||path.startsWith('companies')||path.startsWith('contacts')?capabilities.data?.canWriteClients:path.startsWith('jobs')?capabilities.data?.canWriteJobs:true).map(([path,label,Icon])=><button key={path} role="menuitem" onClick={()=>{setQuickAddOpen(false);navigate(`${root}/${path}`)}}><Icon size={15}/>{label}</button>)}</div>}</div>}<div className="user-menu"><button className="topbar-avatar" onClick={()=>{setUserMenuOpen((value)=>!value);setQuickAddOpen(false)}} aria-expanded={userMenuOpen} aria-label="Open user menu"><Avatar name={user?.user_metadata.full_name||user?.email||'Agency user'} size="sm"/><ChevronDown size={14}/></button>{userMenuOpen&&<div className="user-menu-popover"><strong>{user?.user_metadata.full_name||'Agency user'}</strong><span>{user?.email}</span><NavLink to={`${root}/${simplified?'admin/personal':'settings'}`} onClick={()=>setUserMenuOpen(false)}><Settings size={15}/>{simplified?'My settings':'Settings'}</NavLink>{simplified&&capabilities.data?.canViewAdmin&&<NavLink to={`${root}/admin`} onClick={()=>setUserMenuOpen(false)}><SlidersHorizontal size={15}/>Admin</NavLink>}<button onClick={()=>void signOut()}><LogOut size={15}/>Sign out</button></div>}</div></div></div></header><Outlet/></div>
     {organization&&<CommandPalette open={commandOpen} onClose={()=>setCommandOpen(false)} organizationId={organization.id} organizationSlug={organization.slug}/>}
+    {simplified&&organization&&<QuickTaskModal/>}
   </div>
 }

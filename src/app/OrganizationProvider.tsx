@@ -5,7 +5,7 @@ import { configureFormat } from '../shared/lib/format'
 import type { Membership, Organization } from '../shared/types/domain'
 import { useAuth } from './AuthProvider'
 
-type Value={memberships:Membership[];organization:Organization|null;loading:boolean;setOrganization:(organization:Organization)=>void;refresh:()=>Promise<unknown>}
+type Value={memberships:Membership[];organization:Organization|null;loading:boolean;error:Error|null;setOrganization:(organization:Organization)=>void;refresh:()=>Promise<unknown>}
 const Context=createContext<Value|null>(null)
 
 export function OrganizationProvider({children}:{children:ReactNode}){
@@ -29,7 +29,7 @@ export function OrganizationProvider({children}:{children:ReactNode}){
   // `selected` -- a double invocation under StrictMode or a discarded concurrent render writes the
   // identical config, so there is nothing to tear.
   if(selected)configureFormat({locale:navigator.language,timeZone:selected.timezone,currency:selected.base_currency,salaryPeriod:selected.salary_period})
-  const value=useMemo<Value>(()=>({memberships:query.data??[],organization:selected,loading:query.isLoading,setOrganization,refresh:query.refetch}),[query.data,query.isLoading,selected])
+  const value=useMemo<Value>(()=>({memberships:query.data??[],organization:selected,loading:query.isLoading,error:query.error instanceof Error?query.error:null,setOrganization,refresh:query.refetch}),[query.data,query.isLoading,query.error,selected])
   return <Context.Provider value={value}>{children}</Context.Provider>
 }
 export function useOrganization(){const value=useContext(Context);if(!value)throw new Error('useOrganization must be used inside OrganizationProvider');return value}

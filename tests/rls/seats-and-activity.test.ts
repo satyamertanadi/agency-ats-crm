@@ -8,6 +8,7 @@ if(!anon)throw new Error('SUPABASE_ANON_KEY is required; these tests must not si
 const NORTHSTAR='30000000-0000-0000-0000-000000000001'
 const RIVAL='30000000-0000-0000-0000-000000000002'
 const NORTHSTAR_OWNER_USER='10000000-0000-0000-0000-000000000001'
+const NORTHSTAR_CONSULTANT_USER='10000000-0000-0000-0000-000000000003'
 const JOB_CANDIDATE='81000000-0000-0000-0000-000000000001'
 const CANDIDATE='70000000-0000-0000-0000-000000000001'
 const JOB='80000000-0000-0000-0000-000000000001'
@@ -83,6 +84,15 @@ describe('seat enforcement',()=>{
 })
 
 describe('activity feed',()=>{
+  it('shows colleague profiles inside the workspace but never across tenants',async()=>{
+    const teammate=await owner.from('profiles').select('id,full_name').eq('id',NORTHSTAR_CONSULTANT_USER).single()
+    expect(teammate.error).toBeNull()
+    expect(teammate.data?.full_name).toBe('Cara Consultant')
+    const foreign=await rival.from('profiles').select('id').eq('id',NORTHSTAR_CONSULTANT_USER)
+    expect(foreign.error).toBeNull()
+    expect(foreign.data).toEqual([])
+  })
+
   it('records one activity per stage move, filed against both the candidate and the vacancy',async()=>{
     const before=await consultant.from('activities').select('id').eq('organization_id',NORTHSTAR)
     expect(before.error).toBeNull()
@@ -91,13 +101,14 @@ describe('activity feed',()=>{
     const move=await consultant.rpc('move_job_candidate_stage',{p_job_candidate_id:JOB_CANDIDATE,p_stage_id:required(stage.data?.id,'longlisted stage'),p_note:'Strong commercial fit',p_source:'manual'})
     expect(move.error).toBeNull()
 
-    const after=await consultant.from('activities').select('id,activity_type,summary').eq('organization_id',NORTHSTAR)
+    const after=await consultant.from('activities').select('id,activity_type,summary,actor_name_snapshot').eq('organization_id',NORTHSTAR)
     expect(after.error).toBeNull()
     const existing=new Set((before.data??[]).map((row)=>row.id))
     const created=(after.data??[]).filter((row)=>!existing.has(row.id))
     expect(created).toHaveLength(1)
     expect(created[0].activity_type).toBe('status_change')
     expect(created[0].summary).toBe('Strong commercial fit')
+    expect(created[0].actor_name_snapshot).toBe('Cara Consultant')
 
     // num_nonnulls(...)=1 is per link row, so one activity reaches both feeds via two rows.
     const links=await consultant.from('activity_links').select('candidate_id,job_id').eq('activity_id',created[0].id)

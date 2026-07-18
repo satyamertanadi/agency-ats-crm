@@ -5,7 +5,7 @@ import {Link,useSearchParams} from 'react-router-dom'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {createTask,dashboardSummary,listEmailDeliveryIssues,listInterviews,listJobs,listOffers,listSubmissionPackages,listTasks} from '../core/repository'
+import {createTask,dashboardSummary,listEmailDeliveryIssues,listInterviews,listJobs,listOffers,listPlacements,listSubmissionPackages,listTasks} from '../core/repository'
 import {ErrorState,LoadingState} from '../../shared/ui/States'
 import {Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {Button} from '../../shared/ui/Button'
@@ -21,8 +21,8 @@ export function TodayPage(){
   const [taskTitle,setTaskTitle]=useState('');const [taskDue,setTaskDue]=useState('');const [taskJobId,setTaskJobId]=useState('')
   const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
   const query=useQuery({queryKey:['today',organization?.id],enabled:Boolean(organization),queryFn:async()=>{
-    const [tasks,interviews,offers,jobs,summary,deliveryIssues,submissions]=await Promise.all([listTasks(organization!.id),listInterviews(organization!.id),listOffers(organization!.id),listJobs(organization!.id),dashboardSummary(organization!.id),listEmailDeliveryIssues(organization!.id),listSubmissionPackages(organization!.id)])
-    return {tasks,interviews,offers,jobs,summary,deliveryIssues,submissions}
+    const [tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions]=await Promise.all([listTasks(organization!.id),listInterviews(organization!.id),listOffers(organization!.id),listPlacements(organization!.id),listJobs(organization!.id),dashboardSummary(organization!.id),listEmailDeliveryIssues(organization!.id),listSubmissionPackages(organization!.id)])
+    return {tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions}
   }})
   const taskOpen=params.get('action')==='task'&&!capabilities.data?.readOnly
   const closeTask=()=>{const next=new URLSearchParams(params);next.delete('action');setParams(next,{replace:true})}
@@ -30,7 +30,7 @@ export function TodayPage(){
   if(query.isLoading||capabilities.isLoading)return <LoadingState label="Preparing your work for today…"/>
   if(query.error||!query.data)return <ErrorState error={query.error} retry={()=>void query.refetch()}/>
   const base=`/app/${organization!.slug}`;const name=(user?.user_metadata.full_name as string|undefined)?.split(' ')[0]
-  const items=buildTodayWorkItems({base,now:new Date(),currentMemberId:scope==='mine'?currentMember?.id:undefined,tasks:query.data.tasks,interviews:query.data.interviews,offers:query.data.offers,jobs:query.data.jobs,deliveryIssues:query.data.deliveryIssues,submissions:query.data.submissions})
+  const items=buildTodayWorkItems({base,now:new Date(),currentMemberId:scope==='mine'?currentMember?.id:undefined,tasks:query.data.tasks,interviews:query.data.interviews,offers:query.data.offers,placements:query.data.placements,jobs:query.data.jobs,deliveryIssues:query.data.deliveryIssues,submissions:query.data.submissions})
   const steps=buildSetupSteps(query.data.summary,base);const setupComplete=steps.length>0&&steps.every((step)=>step.done)
   const urgent=items.filter((item)=>item.kind==='blocked'||item.kind==='overdue').length
   const activeJobs=query.data.jobs.filter((job)=>job.status==='open'&&(scope==='team'||!job.owner_member_id||job.owner_member_id===currentMember?.id))

@@ -9,6 +9,7 @@ import {Panel} from '../../shared/ui/Page'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
 import {formatDate,formatDateTime} from '../../shared/lib/format'
 import type {ActivityType} from '../../shared/types/domain'
+import {presentActivity} from './activityPresentation'
 
 const manualTypes=[{value:'call',label:'Call'},{value:'email',label:'Email'},{value:'whatsapp',label:'WhatsApp'},{value:'meeting',label:'Meeting'},{value:'other',label:'Other'}] as const
 const icons:Record<ActivityType,typeof Phone>={call:Phone,email:Mail,whatsapp:MessageSquare,meeting:Users,interview:Users,status_change:CircleDot,submission:Send,client_feedback:ArrowDownLeft,placement:Handshake,other:CircleDot}
@@ -61,14 +62,14 @@ export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, an
     {query.isLoading?<LoadingState label="Loading activity…"/>
       :query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>
       :query.data?.length===0?<EmptyState title="No activity yet" description="Log a call, email, or meeting. Pipeline moves and client feedback appear here on their own."/>
-      :<ol className="activity-list">{query.data?.map((activity)=>{const Icon=icons[activity.activity_type]??CircleDot;return <li className="activity-item" key={activity.id}>
+      :<ol className="activity-list">{query.data?.map((activity)=>{const Icon=icons[activity.activity_type]??CircleDot;const presentation=presentActivity(activity);return <li className="activity-item" key={activity.id}>
         <span className={`activity-icon activity-icon-${activity.activity_type}`} aria-hidden="true"><Icon size={13}/></span>
         <div className="activity-body">
-          <div className="activity-heading"><strong>{activity.subject||manualTypes.find((item)=>item.value===activity.activity_type)?.label||'Update'}</strong>
+          <div className="activity-heading"><strong>{presentation.title||manualTypes.find((item)=>item.value===activity.activity_type)?.label||'Update'}</strong>
             {activity.direction==='inbound'&&<ArrowDownLeft size={12} aria-label="Inbound"/>}
             {activity.direction==='outbound'&&<ArrowUpRight size={12} aria-label="Outbound"/>}</div>
-          <p>{activity.summary}</p>
-          <small>{activity.profiles?.full_name||'A teammate'} · <time dateTime={activity.occurred_at} title={formatDateTime(activity.occurred_at)}>{relative(activity.occurred_at)}</time></small>
+          <p>{presentation.detail&&<small>{presentation.detail}: </small>}{presentation.summary}</p>
+          <small>{activity.profiles?.full_name||activity.actor_name_snapshot||'Unknown former user'} · <time className="activity-time" tabIndex={0} dateTime={activity.occurred_at}><span>{relative(activity.occurred_at)}</span><span className="activity-time-exact">{formatDateTime(activity.occurred_at)}</span></time></small>
         </div>
       </li>})}</ol>}
   </Panel>

@@ -36,6 +36,12 @@ describe('ActivityFeed',()=>{
     expect(screen.getByText(/Satya Rao/)).toBeInTheDocument()
   })
 
+  it('uses the historical author snapshot before an explicit former-user fallback',async()=>{
+    listActivities.mockResolvedValue([{...entry,profiles:null,actor_name_snapshot:'Former Consultant'}])
+    renderFeed()
+    expect(await screen.findByText(/Former Consultant/)).toBeInTheDocument()
+  })
+
   // Mirrors log_manual_activity, which rejects system types: status_change, submission, placement
   // and client_feedback must remain provable system output that a consultant cannot forge.
   it('offers only hand-recordable types',async()=>{
