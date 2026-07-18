@@ -1,0 +1,11 @@
+{
+  "name": "agency-ats-extension",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Chrome (MV3) extension to capture LinkedIn profiles into Agency ATS.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
+  }
+}

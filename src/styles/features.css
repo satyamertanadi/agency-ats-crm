@@ -962,6 +962,18 @@
 .segmented-control button.active{background:var(--color-surface);color:var(--color-ink);box-shadow:var(--shadow-xs)}
 .page-scope-actions{gap:var(--space-3);flex-wrap:wrap;justify-content:flex-end}
 
+/* Referrals: an info banner (accept-outcome + minted link), the status filter, a table row-action
+ * cluster, and the create-link inline form. Tone colours come from the same --tone-info triplet the
+ * badges use, so the callout reads as the same "informational, no action needed" register. */
+.referral-filter{margin-bottom:var(--space-4);flex-wrap:wrap}
+.callout{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);border-radius:var(--radius-sm);border:1px solid var(--color-line);margin-bottom:var(--space-4);flex-wrap:wrap}
+.callout-info{background:var(--tone-info-bg);color:var(--tone-info-fg);border-color:var(--tone-info-border)}
+.callout>span{flex:1;min-width:0}
+.callout .token-url{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;background:var(--color-surface);padding:var(--space-2) var(--space-3);border-radius:var(--radius-xs)}
+.row-actions{display:flex;gap:var(--space-2)}
+.inline-form{display:flex;align-items:flex-end;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-4)}
+.inline-form .field{flex:1;min-width:220px}
+
 .today-brief{display:flex;gap:var(--space-4);align-items:flex-start;padding:var(--space-5) var(--space-6);border:1px solid var(--color-line);border-radius:var(--radius-lg);background:linear-gradient(135deg,var(--color-accent-soft),var(--color-surface))}
 .today-brief>span{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--color-surface);color:var(--color-accent)}
 .today-brief h2,.today-brief p{margin:0}.today-brief .eyebrow{margin-bottom:3px}.today-brief-alert{background:linear-gradient(135deg,var(--color-warning-soft),var(--color-surface))}.today-brief-alert>span{color:var(--color-danger)}

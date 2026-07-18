@@ -3703,6 +3703,188 @@ export type Database = {
           },
         ]
       }
+      referral_link_events: {
+        Row: {
+          event_type: string
+          id: number
+          ip_hash: string | null
+          link_id: string
+          occurred_at: string
+        }
+        Insert: {
+          event_type: string
+          id?: never
+          ip_hash?: string | null
+          link_id: string
+          occurred_at?: string
+        }
+        Update: {
+          event_type?: string
+          id?: never
+          ip_hash?: string | null
+          link_id?: string
+          occurred_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_link_events_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "referral_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_links: {
+        Row: {
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          id: string
+          label: string | null
+          member_id: string | null
+          organization_id: string
+          revoked_at: string | null
+          token_hash: string
+          token_prefix: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          member_id?: string | null
+          organization_id: string
+          revoked_at?: string | null
+          token_hash: string
+          token_prefix: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          id?: string
+          label?: string | null
+          member_id?: string | null
+          organization_id?: string
+          revoked_at?: string | null
+          token_hash?: string
+          token_prefix?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_links_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referrals: {
+        Row: {
+          candidate_email: string | null
+          candidate_full_name: string
+          candidate_linkedin_url: string | null
+          candidate_note: string | null
+          created_at: string
+          created_candidate_id: string | null
+          id: string
+          organization_id: string
+          referral_link_id: string | null
+          referrer_email: string | null
+          referrer_member_id: string | null
+          referrer_name: string | null
+          resume_path: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          target_job_id: string | null
+        }
+        Insert: {
+          candidate_email?: string | null
+          candidate_full_name: string
+          candidate_linkedin_url?: string | null
+          candidate_note?: string | null
+          created_at?: string
+          created_candidate_id?: string | null
+          id?: string
+          organization_id: string
+          referral_link_id?: string | null
+          referrer_email?: string | null
+          referrer_member_id?: string | null
+          referrer_name?: string | null
+          resume_path?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          target_job_id?: string | null
+        }
+        Update: {
+          candidate_email?: string | null
+          candidate_full_name?: string
+          candidate_linkedin_url?: string | null
+          candidate_note?: string | null
+          created_at?: string
+          created_candidate_id?: string | null
+          id?: string
+          organization_id?: string
+          referral_link_id?: string | null
+          referrer_email?: string | null
+          referrer_member_id?: string | null
+          referrer_name?: string | null
+          resume_path?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          target_job_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_created_candidate_id_fkey"
+            columns: ["created_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referral_link_id_fkey"
+            columns: ["referral_link_id"]
+            isOneToOne: false
+            referencedRelation: "referral_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referrer_member_id_fkey"
+            columns: ["referrer_member_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_target_job_id_fkey"
+            columns: ["target_job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           permission_key: string
@@ -4458,9 +4640,22 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json
       }
+      accept_referral: {
+        Args: { p_organization_id: string; p_referral_id: string }
+        Returns: Json
+      }
       archive_candidate_profile_template: {
         Args: { p_organization_id: string; p_template_id: string }
         Returns: undefined
+      }
+      capture_prospect: {
+        Args: {
+          p_job_id?: string
+          p_kind: string
+          p_organization_id: string
+          p_payload: Json
+        }
+        Returns: Json
       }
       configure_founding_partner: {
         Args: { p_enabled?: boolean; p_organization_id: string }
@@ -4505,6 +4700,15 @@ export type Database = {
           p_placement_id: string
         }
         Returns: string
+      }
+      create_referral_link: {
+        Args: {
+          p_expiry_days?: number
+          p_label?: string
+          p_member_id?: string
+          p_organization_id: string
+        }
+        Returns: Json
       }
       create_submission_package: {
         Args: {
@@ -4640,6 +4844,7 @@ export type Database = {
         Returns: undefined
       }
       request_ip_hash: { Args: never; Returns: string }
+      resolve_referral_link: { Args: { p_token: string }; Returns: Json }
       resolve_submission_documents: {
         Args: { p_token: string }
         Returns: {
@@ -4684,6 +4889,14 @@ export type Database = {
           role_id: string
           role_key: string
         }[]
+      }
+      submit_internal_referral: {
+        Args: { p_organization_id: string; p_payload: Json }
+        Returns: string
+      }
+      submit_referral: {
+        Args: { p_payload: Json; p_token: string }
+        Returns: Json
       }
       submit_submission_feedback: {
         Args: {

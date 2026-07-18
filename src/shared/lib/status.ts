@@ -2,7 +2,7 @@ import type {
   AccountStatus, BusinessDevelopmentStage, CalendarConnectionStatus, CalendarSyncStatus,
   CandidateStatus, ConsentStatus, ContactStatus, DeliveryStatus, ImportStatus, InterviewStatus,
   InvoiceStatus, JobPriority, JobStatus, MemberStatus, OfferStatus, PilotStatus, PlacementStatus,
-  ProfileStatus, TaskPriority, TaskStatus, TodayWorkKind,
+  ProfileStatus, ReferralStatus, TaskPriority, TaskStatus, TodayWorkKind,
 } from '../types/domain'
 
 /* The vocabulary layer: every domain status decides its colour and its wording HERE, once.
@@ -93,6 +93,13 @@ export const contactStatus=map<ContactStatus>({
   active:{tone:'good',label:'Active'},
   inactive:{tone:'neutral',label:'Inactive'},
   do_not_contact:{tone:'bad',label:'Do not contact'},
+})
+
+export const referralStatus=map<ReferralStatus>({
+  new:{tone:'info',label:'New'},
+  accepted:{tone:'good',label:'Accepted'},
+  duplicate:{tone:'warn',label:'Already in ATS'},
+  rejected:{tone:'neutral',label:'Not pursued'},
 })
 
 export const candidateStatus=map<CandidateStatus>({

@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage', 'playwright-report', 'test-results', '.claude/worktrees/**', '.agents/worktrees/**', 'supabase/.temp', 'src/generated/database.types.ts'] },
+  { ignores: ['dist', 'node_modules', 'coverage', 'playwright-report', 'test-results', '.claude/worktrees/**', '.agents/worktrees/**', 'supabase/.temp', 'src/generated/database.types.ts', 'extension'] },
   js.configs.recommended,
   ...tseslint.configs.strict,
   ...tseslint.configs.stylistic,

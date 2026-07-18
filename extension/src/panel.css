@@ -1,0 +1,32 @@
+/* Injected into linkedin.com. Everything is prefixed .ats-* and heavily reset so LinkedIn's global
+   styles can't bleed in. Fixed positioning + a high z-index keep the panel above LinkedIn's chrome. */
+#ats-launcher{
+  position:fixed;right:20px;bottom:20px;z-index:2147483646;
+  width:52px;height:52px;border-radius:50%;border:0;cursor:pointer;
+  background:#287A72;color:#fff;font:600 13px/1 system-ui,sans-serif;letter-spacing:.02em;
+  box-shadow:0 6px 20px rgba(0,0,0,.25);
+}
+#ats-launcher:hover{background:#1f5f59}
+.ats-panel{
+  position:fixed;right:20px;bottom:84px;z-index:2147483647;width:340px;max-height:78vh;overflow:auto;
+  background:#fff;color:#1a1a1a;border:1px solid #e2e2e2;border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.28);font:14px/1.45 system-ui,-apple-system,sans-serif;
+}
+.ats-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #eee}
+.ats-header strong{font-size:14px;color:#287A72}
+.ats-x{border:0;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:#888}
+.ats-body{padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+.ats-field{display:flex;flex-direction:column;gap:3px}
+.ats-field>span{font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.04em}
+.ats-input{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #d5d5d5;border-radius:7px;font:14px system-ui,sans-serif;background:#fff;color:#1a1a1a}
+.ats-input:focus{outline:2px solid #287A72;outline-offset:-1px}
+.ats-toggle{display:flex;gap:4px;padding:3px;background:#f2f2f2;border-radius:8px}
+.ats-seg{flex:1;border:0;background:transparent;padding:6px;border-radius:6px;font:600 13px system-ui,sans-serif;color:#666;cursor:pointer}
+.ats-seg-on{background:#fff;color:#1a1a1a;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.ats-btn{border:0;border-radius:8px;padding:9px;font:600 14px system-ui,sans-serif;cursor:pointer}
+.ats-btn-primary{background:#287A72;color:#fff}
+.ats-btn-primary:hover{background:#1f5f59}
+.ats-btn-primary:disabled{opacity:.6;cursor:default}
+.ats-note{font-size:12px;color:#666;margin:0}
+.ats-error{font-size:12px;color:#b42318;margin:0}
+.ats-success{font-size:12px;color:#287A72;font-weight:600;margin:0}
