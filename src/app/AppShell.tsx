@@ -27,7 +27,7 @@ const legacyQuickAddItems=[
   ['candidates?new=1','Candidate',UserRoundSearch],['companies?new=1','Company',Building2],['contacts?new=1','Contact',ContactRound],['jobs?new=1','Job',BriefcaseBusiness],['tasks?new=1','Task',CheckSquare],
 ] as const
 
-const navItems=[['today','Today',LayoutDashboard],['jobs','Jobs',BriefcaseBusiness],['candidates','Candidates',UserRoundSearch],['clients','Clients',Building2]] as const
+const navItems=[['today','Today',LayoutDashboard],['jobs','Jobs',BriefcaseBusiness],['candidates','Candidates',UserRoundSearch],['clients','Clients',Building2],['scorecard','My scorecard',BarChart3]] as const
 const legacyNavGroups=[
   {label:'Overview',items:[['dashboard','Dashboard',LayoutDashboard]]},
   {label:'Recruitment',items:[['candidates','Candidates',UserRoundSearch],['referrals','Referrals',UserPlus],['jobs','Jobs',BriefcaseBusiness],['submissions','Submissions',Send],['delivery','Interviews & offers',CalendarRange]]},

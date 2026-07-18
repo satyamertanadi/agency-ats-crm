@@ -60,6 +60,23 @@ export type Candidate = {
 export type CandidateSearchRow=Candidate&{consent_status:ConsentStatus|null;owner_name:string|null;tag_names:string[];skill_names:string[];total_count:number}
 export type CandidatePrivate = { email: string | null; phone: string | null; current_salary: number | null; expected_salary: number | null; salary_currency: string | null; work_authorization?:string|null;consent_status: ConsentStatus;consent_expires_at?:string|null }
 export type Company = { id: string; organization_id: string; name: string; industry: string | null; location: string | null; website: string | null; account_status: AccountStatus; business_development_stage: string; updated_at: string }
+/* One company as the BD board sees it. Mirrors list_company_pipeline exactly -- the aggregation is
+ * done in the database so the board cannot disagree with the records it summarises. */
+export type CompanyPipelineRow = {
+  id:string;name:string;industry:string|null;location:string|null;account_status:AccountStatus
+  business_development_stage:string;owner_member_id:string|null;owner_name:string|null
+  contact_count:number;open_jobs:number;active_candidates:number
+  next_follow_up_at:string|null;last_activity_at:string|null;placements:number
+  terms_status:'none'|'active'|'expired';fee_type:string|null;fee_percentage:number|null;fixed_fee:number|null
+  currency:string|null;guarantee_days:number|null;terms_effective_to:string|null
+  expected_open_fee:number;updated_at:string
+}
+export type SavedViewResource='candidates'|'jobs'|'clients'
+export type SavedView = {
+  id:string;organization_id:string;owner_member_id:string;resource:SavedViewResource;name:string
+  filters:Record<string,unknown>;columns:string[];is_shared:boolean;is_default:boolean;updated_at:string
+}
+
 export type Contact = { id: string; organization_id: string; company_id: string; full_name: string; position: string | null; email: string | null; phone: string | null; contact_status: ContactStatus; next_follow_up_at: string | null; companies?: Pick<Company,'id'|'name'> | null }
 export type Job = { id: string; organization_id: string; company_id: string; pipeline_id: string | null; title: string; location: string | null; priority: JobPriority; status: JobStatus; currency: string | null; salary_min?:number|null;salary_max?:number|null;placement_fee_percentage: number | null;fixed_fee?:number|null;description?:string|null;requirements?:string|null;owner_member_id:string|null; opened_at: string | null; updated_at: string; companies?: Pick<Company,'id'|'name'> | null }
 export type JobHealth={id:string;company_id:string;pipeline_id:string;title:string;company_name:string;location:string|null;priority:JobPriority;status:JobStatus;owner_member_id:string|null;owner_name:string|null;opened_at:string|null;days_open:number;candidate_count:number;waiting_count:number;phase_counts:Record<string,number>;salary_min:number|null;salary_max:number|null;currency:string|null;fee_percentage:number|null;fixed_fee:number|null;expected_fee:number|null;fee_source:string|null;next_action:string|null;last_activity_at:string|null;already_in_job:boolean;updated_at:string}

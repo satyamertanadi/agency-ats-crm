@@ -56,3 +56,61 @@ export function reportDateRange(from:string,to:string,timeZone:string){
   const end=new Date(zonedMidnight(nextDate,timeZone).getTime()-1)
   return {fromIso:start.toISOString(),toIso:end.toISOString()}
 }
+
+/* Consultant attribution, shared by the team report and the personal scorecard.
+ *
+ * It lives here rather than inside ReportsPage because the scorecard's whole promise is that a
+ * consultant's own numbers reconcile with the ones their manager sees. Two implementations reading
+ * the same records would drift the first time either was adjusted, and the plan's acceptance
+ * criterion ("Personal totals reconcile with team reports") would then be false without anything
+ * looking broken. One builder, two renderers. */
+type AttributedMilestone={job_candidate_id:string;created_by:string;status?:string}
+type PlacementRecord=AttributedMilestone&{status:string;currency:string;placement_fee:number|string}
+type OwnedRecord={owner_member_id:string|null}
+
+export interface ConsultantRow {id:string;name:string;jobs:number;submissions:number;interviews:number;offers:number;placements:number;fees:number;overdue:number}
+
+export interface ConsultantInput {
+  members:Array<{id:string;user_id:string;status:string;profiles?:{full_name?:string;email?:string}|null}>
+  submissions:AttributedMilestone[];interviews:AttributedMilestone[];offers:AttributedMilestone[]
+  placements:PlacementRecord[];activeJobs:Array<OwnedRecord>;overdueTasks:Array<OwnedRecord>
+  baseCurrency?:string
+}
+
+const uniqueByCandidate=(rows:AttributedMilestone[],actor:string,include:(row:AttributedMilestone)=>boolean=()=>true)=>
+  new Set(rows.filter((row)=>row.created_by===actor&&include(row)).map((row)=>row.job_candidate_id)).size
+
+export function buildConsultantRows(input:ConsultantInput):ConsultantRow[]{
+  const recordedPlacements=input.placements.filter(isRecordedPlacement)
+  const actorIds=new Set([...input.submissions,...input.interviews,...input.offers,...input.placements].map((item)=>item.created_by))
+  // A deactivated member who did the work still owns the work. Filtering to active members only is
+  // how historical submissions used to fall off the report entirely.
+  const members=input.members.filter((member)=>member.status==='active'||actorIds.has(member.user_id)||input.activeJobs.some((job)=>job.owner_member_id===member.id)||input.overdueTasks.some((task)=>task.owner_member_id===member.id))
+  const metricsFor=(actor:string)=>{
+    const placements=recordedPlacements.filter((item)=>item.created_by===actor)
+    return {
+      submissions:uniqueByCandidate(input.submissions,actor),
+      interviews:uniqueByCandidate(input.interviews,actor,(item)=>item.status!=='cancelled'),
+      offers:uniqueByCandidate(input.offers,actor,(item)=>item.status!=='draft'),
+      placements:new Set(placements.map((item)=>item.job_candidate_id)).size,
+      // Only fees already denominated in the base currency are summed; no exchange rate is invented.
+      fees:placements.filter((item)=>item.currency===input.baseCurrency).reduce((sum,item)=>sum+Number(item.placement_fee),0),
+    }
+  }
+  const rows=members.map((member)=>({
+    id:member.id,name:member.profiles?.full_name||member.profiles?.email||'Unknown former user',
+    jobs:input.activeJobs.filter((item)=>item.owner_member_id===member.id).length,
+    ...metricsFor(member.user_id),
+    overdue:input.overdueTasks.filter((item)=>item.owner_member_id===member.id).length,
+  }))
+  const knownActors=new Set(members.map((member)=>member.user_id))
+  const unknownActors=[...actorIds].filter((id)=>!knownActors.has(id))
+  if(unknownActors.length){
+    const metrics=unknownActors.map(metricsFor)
+    const total=(key:'submissions'|'interviews'|'offers'|'placements'|'fees')=>metrics.reduce((sum,item)=>sum+item[key],0)
+    rows.push({id:'unknown-former-users',name:'Unknown former user',jobs:0,submissions:total('submissions'),interviews:total('interviews'),offers:total('offers'),placements:total('placements'),fees:total('fees'),overdue:0})
+  }
+  const unassignedOverdue=input.overdueTasks.filter((task)=>!task.owner_member_id).length
+  if(unassignedOverdue)rows.push({id:'unassigned',name:'Unassigned',jobs:input.activeJobs.filter((job)=>!job.owner_member_id).length,submissions:0,interviews:0,offers:0,placements:0,fees:0,overdue:unassignedOverdue})
+  return rows
+}

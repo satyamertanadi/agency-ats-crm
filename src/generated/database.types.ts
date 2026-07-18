@@ -1239,6 +1239,8 @@ export type Database = {
       }
       commercial_terms: {
         Row: {
+          agreement_document_url: string | null
+          approval_status: string
           company_id: string
           created_at: string
           created_by: string
@@ -1250,11 +1252,17 @@ export type Database = {
           fixed_fee: number | null
           guarantee_days: number
           id: string
+          notes: string | null
           organization_id: string
+          payment_terms_days: number | null
+          replacement_terms: string | null
           status: string
+          tax_treatment: string | null
           updated_at: string
         }
         Insert: {
+          agreement_document_url?: string | null
+          approval_status?: string
           company_id: string
           created_at?: string
           created_by: string
@@ -1266,11 +1274,17 @@ export type Database = {
           fixed_fee?: number | null
           guarantee_days?: number
           id?: string
+          notes?: string | null
           organization_id: string
+          payment_terms_days?: number | null
+          replacement_terms?: string | null
           status?: string
+          tax_treatment?: string | null
           updated_at?: string
         }
         Update: {
+          agreement_document_url?: string | null
+          approval_status?: string
           company_id?: string
           created_at?: string
           created_by?: string
@@ -1282,8 +1296,12 @@ export type Database = {
           fixed_fee?: number | null
           guarantee_days?: number
           id?: string
+          notes?: string | null
           organization_id?: string
+          payment_terms_days?: number | null
+          replacement_terms?: string | null
           status?: string
+          tax_treatment?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3489,10 +3507,12 @@ export type Database = {
         Row: {
           candidate_id: string
           company_id: string
+          commercial_term_id: string | null
           created_at: string
           created_by: string
           currency: string
           fee_percentage: number | null
+          fee_source: string | null
           fixed_fee: number | null
           guarantee_days: number
           guarantee_ends_on: string | null
@@ -3513,10 +3533,12 @@ export type Database = {
         Insert: {
           candidate_id: string
           company_id: string
+          commercial_term_id?: string | null
           created_at?: string
           created_by: string
           currency: string
           fee_percentage?: number | null
+          fee_source?: string | null
           fixed_fee?: number | null
           guarantee_days?: number
           guarantee_ends_on?: string | null
@@ -3537,10 +3559,12 @@ export type Database = {
         Update: {
           candidate_id?: string
           company_id?: string
+          commercial_term_id?: string | null
           created_at?: string
           created_by?: string
           currency?: string
           fee_percentage?: number | null
+          fee_source?: string | null
           fixed_fee?: number | null
           guarantee_days?: number
           guarantee_ends_on?: string | null
@@ -3564,6 +3588,13 @@ export type Database = {
             columns: ["candidate_id"]
             isOneToOne: false
             referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "placements_commercial_term_id_fkey"
+            columns: ["commercial_term_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_terms"
             referencedColumns: ["id"]
           },
           {
@@ -3962,6 +3993,7 @@ export type Database = {
           created_at: string
           filters: Json
           id: string
+          is_default: boolean
           is_shared: boolean
           name: string
           organization_id: string
@@ -3974,6 +4006,7 @@ export type Database = {
           created_at?: string
           filters?: Json
           id?: string
+          is_default?: boolean
           is_shared?: boolean
           name: string
           organization_id: string
@@ -3986,6 +4019,7 @@ export type Database = {
           created_at?: string
           filters?: Json
           id?: string
+          is_default?: boolean
           is_shared?: boolean
           name?: string
           organization_id?: string
@@ -4691,6 +4725,34 @@ export type Database = {
         }
         Returns: string
       }
+      list_company_pipeline: {
+        Args: { p_organization_id: string }
+        Returns: {
+          account_status: string
+          active_candidates: number
+          business_development_stage: string
+          contact_count: number
+          currency: string | null
+          expected_open_fee: number
+          fee_percentage: number | null
+          fee_type: string | null
+          fixed_fee: number | null
+          guarantee_days: number | null
+          id: string
+          industry: string | null
+          last_activity_at: string | null
+          location: string | null
+          name: string
+          next_follow_up_at: string | null
+          open_jobs: number
+          owner_member_id: string | null
+          owner_name: string | null
+          placements: number
+          terms_effective_to: string | null
+          terms_status: string
+          updated_at: string
+        }[]
+      }
       list_job_health: {
         Args: { p_candidate_id?: string; p_organization_id: string }
         Returns: {
@@ -4760,15 +4822,53 @@ export type Database = {
           updated_at: string
         }[]
       }
+      set_company_bd_stage: {
+        Args: {
+          p_company_id: string
+          p_note?: string
+          p_organization_id: string
+          p_stage: string
+        }
+        Returns: {
+          account_status: string
+          business_development_stage: string
+          company_size: string | null
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          id: string
+          industry: string | null
+          location: string | null
+          name: string
+          notes_summary: string | null
+          organization_id: string
+          owner_member_id: string | null
+          updated_at: string
+          updated_by: string | null
+          website: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "companies"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_company_default_fee: {
         Args: {
+          p_agreement_document_url?: string
+          p_approval_status?: string
           p_company_id: string
           p_currency: string
           p_fee_percentage: number | null
           p_fee_type: string
           p_fixed_fee: number | null
           p_guarantee_days?: number
+          p_notes?: string
           p_organization_id: string
+          p_payment_terms_days?: number
+          p_replacement_terms?: string
+          p_tax_treatment?: string
         }
         Returns: string
       }
@@ -4791,7 +4891,12 @@ export type Database = {
         Returns: Json
       }
       create_placement_from_offer: {
-        Args: { p_fee: number; p_guarantee_days?: number; p_offer_id: string }
+        Args: {
+          p_fee: number
+          p_fee_source?: string
+          p_guarantee_days?: number
+          p_offer_id: string
+        }
         Returns: string
       }
       create_placement_revenue_split: {

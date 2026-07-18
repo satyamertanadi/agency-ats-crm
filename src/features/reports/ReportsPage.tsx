@@ -5,15 +5,13 @@ import {useOrganization} from '../../app/OrganizationProvider'
 import {getAgencyPerformance,listTeamMembers} from '../core/commercialRepository'
 import {Field,Input} from '../../shared/ui/Field'
 import {Page,Panel} from '../../shared/ui/Page'
-import {ErrorState,LoadingState} from '../../shared/ui/States'
+import {ErrorState,TableSkeleton} from '../../shared/ui/States'
 import {Table} from '../../shared/ui/Table'
 import {ChartCard} from '../../shared/ui/ChartCard'
 import {formatDateTime,formatMoney} from '../../shared/lib/format'
-import {buildRecruitmentFunnel,isCompletedPlacement,isOverdueTask,isRecordedPlacement,metricDefinitions,reportDateRange} from './reportMetrics'
+import {buildConsultantRows,buildRecruitmentFunnel,isCompletedPlacement,isOverdueTask,isRecordedPlacement,metricDefinitions,reportDateRange} from './reportMetrics'
 
 const dateValue=(date:Date)=>date.toISOString().slice(0,10)
-type AttributedMilestone={job_candidate_id:string;created_by:string;status?:string}
-const uniqueByCandidate=(rows:AttributedMilestone[],actor:string,include:(row:AttributedMilestone)=>boolean=()=>true)=>new Set(rows.filter((row)=>row.created_by===actor&&include(row)).map((row)=>row.job_candidate_id)).size
 
 export function ReportsPage(){
   const {organization}=useOrganization();const now=useMemo(()=>new Date(),[])
@@ -21,26 +19,14 @@ export function ReportsPage(){
   const range=reportDateRange(from,to,organization?.timezone||'UTC')
   const performance=useQuery({queryKey:['agency-performance',organization?.id,from,to],enabled:Boolean(organization&&from&&to),queryFn:()=>getAgencyPerformance(organization!.id,range.fromIso,range.toIso)})
   const team=useQuery({queryKey:['team',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
-  if(performance.isLoading||team.isLoading)return <LoadingState label="Preparing agency intelligence…"/>
+  if(performance.isLoading||team.isLoading)return <TableSkeleton rows={6} columns={6} label="Preparing agency intelligence…"/>
   if(performance.error||team.error)return <ErrorState error={performance.error||team.error}/>
 
   const data=performance.data!;const recordedPlacements=data.placements.filter(isRecordedPlacement);const recordedPlacementCount=new Set(recordedPlacements.map((item)=>item.job_candidate_id)).size
   const funnel=buildRecruitmentFunnel({submissions:data.submissions,interviews:data.interviews,offers:data.offers,placements:data.placements})
   const baseFees=recordedPlacements.filter((item)=>item.currency===organization?.base_currency).reduce((sum,item)=>sum+Number(item.placement_fee),0)
-  const overdueTasks=data.tasks.filter((item)=>isOverdueTask(item,now));const actorIds=new Set([...data.submissions,...data.interviews,...data.offers,...data.placements].map((item)=>item.created_by))
-  const members=(team.data||[]).filter((member)=>member.status==='active'||actorIds.has(member.user_id)||data.activeJobs.some((job)=>job.owner_member_id===member.id)||overdueTasks.some((task)=>task.owner_member_id===member.id))
-  const knownActors=new Set(members.map((member)=>member.user_id));const unknownActors=new Set([...actorIds].filter((id)=>!knownActors.has(id)))
-  const actorMetrics=(actor:string)=>{
-    const placements=recordedPlacements.filter((item)=>item.created_by===actor)
-    return {submissions:uniqueByCandidate(data.submissions,actor),interviews:uniqueByCandidate(data.interviews,actor,(item)=>item.status!=='cancelled'),offers:uniqueByCandidate(data.offers,actor,(item)=>item.status!=='draft'),placements:new Set(placements.map((item)=>item.job_candidate_id)).size,fees:placements.filter((item)=>item.currency===organization?.base_currency).reduce((sum,item)=>sum+Number(item.placement_fee),0)}
-  }
-  const rows=members.map((member)=>({id:member.id,name:member.profiles?.full_name||member.profiles?.email||'Unknown former user',jobs:data.activeJobs.filter((item)=>item.owner_member_id===member.id).length,...actorMetrics(member.user_id),overdue:overdueTasks.filter((item)=>item.owner_member_id===member.id).length}))
-  if(unknownActors.size){
-    const ids=[...unknownActors];const metrics=ids.map(actorMetrics)
-    rows.push({id:'unknown-former-users',name:'Unknown former user',jobs:0,submissions:metrics.reduce((sum,item)=>sum+item.submissions,0),interviews:metrics.reduce((sum,item)=>sum+item.interviews,0),offers:metrics.reduce((sum,item)=>sum+item.offers,0),placements:metrics.reduce((sum,item)=>sum+item.placements,0),fees:metrics.reduce((sum,item)=>sum+item.fees,0),overdue:0})
-  }
-  const unassignedOverdue=overdueTasks.filter((task)=>!task.owner_member_id).length
-  if(unassignedOverdue)rows.push({id:'unassigned',name:'Unassigned',jobs:data.activeJobs.filter((job)=>!job.owner_member_id).length,submissions:0,interviews:0,offers:0,placements:0,fees:0,overdue:unassignedOverdue})
+  const overdueTasks=data.tasks.filter((item)=>isOverdueTask(item,now))
+  const rows=buildConsultantRows({members:team.data||[],submissions:data.submissions,interviews:data.interviews,offers:data.offers,placements:data.placements,activeJobs:data.activeJobs,overdueTasks,baseCurrency:organization?.base_currency})
   const workload=rows.map((row)=>({name:row.name.split(' ')[0],jobs:row.jobs,submissions:row.submissions,overdue:row.overdue}))
 
   return <Page title="Reports" eyebrow="Agency intelligence" description="Defensible candidate milestones, workload, and commercial outcomes for a selectable period." actions={<div className="date-range"><Field label="From"><Input type="date" value={from} max={to} onChange={(event)=>setFrom(event.target.value)}/></Field><Field label="To"><Input type="date" value={to} min={from} onChange={(event)=>setTo(event.target.value)}/></Field></div>}>
