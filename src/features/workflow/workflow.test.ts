@@ -132,10 +132,46 @@ describe('consultant workflow model',()=>{
   it('leads a linked task with the candidate/job/company name, not the shared task title',()=>{
     const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],offers:[],interviews:[],tasks:[
       task('t1',{task_links:[{candidate_id:'c1',company_id:null,contact_id:null,job_id:null,candidates:{full_name:'Aditya Nugroho'}}]}),
+    ]})
+    expect(items.map((item)=>item.title)).toEqual(['Aditya Nugroho'])
+    expect(items.map((item)=>item.reason)).toEqual(['Follow up on candidate availability'])
+  })
+
+  /* The other half of the same repetition problem: once a batch shares one task title, N rows of it
+   * drown the genuinely distinct actions. The differentiating name still leads -- it just leads each
+   * row of the group list rather than N top-level rows. */
+  it('collapses repeated linked tasks that share a title into one group',()=>{
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],offers:[],interviews:[],tasks:[
+      task('t1',{task_links:[{candidate_id:'c1',company_id:null,contact_id:null,job_id:null,candidates:{full_name:'Aditya Nugroho'}}]}),
       task('t2',{task_links:[{candidate_id:'c2',company_id:null,contact_id:null,job_id:null,candidates:{full_name:'Alya Maharani'}}]}),
     ]})
-    expect(items.map((item)=>item.title)).toEqual(['Aditya Nugroho','Alya Maharani'])
-    expect(items.map((item)=>item.reason)).toEqual(['Follow up on candidate availability','Follow up on candidate availability'])
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({title:'Follow up on candidate availability · 2 records',groupNoun:'records'})
+    expect(items[0]!.group?.map((entry)=>entry.label)).toEqual(['Aditya Nugroho','Alya Maharani'])
+    expect(items[0]!.group?.map((entry)=>entry.href)).toEqual(['/app/northstar/candidates/c1','/app/northstar/candidates/c2'])
+  })
+
+  /* Urgency is not a label to merge across. An overdue follow-up hidden behind a disclosure with an
+   * upcoming one is exactly the "queue that lies" failure the grouping is meant to relieve. */
+  it('does not group the same task title across different urgencies',()=>{
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],offers:[],interviews:[],tasks:[
+      task('t1',{due_at:'2026-07-15T10:00:00Z',task_links:[{candidate_id:'c1',company_id:null,contact_id:null,job_id:null,candidates:{full_name:'Aditya Nugroho'}}]}),
+      task('t2',{due_at:'2026-07-15T11:00:00Z',task_links:[{candidate_id:'c2',company_id:null,contact_id:null,job_id:null,candidates:{full_name:'Alya Maharani'}}]}),
+      task('t3',{due_at:'2026-07-20T10:00:00Z',task_links:[{candidate_id:'c3',company_id:null,contact_id:null,job_id:null,candidates:{full_name:'Bagus Prakoso'}}]}),
+    ]})
+    expect(items.map((item)=>item.kind)).toEqual(['overdue','upcoming'])
+    expect(items[0]!.group).toHaveLength(2)
+    // The group keeps the sort position of its most urgent member rather than drifting down.
+    expect(items[0]!.dueAt).toBe('2026-07-15T10:00:00Z')
+    expect(items[1]!.group).toBeUndefined()
+  })
+
+  /* Untethered tasks have no record name to tell their rows apart, so collapsing them would produce
+   * a disclosure listing the same string N times. */
+  it('leaves unlinked tasks sharing a title ungrouped',()=>{
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],offers:[],interviews:[],tasks:[task('t1'),task('t2')]})
+    expect(items).toHaveLength(2)
+    expect(items.every((item)=>item.group===undefined)).toBe(true)
   })
 
   it('falls back to the task title when a task has no linked record to differentiate it by',()=>{

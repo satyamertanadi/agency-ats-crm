@@ -6,7 +6,8 @@ import {Link,useParams,useSearchParams} from 'react-router-dom'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {addCandidateToJob,getPipeline,listCandidatesPage,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages,moveCandidate} from '../core/repository'
+import {addCandidateToJob,getPipeline,listCandidatesPage,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
+import {useStageMove} from '../core/useStageMove'
 import {listTeamMembers,updateJob} from '../core/commercialRepository'
 import type {Job,JobCandidate,JobHealth} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
@@ -14,7 +15,8 @@ import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
 import {Badge,Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {jobPriority,jobStatus,lookup} from '../../shared/lib/status'
-import {ErrorState,LoadingState} from '../../shared/ui/States'
+import {BoardSkeleton,ErrorState} from '../../shared/ui/States'
+import {useToast} from '../../shared/ui/Toast'
 import {ActivityFeed} from '../activities/ActivityFeed'
 import {buildPipelineColumns,isOutcomeStage,jobNeedsCandidateAction,resolveStageForColumn,type PipelineColumn} from '../workflow/workflow'
 import {JobCandidatePanel} from './JobCandidatePanel'
@@ -38,19 +40,22 @@ function CandidateCard({item,columnKey,onOpen,onMove,targets,canMove}:{item:JobC
 }
 
 export function JobWorkspacePage(){
-  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [candidateId,setCandidateId]=useState('');const [detailed,setDetailed]=useState(false);const [editOpen,setEditOpen]=useState(false)
+  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [candidateId,setCandidateId]=useState('');const [detailed,setDetailed]=useState(false);const [editOpen,setEditOpen]=useState(false)
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)});const job=jobs.data?.find((item)=>item.id===jobId)
   const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const candidates=useQuery({queryKey:['job-add-candidates',organization?.id],enabled:Boolean(organization&&addOpen),queryFn:()=>listCandidatesPage(organization!.id,{},0,100)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
   const interviews=useQuery({queryKey:['interviews',organization?.id],enabled:Boolean(organization),queryFn:()=>listInterviews(organization!.id)});const offers=useQuery({queryKey:['offers',organization?.id],enabled:Boolean(organization),queryFn:()=>listOffers(organization!.id)});const placements=useQuery({queryKey:['placements',organization?.id],enabled:Boolean(organization),queryFn:()=>listPlacements(organization!.id)});const packages=useQuery({queryKey:['submissions',organization?.id],enabled:Boolean(organization),queryFn:()=>listSubmissionPackages(organization!.id)});const members=useQuery({queryKey:['members',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
   const refresh=()=>Promise.all([cache.invalidateQueries({queryKey:['pipeline',jobId]}),cache.invalidateQueries({queryKey:['jobs',organization?.id]}),cache.invalidateQueries({queryKey:['today',organization?.id]})])
-  const add=useMutation({mutationFn:()=>addCandidateToJob(organization!.id,user!.id,job!,candidateId),onSuccess:async()=>{setAddOpen(false);setCandidateId('');await refresh()}});const move=useMutation({mutationFn:({itemId,stageId}:{itemId:string;stageId:string})=>moveCandidate(itemId,stageId),onSuccess:refresh})
+  const add=useMutation({mutationFn:()=>addCandidateToJob(organization!.id,user!.id,job!,candidateId),onSuccess:async()=>{const name=candidates.data?.rows.find((row)=>row.id===candidateId)?.full_name;setAddOpen(false);setCandidateId('');await refresh();toast.success(`${name||'Candidate'} was added to ${job!.title}.`)},onError:(error)=>toast.error(error,'No candidate was added.')})
+  const move=useStageMove(jobId,refresh)
   const sensors=useSensors(useSensor(PointerSensor,{activationConstraint:{distance:8}}));const canRecruit=job?.status==='open'&&Boolean(capabilities.data?.canMovePipeline)
-  if(jobs.isLoading||pipeline.isLoading||interviews.isLoading||offers.isLoading||placements.isLoading||packages.isLoading||members.isLoading||capabilities.isLoading)return <LoadingState label="Opening job workspace…"/>
+  // The board is the thing worth holding space for: it is the tallest, slowest part of this screen
+  // and the one whose arrival used to shove the whole page down.
+  if(jobs.isLoading||pipeline.isLoading||interviews.isLoading||offers.isLoading||placements.isLoading||packages.isLoading||members.isLoading||capabilities.isLoading)return <Panel padding="sm"><BoardSkeleton label="Opening job workspace…"/></Panel>
   if(jobs.error||pipeline.error||interviews.error||offers.error||placements.error||packages.error||members.error||!job)return <ErrorState error={jobs.error||pipeline.error||interviews.error||offers.error||placements.error||packages.error||members.error||new Error('Job not found')}/>
   const view=(params.get('view') as WorkspaceView)||'pipeline';const selected=pipeline.data!.items.find((item)=>item.id===params.get('candidate'))||null;const outcomeStages=pipeline.data!.stages.filter(isOutcomeStage)
   const columns=buildPipelineColumns(pipeline.data!.stages,detailed)
   const targets=columns.map((column)=>({key:column.key,label:column.label}))
-  const moveToColumn=(item:JobCandidate,columnKey:string)=>{const stageId=resolveStageForColumn(columns,columnKey,item.current_stage_id);if(stageId)move.mutate({itemId:item.id,stageId})}
+  const moveToColumn=(item:JobCandidate,columnKey:string)=>{const stageId=resolveStageForColumn(columns,columnKey,item.current_stage_id);if(stageId)move.mutate({itemId:item.id,stageId,name:item.candidates?.full_name,label:columns.find((column)=>column.key===columnKey)?.label||'the next phase'})}
   // Drops resolve through the same model as the dropdown, so a drag cannot land a candidate somewhere
   // the card would then contradict -- and dropping back into the column you came from is a no-op.
   const onDragEnd=({active,over}:DragEndEvent)=>{if(!canRecruit||!over)return;const item=pipeline.data!.items.find((candidate)=>candidate.id===String(active.id));if(item)moveToColumn(item,String(over.id))}

@@ -799,3 +799,159 @@ td span:not([class]) {
 .user-menu-popover button:hover {
   background: var(--color-canvas);
 }
+
+/* ---- toasts ---------------------------------------------------------------------------------
+ * Bottom-anchored rather than top: the top-right corner is where this app already puts the user
+ * menu and command palette, and a confirmation that covers the control you just used reads as a
+ * blocked click. Pinned above the mobile nav bar so the last toast is never half-cut.
+ */
+.toast-viewport {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  z-index: 80;
+  display: grid;
+  gap: var(--space-2);
+  width: min(380px, calc(100vw - var(--space-8)));
+  pointer-events: none;
+}
+.toast-stack {
+  display: grid;
+  gap: var(--space-2);
+}
+.toast {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--tone-neutral-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-md);
+  animation: toast-in 160ms ease-out;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.toast-success {
+  border-color: var(--tone-good-border);
+  background: var(--tone-good-bg);
+  color: var(--tone-good-fg);
+}
+.toast-error {
+  border-color: var(--tone-bad-border);
+  background: var(--tone-bad-bg);
+  color: var(--tone-bad-fg);
+}
+.toast-info {
+  border-color: var(--tone-info-border);
+  background: var(--tone-info-bg);
+  color: var(--tone-info-fg);
+}
+.toast-body {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.toast-body strong {
+  font-size: var(--text-sm);
+  line-height: 1.35;
+}
+.toast-body p {
+  font-size: var(--text-xs);
+  opacity: 0.85;
+  margin: 0;
+}
+.toast-action {
+  justify-self: start;
+  margin-top: var(--space-1);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.toast-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 0;
+  line-height: 0;
+}
+.toast-close:hover {
+  opacity: 1;
+}
+@media (max-width: 720px) {
+  .toast-viewport {
+    right: var(--space-3);
+    left: var(--space-3);
+    bottom: calc(var(--space-5) + 56px);
+    width: auto;
+  }
+}
+
+/* ---- skeletons ------------------------------------------------------------------------------
+ * Layout-matched placeholders, not a centred spinner. The point is that the row count and column
+ * widths match what is about to arrive, so the page does not reflow when it does. The shimmer is
+ * neutralised by the global prefers-reduced-motion rule in base.css.
+ */
+.skeleton {
+  display: block;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(
+    90deg,
+    var(--color-canvas-deep) 25%,
+    var(--color-canvas) 37%,
+    var(--color-canvas-deep) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-sheen 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-sheen {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: 0 50%;
+  }
+}
+.skeleton-table {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+.skeleton-row {
+  display: grid;
+  gap: var(--space-4);
+  align-items: center;
+}
+.skeleton-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(180px, 1fr);
+  gap: var(--space-3);
+  overflow: hidden;
+}
+.skeleton-board-column {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas);
+}
+.skeleton-cards {
+  display: grid;
+  gap: var(--space-2);
+}

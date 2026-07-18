@@ -5,7 +5,10 @@ export type NextActionKey='add_candidates'|'submit'|'check_feedback'|'schedule_i
 
 export interface NextAction {key:NextActionKey;label:string;reason:string}
 export interface TodayWorkItemGroup {label:string;href:string;cta:string}
-export interface TodayWorkItem {id:string;kind:TodayWorkKind;title:string;reason:string;href:string;cta:string;dueAt?:string|null;group?:TodayWorkItemGroup[]}
+// `groupNoun` names what the disclosure is hiding ("6 jobs", "8 candidates"). The Today list used to
+// hardcode "jobs" in that toggle because unowned jobs were the only thing that grouped; now that
+// repeated tasks group too, the noun has to travel with the item.
+export interface TodayWorkItem {id:string;kind:TodayWorkKind;title:string;reason:string;href:string;cta:string;dueAt?:string|null;group?:TodayWorkItemGroup[];groupNoun?:string}
 
 export const pipelinePhases:Array<{key:PipelinePhaseKey;label:string}>=[
   {key:'sourcing',label:'Sourcing'},
@@ -104,6 +107,7 @@ export function buildTodayWorkItems(input:{
 }):TodayWorkItem[]{
   const {base,now,currentMemberId}=input
   const items:TodayWorkItem[]=[]
+  const taskEntries:Array<{task:Task;kind:TodayWorkKind;href:string;who?:string;item:TodayWorkItem}>=[]
   for(const task of input.tasks){
     if(task.status==='completed'||task.status==='cancelled')continue
     if(currentMemberId&&task.owner_member_id&&task.owner_member_id!==currentMemberId)continue
@@ -117,7 +121,37 @@ export function buildTodayWorkItems(input:{
     // differentiator, so it leads; the task's own title becomes the supporting line. Untethered
     // tasks have no name to lead with, so they fall back to the task's own title as before.
     const who=link?.jobs?.title||link?.candidates?.full_name||link?.companies?.name
-    items.push({id:`task-${task.id}`,kind,title:who||task.title,reason:who?task.title:(task.description||'Owned follow-up'),href,cta:'Open',dueAt:task.due_at})
+    taskEntries.push({task,kind,href,who,item:{id:`task-${task.id}`,kind,title:who||task.title,reason:who?task.title:(task.description||'Owned follow-up'),href,cta:'Open',dueAt:task.due_at}})
+  }
+  /* Repeated tasks collapse the same way repeated unowned jobs already did. A batch of eight
+   * "Follow up on candidate availability" tasks is one decision applied eight times, and rendering
+   * it as eight full rows buries the two genuinely different actions underneath it -- which is the
+   * failure mode the whole queue exists to prevent.
+   *
+   * Grouped by task title AND urgency: an overdue follow-up and an upcoming one are not the same
+   * pile of work, and merging them would hide the overdue one behind a disclosure triangle. Only
+   * linked tasks group, because the group list needs a record name to distinguish its rows -- eight
+   * untethered tasks sharing a title have nothing to tell them apart once collapsed.
+   *
+   * A bucket of one renders exactly as before: no disclosure UI for a group of one. */
+  const taskBuckets=new Map<string,typeof taskEntries>()
+  for(const entry of taskEntries){
+    const key=entry.who?`${entry.kind}::${entry.task.title}`:`solo-${entry.task.id}`
+    const bucket=taskBuckets.get(key);if(bucket)bucket.push(entry);else taskBuckets.set(key,[entry])
+  }
+  for(const bucket of taskBuckets.values()){
+    if(bucket.length===1){items.push(bucket[0]!.item);continue}
+    const first=bucket[0]!
+    // The group inherits the earliest due date in it so the collapsed row keeps the sort position of
+    // its most urgent member rather than drifting down the queue.
+    const dueAt=bucket.map((entry)=>entry.task.due_at).filter(Boolean).sort()[0]||null
+    items.push({
+      id:`task-group-${first.kind}-${first.task.id}`,kind:first.kind,
+      title:`${first.task.title} · ${bucket.length} records`,
+      reason:first.task.description||'The same follow-up is waiting on several records.',
+      href:first.href,cta:'Open',dueAt,groupNoun:'records',
+      group:bucket.map((entry)=>({label:entry.who||entry.task.title,href:entry.href,cta:'Open'})),
+    })
   }
   for(const interview of input.interviews){
     const job=interview.job_candidates?.jobs
@@ -171,7 +205,7 @@ export function buildTodayWorkItems(input:{
       id:'job-owner-group',kind:'blocked',
       title:`Assign an owner · ${unownedJobs.length} jobs`,
       reason:'These open jobs have no accountable consultant.',
-      href:`${base}/jobs/${unownedJobs[0]!.id}?view=details`,cta:'Complete setup',
+      href:`${base}/jobs/${unownedJobs[0]!.id}?view=details`,cta:'Complete setup',groupNoun:'jobs',
       group:unownedJobs.map((job)=>({label:job.title,href:`${base}/jobs/${job.id}?view=details`,cta:'Assign owner'})),
     })
   }

@@ -6,7 +6,8 @@ import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {createTask,dashboardSummary,listEmailDeliveryIssues,listInterviews,listJobs,listOffers,listPlacements,listSubmissionPackages,listTasks} from '../core/repository'
-import {ErrorState,LoadingState} from '../../shared/ui/States'
+import {ErrorState,TableSkeleton} from '../../shared/ui/States'
+import {useToast} from '../../shared/ui/Toast'
 import {Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {Button} from '../../shared/ui/Button'
 import {Modal} from '../../shared/ui/Modal'
@@ -17,7 +18,7 @@ import {buildTodayWorkItems} from '../workflow/workflow'
 import {SetupChecklist,buildSetupSteps} from './SetupChecklist'
 
 export function TodayPage(){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const [params,setParams]=useSearchParams();const [scope,setScope]=useState<'mine'|'team'>('mine')
+  const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams();const [scope,setScope]=useState<'mine'|'team'>('mine')
   const [taskTitle,setTaskTitle]=useState('');const [taskDue,setTaskDue]=useState('');const [taskJobId,setTaskJobId]=useState('')
   const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
   const query=useQuery({queryKey:['today',organization?.id],enabled:Boolean(organization),queryFn:async()=>{
@@ -26,8 +27,8 @@ export function TodayPage(){
   }})
   const taskOpen=params.get('action')==='task'&&!capabilities.data?.readOnly
   const closeTask=()=>{const next=new URLSearchParams(params);next.delete('action');setParams(next,{replace:true})}
-  const createFollowUp=useMutation({mutationFn:()=>createTask(organization!.id,user!.id,{title:taskTitle.trim(),priority:'normal',due_at:taskDue?new Date(taskDue).toISOString():undefined,owner_member_id:currentMember?.id,link:taskJobId?{type:'job',id:taskJobId}:undefined}),onSuccess:async()=>{setTaskTitle('');setTaskDue('');setTaskJobId('');closeTask();await cache.invalidateQueries({queryKey:['today',organization?.id]})}})
-  if(query.isLoading||capabilities.isLoading)return <LoadingState label="Preparing your work for today…"/>
+  const createFollowUp=useMutation({mutationFn:()=>createTask(organization!.id,user!.id,{title:taskTitle.trim(),priority:'normal',due_at:taskDue?new Date(taskDue).toISOString():undefined,owner_member_id:currentMember?.id,link:taskJobId?{type:'job',id:taskJobId}:undefined}),onSuccess:async()=>{const created=taskTitle.trim();setTaskTitle('');setTaskDue('');setTaskJobId('');closeTask();await cache.invalidateQueries({queryKey:['today',organization?.id]});toast.success(`Task added: ${created}`)},onError:(error)=>toast.error(error,'The follow-up was not created.')})
+  if(query.isLoading||capabilities.isLoading)return <TableSkeleton rows={6} columns={2} label="Preparing your work for today…"/>
   if(query.error||!query.data)return <ErrorState error={query.error} retry={()=>void query.refetch()}/>
   const base=`/app/${organization!.slug}`;const name=(user?.user_metadata.full_name as string|undefined)?.split(' ')[0]
   const items=buildTodayWorkItems({base,now:new Date(),currentMemberId:scope==='mine'?currentMember?.id:undefined,tasks:query.data.tasks,interviews:query.data.interviews,offers:query.data.offers,placements:query.data.placements,jobs:query.data.jobs,deliveryIssues:query.data.deliveryIssues,submissions:query.data.submissions})
@@ -40,7 +41,7 @@ export function TodayPage(){
     <div className="today-layout">
       <Panel title="Next actions" subtitle="One click opens the right record with its context preserved." elevation="raised">
         {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<ol className="work-queue">{items.map((item)=>item.group
-          ?<li key={item.id} className="work-queue-group"><details><summary><div className="work-queue-main"><StatusBadge map={todayWorkKind} value={item.kind}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><span className="work-queue-group-toggle">{item.group.length} jobs<ChevronDown size={14}/></span></summary><ul className="work-queue-group-list">{item.group.map((sub)=><li key={sub.href}><span>{sub.label}</span><Link className="button button-secondary button-sm" to={sub.href}>{sub.cta}<ArrowRight size={13}/></Link></li>)}</ul></details></li>
+          ?<li key={item.id} className="work-queue-group"><details><summary><div className="work-queue-main"><StatusBadge map={todayWorkKind} value={item.kind}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><span className="work-queue-group-toggle">{item.group.length} {item.groupNoun||'items'}<ChevronDown size={14}/></span></summary><ul className="work-queue-group-list">{item.group.map((sub)=><li key={sub.href}><span>{sub.label}</span><Link className="button button-secondary button-sm" to={sub.href}>{sub.cta}<ArrowRight size={13}/></Link></li>)}</ul></details></li>
           :<li key={item.id}><div className="work-queue-main"><StatusBadge map={todayWorkKind} value={item.kind}/><div><strong>{item.title}</strong><p>{item.reason}</p>{item.dueAt&&<time dateTime={item.dueAt}>{formatDateTime(item.dueAt)}</time>}</div></div><Link className="button button-secondary button-sm" to={item.href}>{item.cta}<ArrowRight size={13}/></Link></li>
         )}</ol>}
       </Panel>

@@ -6,19 +6,20 @@ import {useOrganization} from '../../app/OrganizationProvider'
 import {Button} from '../../shared/ui/Button'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
+import {useToast} from '../../shared/ui/Toast'
 import {createTask} from '../core/repository'
 import {listTeamMembers} from '../core/commercialRepository'
 
 const dateValue=(days:number)=>{const date=new Date();date.setDate(date.getDate()+days);date.setHours(days===0?17:9,0,0,0);const local=new Date(date.getTime()-date.getTimezoneOffset()*60_000);return local.toISOString().slice(0,16)}
 
 export function QuickTaskModal(){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const cache=useQueryClient();const [params,setParams]=useSearchParams()
+  const {organization,memberships}=useOrganization();const {user}=useAuth();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams()
   const [title,setTitle]=useState('');const [description,setDescription]=useState('');const [dueAt,setDueAt]=useState(()=>dateValue(0));const [priority,setPriority]=useState('normal');const [ownerId,setOwnerId]=useState('')
   const open=params.get('task')==='1'&&Boolean(organization&&user);const linkType=params.get('linkType') as 'candidate'|'company'|'contact'|'job'|null;const linkId=params.get('linkId')
   const current=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
   const team=useQuery({queryKey:['team',organization?.id],enabled:open&&Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
   const close=()=>{const next=new URLSearchParams(params);['task','linkType','linkId'].forEach((key)=>next.delete(key));setParams(next,{replace:true})}
-  const mutation=useMutation({mutationFn:()=>createTask(organization!.id,user!.id,{title:title.trim(),description:description.trim()||undefined,priority,due_at:dueAt?new Date(dueAt).toISOString():undefined,owner_member_id:ownerId||current?.id,link:linkType&&linkId?{type:linkType,id:linkId}:undefined}),onSuccess:async()=>{setTitle('');setDescription('');setDueAt(dateValue(0));setPriority('normal');setOwnerId('');close();await Promise.all([cache.invalidateQueries({queryKey:['today',organization?.id]}),cache.invalidateQueries({queryKey:['tasks',organization?.id]})])}})
+  const mutation=useMutation({mutationFn:()=>createTask(organization!.id,user!.id,{title:title.trim(),description:description.trim()||undefined,priority,due_at:dueAt?new Date(dueAt).toISOString():undefined,owner_member_id:ownerId||current?.id,link:linkType&&linkId?{type:linkType,id:linkId}:undefined}),onSuccess:async()=>{const created=title.trim();setTitle('');setDescription('');setDueAt(dateValue(0));setPriority('normal');setOwnerId('');close();await Promise.all([cache.invalidateQueries({queryKey:['today',organization?.id]}),cache.invalidateQueries({queryKey:['tasks',organization?.id]})]);toast.success(`Task added: ${created}`,'It appears in Today as soon as it is due.')},onError:(error)=>toast.error(error,'The task was not created.')})
   return <Modal title="Add task" open={open} onClose={close}><form className="stack" onSubmit={(event)=>{event.preventDefault();mutation.mutate()}}>
     <Field label="What needs to happen?"><Input autoFocus value={title} onChange={(event)=>setTitle(event.target.value)} required/></Field>
     <Field label="Context (optional)"><Textarea rows={3} value={description} onChange={(event)=>setDescription(event.target.value)}/></Field>
