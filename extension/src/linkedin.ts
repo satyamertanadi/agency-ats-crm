@@ -30,7 +30,18 @@ async function openPanel(){
   root.append(header,body)
   document.body.append(root)
 
-  const state=await api.getState()
+  // A content script left over from before an extension reload/update can no longer reach the
+  // background ("Extension context invalidated"). Say so plainly instead of rendering an empty panel.
+  let state:Awaited<ReturnType<typeof api.getState>>
+  try{state=await api.getState()}
+  catch{
+    body.append(
+      el('p',{className:'ats-error',textContent:'The extension was updated or reloaded.'}),
+      el('p',{className:'ats-note',textContent:'Refresh this LinkedIn page (F5) to reconnect the panel.'}),
+      el('button',{className:'ats-btn ats-btn-primary',textContent:'Refresh page',onclick:()=>location.reload()}),
+    )
+    return
+  }
   if(!state.connected){
     body.append(
       el('p',{className:'ats-note',textContent:'Connect the extension to your ATS to capture profiles.'}),

@@ -11,14 +11,29 @@ permissions:
 jobs:
   cleanup:
     runs-on: ubuntu-latest
+    # Declared so the job can read the production-scoped secrets the rest of the pipeline uses.
+    # Without it this job saw only repository-level secrets, and SUPABASE_URL is not one of them --
+    # every other workflow reads PRODUCTION_SUPABASE_URL from this environment.
+    environment: production
     steps:
       - name: Remove expired CV parse drafts
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
           CV_PARSE_WORKER_SECRET: ${{ secrets.CV_PARSE_WORKER_SECRET }}
         run: |
-          test -n "$SUPABASE_URL"
-          test -n "$CV_PARSE_WORKER_SECRET"
+          # This job deletes expired CV drafts and the uploaded files behind them, which hold
+          # candidate PII, so a misconfiguration must fail loudly rather than skip quietly. It
+          # previously failed on a bare `test -n` that printed nothing, which is why consecutive
+          # hourly failures said nothing about the cause.
+          missing=()
+          [ -n "$SUPABASE_URL" ] || missing+=("PRODUCTION_SUPABASE_URL (production environment secret)")
+          [ -n "$CV_PARSE_WORKER_SECRET" ] || missing+=("CV_PARSE_WORKER_SECRET (must match the WORKER_SECRET env var set on the production Supabase project's parse-candidate-cv function)")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::CV parse cleanup is not configured. Missing:"
+            printf '::error::  - %s\n' "${missing[@]}"
+            echo "::error::Expired CV drafts and their uploaded files are NOT being removed until these are set."
+            exit 1
+          fi
           curl --fail --silent --show-error \
             --request POST \
             --header "content-type: application/json" \

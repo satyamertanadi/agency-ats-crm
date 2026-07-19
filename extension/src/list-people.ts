@@ -110,7 +110,10 @@ async function processNewRows(){
 }
 
 async function init(){
-  const state=await api.getState()
+  // An orphaned content script (extension reloaded since this tab loaded) cannot reach the background;
+  // stay silent rather than throwing into LinkedIn's console. Refreshing the page restores it.
+  let state:Awaited<ReturnType<typeof api.getState>>
+  try{state=await api.getState()}catch{return}
   if(!state.connected||state.organizations.length===0)return
   organizations=state.organizations;organizationId=organizations[0].id
   await processNewRows()
