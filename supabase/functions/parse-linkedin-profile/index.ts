@@ -25,7 +25,7 @@ Deno.serve(async(request)=>{
       caller.rpc('has_permission',{p_organization_id:input.organizationId,p_permission:'ai.use'}),
     ])
     if(canWrite.error||!canWrite.data||canAi.error||!canAi.data)throw new FunctionError(403,'permission_denied','You do not have permission to use AI parsing here.')
-    const provider=Deno.env.get('AI_PROVIDER');const model=Deno.env.get('AI_MODEL')?.trim();const apiKey=Deno.env.get('ANTHROPIC_API_KEY')
+    const provider=Deno.env.get('AI_PROVIDER');const model=Deno.env.get('AI_MODEL_PARSE')?.trim()||Deno.env.get('AI_MODEL')?.trim();const apiKey=Deno.env.get('ANTHROPIC_API_KEY')
     if(provider!=='anthropic'||!model||!apiKey)throw new FunctionError(503,'parser_not_configured','AI parsing is not configured.')
     const clipped=input.text.slice(0,20000)
     const response=await fetch('https://api.anthropic.com/v1/messages',{

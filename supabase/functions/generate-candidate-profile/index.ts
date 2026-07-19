@@ -3,7 +3,7 @@ import {sha256} from '../_shared/crypto.ts'
 import {corsHeaders,json,log,requestId} from '../_shared/http.ts'
 import {candidateProfileJsonSchema,validateCandidateProfileDraft,type CandidateProfileDraft} from '../_shared/profile-schema.ts'
 
-interface Input {organizationId?:string;candidateId?:string;jobId?:string;templateId?:string;anonymize?:boolean}
+interface Input {organizationId?:string;candidateId?:string;jobId?:string;templateId?:string;anonymize?:boolean;force?:boolean}
 type Context=Awaited<ReturnType<typeof requireUser>>
 interface Employment {company_name:string;title:string;location:string|null;started_on:string|null;ended_on:string|null;started_on_precision:string|null;ended_on_precision:string|null;is_current:boolean;summary:string|null;sort_order:number}
 interface TemplateConfiguration {schema_version:number;output_language:'en'|'id';anonymize_by_default:boolean;confidentiality_text:string;sections:unknown[]}
@@ -19,6 +19,17 @@ Deno.serve(async(request)=>{
     const provider=Deno.env.get('AI_PROVIDER')?.trim()||'anthropic';const model=Deno.env.get('AI_MODEL')?.trim()||''
     const inputVersions={candidate_updated_at:prepared.candidate.updated_at,job_updated_at:prepared.job.updated_at,template_version:prepared.template.version,prompt_version:'candidate-profile-v2'}
     const inputHash=await sha256(stableStringify({candidate:prepared.candidate,job:prepared.job,template:{id:prepared.template.id,version:prepared.template.version,configuration:prepared.configuration},anonymize:Boolean(input.anonymize)}))
+    // Dedup: an unchanged input hash means an identical prior generation already exists. input_versions
+    // folds in candidate/job/template updated_at, so any real edit busts the match. Serving the stored
+    // draft skips a paid model call with no change to output; input.force lets an explicit regenerate bypass.
+    if(!input.force){
+      const cached=await context.admin.from('candidate_profile_versions').select('id,ai_evaluation_id,generated_content').eq('organization_id',input.organizationId).eq('candidate_id',input.candidateId).eq('job_id',input.jobId).eq('template_id',input.templateId).eq('input_hash',inputHash).eq('status','draft').order('version',{ascending:false}).limit(1).maybeSingle()
+      if(cached.data&&cached.data.generated_content){
+        const draft=cached.data.generated_content as CandidateProfileDraft
+        log('info','candidate_profile_cache_hit',{requestId:requestID,organizationId:input.organizationId,candidateId:input.candidateId,jobId:input.jobId,profileVersionId:cached.data.id})
+        return json(request,{profileVersionId:cached.data.id,draft,evaluation:{id:cached.data.ai_evaluation_id,score:draft.score,evidence:draft.requirement_evidence},requestId:requestID})
+      }
+    }
     const evaluation=await context.admin.from('ai_evaluations').insert({organization_id:input.organizationId,candidate_id:input.candidateId,job_id:input.jobId,evaluation_type:'candidate_profile',provider,model:model||'unconfigured',prompt_version:'candidate-profile-v2',status:'processing',input_hash:inputHash,input_versions:inputVersions,requested_by:context.user.id}).select('id').single()
     if(evaluation.error||!evaluation.data)throw new FunctionError(500,'evaluation_persistence_failed','Could not start a tracked profile evaluation.')
     evaluationId=evaluation.data.id

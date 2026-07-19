@@ -178,6 +178,15 @@ it('generates persisted Indonesian evidence and finalizes only with both private
   const persisted=await user.from('candidate_profile_versions').select('status,anonymized,ai_evaluations!inner(status,evidence,input_hash,duration_ms)').eq('id',payload.profileVersionId).single()
   expect(persisted.error,persisted.error?.message).toBeNull();expect(persisted.data?.status).toBe('draft');expect(persisted.data?.anonymized).toBe(true)
 
+  // Dedup: an identical re-request must serve the stored draft (same version + evaluation) without a
+  // second model call. No provider call means no new evaluation row and no new version row are created.
+  const cachedGen=await user.functions.invoke('generate-candidate-profile',{body:{organizationId,candidateId,jobId,templateId:templateData.id,anonymize:true}})
+  expect(cachedGen.error,JSON.stringify(cachedGen.data)).toBeNull()
+  const cachedPayload=cachedGen.data as {profileVersionId:string;evaluation:{id:string}}
+  expect(cachedPayload.profileVersionId).toBe(payload.profileVersionId);expect(cachedPayload.evaluation.id).toBe(payload.evaluation.id)
+  const versionCount=await user.from('candidate_profile_versions').select('id',{count:'exact',head:true}).eq('organization_id',organizationId).eq('candidate_id',candidateId).eq('job_id',jobId)
+  expect(versionCount.error,versionCount.error?.message).toBeNull();expect(versionCount.count).toBe(1)
+
   const uploadDocument=async(extension:'docx'|'pdf',mimeType:string)=>{const path=`${organizationId}/${candidateId}/profiles/${crypto.randomUUID()}-staging-profile.${extension}`;generatedStoragePaths.push(path);const bytes=extension==='pdf'?buildTestCvPdf():new TextEncoder().encode('synthetic docx contract fixture');const upload=await admin.storage.from('candidate-documents').upload(path,bytes,{contentType:mimeType});expect(upload.error,upload.error?.message).toBeNull();const document=await admin.from('documents').insert({organization_id:organizationId,file_name:`staging-profile.${extension}`,original_filename:`staging-profile.${extension}`,storage_path:path,mime_type:mimeType,size_bytes:bytes.byteLength,document_type:'candidate_profile',uploaded_by:userId}).select('id').single();expect(document.error,document.error?.message).toBeNull();const documentId=required(document.data,'staging profile document').id;const link=await admin.from('document_links').insert({organization_id:organizationId,document_id:documentId,candidate_id:candidateId});expect(link.error,link.error?.message).toBeNull();return documentId}
   const docxId=await uploadDocument('docx','application/vnd.openxmlformats-officedocument.wordprocessingml.document');const pdfId=await uploadDocument('pdf','application/pdf')
   const partial=await user.rpc('finalize_candidate_profile',{p_organization_id:organizationId,p_profile_version_id:payload.profileVersionId,p_reviewed_content:payload.draft,p_anonymized:true,p_docx_document_id:docxId,p_pdf_document_id:docxId,p_edited_field_count:0});expect(partial.error).not.toBeNull()

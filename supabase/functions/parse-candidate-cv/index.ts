@@ -63,7 +63,7 @@ async function start(request:Request,context:Context,input:ScopedInput,requestID
   const size=downloaded.data.size
   const max=input.mimeType===docxMime?10*1024*1024:25*1024*1024
   if(size<1||size>max)throw new FunctionError(413,'cv_too_large',input.mimeType===docxMime?'DOCX CVs are limited to 10 MB.':'PDF CVs are limited to 25 MB.')
-  const model=Deno.env.get('AI_MODEL')?.trim()
+  const model=Deno.env.get('AI_MODEL_PARSE')?.trim()||Deno.env.get('AI_MODEL')?.trim()
   if(Deno.env.get('AI_PROVIDER')!=='anthropic'||!model||!Deno.env.get('ANTHROPIC_API_KEY'))throw new FunctionError(503,'cv_parser_not_configured','CV parsing is not configured.')
   const created=await context.admin.from('candidate_cv_parses').insert({
     id:input.parseId,organization_id:input.organizationId,uploaded_by:context.user.id,target_candidate_id:input.targetCandidateId||null,
@@ -94,7 +94,7 @@ async function status(request:Request,context:Context,input:ScopedInput,requestI
 async function retry(request:Request,context:Context,input:ScopedInput,requestID:string){
   const row=await ownParse(context,input.organizationId,input.parseId)
   if(row.status!=='failed'||row.attempts>=3)throw new FunctionError(409,'parse_not_retryable','This CV parse cannot be retried.')
-  const model=Deno.env.get('AI_MODEL')?.trim()
+  const model=Deno.env.get('AI_MODEL_PARSE')?.trim()||Deno.env.get('AI_MODEL')?.trim()
   if(Deno.env.get('AI_PROVIDER')!=='anthropic'||!model||!Deno.env.get('ANTHROPIC_API_KEY'))throw new FunctionError(503,'cv_parser_not_configured','CV parsing is not configured.')
   await context.admin.from('candidate_cv_parses').update({status:'uploaded',model,error_code:null,error_message:null}).eq('id',row.id)
   EdgeRuntime.waitUntil(processParse(context,input.organizationId,input.parseId,requestID))
