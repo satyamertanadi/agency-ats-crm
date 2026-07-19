@@ -986,11 +986,13 @@
 .inline-form{display:flex;align-items:flex-end;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-4)}
 .inline-form .field{flex:1;min-width:220px}
 
-.today-brief{display:flex;gap:var(--space-4);align-items:flex-start;padding:var(--space-5) var(--space-6);border:1px solid var(--color-line);border-radius:var(--radius-lg);background:linear-gradient(135deg,var(--color-accent-soft),var(--color-surface))}
-.today-brief>span{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--color-surface);color:var(--color-accent)}
-.today-brief h2,.today-brief p{margin:0}.today-brief .eyebrow{margin-bottom:3px}.today-brief-alert{background:linear-gradient(135deg,var(--color-warning-soft),var(--color-surface))}.today-brief-alert>span{color:var(--color-danger)}
-.today-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.75fr);gap:var(--space-5)}
-.work-queue{list-style:none;margin:0;padding:0;display:grid}.work-queue li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-4) 0;border-bottom:1px solid var(--color-line-soft)}.work-queue li:first-child{padding-top:0}.work-queue li:last-child{border-bottom:0;padding-bottom:0}
+.today-brief{display:flex;gap:var(--space-4);align-items:flex-start;padding:var(--space-5) var(--space-6);border:1px solid var(--color-line);border-left:3px solid var(--color-accent);border-radius:var(--radius-lg);background:linear-gradient(135deg,var(--color-accent-soft),var(--color-surface))}
+.today-brief>span{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--color-surface);border:1px solid var(--color-line-soft);color:var(--color-accent)}
+.today-brief h2,.today-brief p{margin:0}.today-brief .eyebrow{margin-bottom:3px}.today-brief-alert{border-left-color:var(--color-danger);background:linear-gradient(135deg,var(--color-warning-soft),var(--color-surface))}.today-brief-alert>span{color:var(--color-danger)}
+.today-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.75fr);gap:var(--space-6)}
+/* Rows carry --space-3 side padding with a matching negative margin so the hover fill bleeds to the
+ * panel edge instead of floating inset. align-items stays center (see note below). */
+.work-queue{list-style:none;margin:0;padding:0;display:grid}.work-queue li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-4) var(--space-3);margin:0 calc(-1 * var(--space-3));border-bottom:1px solid var(--color-line-soft);border-radius:var(--radius-sm);transition:background var(--motion-fast)}.work-queue li:hover{background:var(--color-surface-soft)}.work-queue li:first-child{margin-top:calc(-1 * var(--space-3))}.work-queue li:last-child{border-bottom:0;margin-bottom:calc(-1 * var(--space-3))}
 /* align-items:center (not flex-start) is what keeps the badge vertically centered against its sibling
  * text stack regardless of whether that stack is 2 lines (title+reason) or 3 (title+reason+time) --
  * the same effect `vertical-align:middle` gives badges inside a <td> elsewhere in the app. A fixed
