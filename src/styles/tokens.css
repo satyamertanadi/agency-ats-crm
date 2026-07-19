@@ -194,3 +194,97 @@
   --sidebar-collapsed-width: 76px;
   --topbar-height: 70px;
 }
+
+/* ---- dark theme -------------------------------------------------------------------------------
+ * A re-lighting of the existing palette, not a second design. Every value here overrides a token
+ * already declared above, so components and features never reference a dark-specific name and a
+ * screen cannot be styled for one theme only.
+ *
+ * The warm editorial identity is deliberately preserved: the greys carry the same green cast the
+ * light canvas does rather than going neutral-grey or pure black, so the product reads as the same
+ * product with the lights off.
+ *
+ * Applied by a `data-theme` attribute (see shared/lib/theme.ts) rather than a prefers-color-scheme
+ * media query, so these values live in exactly one place instead of being duplicated for automatic
+ * and manual selection.
+ */
+:root[data-theme='dark'] {
+  --color-ink: #e9ede9;
+  --color-ink-soft: #c1ccc5;
+  --color-muted: #97a29b;
+  --color-faint: #717c76;
+  --color-canvas: #121714;
+  --color-canvas-deep: #0d120f;
+  --color-surface: #1a201c;
+  --color-surface-soft: #161c19;
+
+  --color-line-soft: #262e29;
+  --color-line: #323b36;
+  --color-line-strong: #45514b;
+
+  /* Lifted well above the light theme's #196f52: that green on a dark surface lands near 2:1 and is
+     unreadable as body text or a small-button background. */
+  --color-accent: #57b491;
+  --color-accent-hover: #6cc7a3;
+  --color-accent-soft: #16302a;
+  --color-on-accent: #06231a;
+
+  --color-bronze: #cb9659;
+  --color-bronze-dark: #a97a41;
+  --color-bronze-light: #e0bd91;
+  --color-bronze-soft: #2a2016;
+  --color-parchment: #2b2418;
+  --color-sand: #4a3f2c;
+
+  --color-forest: #0f231c;
+  --color-forest-deep: #0a1814;
+  --color-forest-lift: #17352a;
+
+  --color-danger: #ef8b81;
+  --color-danger-hover: #f5a49b;
+  --color-danger-soft: #33201e;
+  --color-warning: #dfae5c;
+  --color-warning-soft: #2f2617;
+  --color-info: #86b6e2;
+  --color-info-soft: #1a2632;
+
+  /* The sidebar is the one surface that was already dark. It now sits just *above* the canvas
+     rather than below it, so the shell still reads as layered instead of merging into one slab. */
+  --color-sidebar: #182019;
+  --color-sidebar-deep: #121a15;
+  --color-sidebar-text: #e5eee9;
+  --color-sidebar-muted: #8fa199;
+  --color-on-dark: #ffffff;
+  --color-on-dark-muted: #aec2b9;
+
+  --color-scrim: rgba(0, 0, 0, 0.66);
+
+  --tone-neutral-bg: #222a25;
+  --tone-neutral-fg: #b9c4bd;
+  --tone-neutral-border: #333c37;
+
+  --tone-good-bg: var(--color-accent-soft);
+  --tone-good-fg: #8fd9ba;
+  --tone-good-border: #26493d;
+
+  --tone-warn-bg: var(--color-warning-soft);
+  --tone-warn-fg: #f0c880;
+  --tone-warn-border: #4a3a20;
+
+  --tone-bad-bg: var(--color-danger-soft);
+  --tone-bad-fg: #f7b0a8;
+  --tone-bad-border: #4d302c;
+
+  --tone-info-bg: var(--color-info-soft);
+  --tone-info-fg: #a9cdee;
+  --tone-info-border: #2b3d4f;
+
+  /* Shadows do almost nothing on a dark canvas; depth comes from the surface steps above. Kept as
+     subtle dark halos so elevated surfaces still separate without the milky haze that light-theme
+     shadow alphas produce over dark backgrounds. */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 5px 18px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 18px 46px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 30px 90px rgba(0, 0, 0, 0.65);
+  --focus: 0 0 0 3px color-mix(in srgb, var(--color-accent) 38%, transparent);
+}

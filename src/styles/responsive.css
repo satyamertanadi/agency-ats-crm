@@ -122,6 +122,14 @@
     min-width: 100%;
   }
 }
+@media (max-width: 720px) {
+  /* Denser desktop rows are a scanning win; on touch the row is something you hit, so it keeps the
+     original height. */
+  th,
+  td {
+    padding: 12px 14px;
+  }
+}
 @media (max-width: 520px) {
   .kpi-grid {
     grid-template-columns: repeat(2, 1fr);

@@ -393,9 +393,13 @@ th {
   background: var(--color-surface-soft);
   font-weight: var(--weight-semibold);
 }
+/* Row height was 12px/14px. Vertical padding drops ~25% so a 1440px screen shows materially more
+   rows; horizontal padding is untouched, since squeezing columns together costs readability without
+   buying any rows. Restored to the roomier value under 720px in responsive.css, where rows are
+   touch targets rather than scan targets. */
 th,
 td {
-  padding: 12px 14px;
+  padding: 9px 14px;
   border-bottom: 1px solid var(--color-line-soft);
   vertical-align: middle;
 }

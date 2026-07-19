@@ -167,9 +167,17 @@
   top: 0;
   z-index: 20;
 }
+/* The workspace name is stated once per viewport. On desktop the sidebar brand carries it, so the
+   topbar repeating it was one of four places the same words appeared on a single screen; below
+   1100px the sidebar is off-canvas and the topbar becomes the only identity, so it comes back. */
 .topbar-identity {
-  display: flex;
+  display: none;
   flex-direction: column;
+}
+@media (max-width: 1100px) {
+  .topbar-identity {
+    display: flex;
+  }
 }
 .topbar strong {
   font-size: var(--text-base);
