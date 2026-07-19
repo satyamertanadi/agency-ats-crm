@@ -1054,6 +1054,47 @@
 .candidate-context{display:grid;gap:var(--space-3);padding-bottom:var(--space-5);border-bottom:1px solid var(--color-line)}.candidate-context-summary{gap:var(--space-3)}.candidate-context-avatar{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--color-accent-soft);color:var(--color-accent);font-weight:var(--weight-bold)}.candidate-context-summary p{margin:3px 0 0;color:var(--color-muted)}.context-badges{display:flex;gap:var(--space-2);flex-wrap:wrap}
 .next-action-card{align-items:flex-start;gap:var(--space-3);margin:var(--space-5) 0;padding:var(--space-4);border:1px solid var(--color-accent);border-radius:var(--radius-md);background:var(--color-accent-soft)}.next-action-card>span{color:var(--color-accent)}.next-action-card>div{flex:1}.next-action-card p{margin:2px 0}.next-action-card .eyebrow{margin-bottom:3px}.context-action-form{display:grid;gap:var(--space-4);padding:var(--space-4);border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface-soft)}.context-action-form h3{margin:0}.context-history{display:grid;gap:var(--space-4)}.milestone-list{display:grid}.milestone-list article{gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--color-line-soft)}.milestone-list svg{color:var(--color-accent)}.milestone-list strong,.milestone-list small{display:block}.milestone-list small{margin-top:2px;color:var(--color-muted)}.context-secondary-actions{display:flex;gap:var(--space-2);flex-wrap:wrap}
 .readiness-list{display:grid;gap:var(--space-3);margin-bottom:var(--space-4)}.readiness-list article{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding-bottom:var(--space-3);border-bottom:1px solid var(--color-line-soft)}
+
+/* ---- candidate detail: summary header + readiness strip + overflow menu + actionable empties ----
+ * Bespoke header (avatar + identity + actions) replaces Page's thin header so the candidate's name,
+ * status, and readiness read as one unit at the top; the tabs below cut the former long scroll. */
+.candidate-summary{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--space-4);padding:var(--space-5) var(--space-6);border:1px solid var(--color-line);border-radius:var(--radius-lg);background:var(--color-surface);margin-bottom:var(--space-5)}
+.candidate-summary-avatar{display:grid;place-items:center;width:52px;height:52px;flex-shrink:0;border-radius:var(--radius-circle);background:var(--color-accent-soft);color:var(--color-accent);font-weight:var(--weight-bold);font-size:var(--text-lg)}
+.candidate-summary-identity{flex:1;min-width:220px}
+.candidate-summary-identity .eyebrow{margin-bottom:4px}
+.candidate-summary-identity h1{margin:0;font-family:var(--font-editorial);font-size:var(--text-2xl);font-weight:var(--weight-semibold);letter-spacing:var(--tracking-tight);line-height:var(--leading-tight)}
+.candidate-summary-identity>p{margin:4px 0 0;color:var(--color-muted)}
+.candidate-summary-meta{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;margin-top:var(--space-3)}
+.candidate-summary-meta>span:not(.badge){color:var(--color-muted);font-size:var(--text-sm)}
+.candidate-summary-actions{display:flex;align-items:flex-start;gap:var(--space-2);flex-wrap:wrap}
+
+/* Tone-coded facts a recruiter checks first, lifted to a scannable band under the header. Colours
+ * come from the same --tone-*-fg role tokens the badges use, so nothing is a hand-picked hex. */
+.readiness-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);margin:0 0 var(--space-5)}
+.readiness-chip{display:flex;flex-direction:column;gap:3px;padding:var(--space-3) var(--space-4);border:1px solid var(--color-line);border-left:3px solid var(--color-line-strong);border-radius:var(--radius-md);background:var(--color-surface-soft)}
+.readiness-chip dt{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:.08em;color:var(--color-faint);font-weight:var(--weight-semibold)}
+.readiness-chip dd{margin:0;font-size:var(--text-sm);font-weight:var(--weight-semibold);color:var(--color-ink);overflow-wrap:anywhere}
+.readiness-chip.tone-good{border-left-color:var(--tone-good-fg)}.readiness-chip.tone-good dd{color:var(--tone-good-fg)}
+.readiness-chip.tone-bad{border-left-color:var(--tone-bad-fg)}.readiness-chip.tone-bad dd{color:var(--tone-bad-fg)}
+.readiness-chip.tone-warn{border-left-color:var(--tone-warn-fg)}.readiness-chip.tone-warn dd{color:var(--tone-warn-fg)}
+.readiness-chip.tone-info{border-left-color:var(--tone-info-fg)}.readiness-chip.tone-info dd{color:var(--tone-info-fg)}
+
+/* Overflow menu for the secondary/destructive header actions (Generate profile, Upload CV, Archive).
+ * Controlled by React state with a focus-out close; the panel floats over the tab content. */
+.record-actions-menu{position:relative}
+.record-actions-menu-panel{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:210px;display:grid;gap:2px;padding:var(--space-2);border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:var(--shadow-md)}
+.record-actions-menu-panel button,.record-actions-menu-panel a{display:flex;align-items:center;gap:var(--space-2);width:100%;text-align:left;border:0;background:transparent;color:var(--color-ink);font:inherit;font-size:var(--text-sm);padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;text-decoration:none}
+.record-actions-menu-panel button:hover,.record-actions-menu-panel a:hover{background:var(--color-surface-soft)}
+.record-actions-menu-panel .menu-caution{color:var(--color-danger)}
+.record-actions-menu-divider{height:1px;background:var(--color-line-soft);margin:var(--space-1) 0}
+
+/* Actionable empty state: instead of a dead "No X yet" line, repeat the add affordance in the body. */
+.panel-empty{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-4) var(--space-5);color:var(--color-muted);font-size:var(--text-sm)}
+.panel-empty>span{display:flex;align-items:center;gap:var(--space-2);min-width:0}
+.panel-empty svg{color:var(--color-faint);flex-shrink:0}
+
+.candidate-detail .record-tabs{margin-bottom:var(--space-5)}
+@media(max-width:720px){.candidate-summary{flex-direction:column}.candidate-summary-actions{width:100%}}
 .phase-mapping-list{display:grid;gap:var(--space-4)}.phase-mapping-list article{display:grid;grid-template-columns:150px 1fr;gap:var(--space-3);align-items:start}.phase-mapping-list article>div{display:flex;gap:var(--space-2);flex-wrap:wrap}
 .pipeline-stage-settings{display:grid;gap:var(--space-2)}.pipeline-stage-settings>label{display:grid;grid-template-columns:minmax(0,1fr) minmax(12rem,18rem);align-items:center;gap:var(--space-4);padding:var(--space-3);border:1px solid var(--color-line);border-radius:var(--radius-md)}.pipeline-stage-settings>label span{display:grid;gap:2px}.pipeline-stage-settings>label small{color:var(--color-muted)}
 
