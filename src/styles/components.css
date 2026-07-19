@@ -41,6 +41,22 @@
    * header reads as a subtle step off the panel body in both light and dark. */
   background: var(--color-surface-soft);
 }
+.panel-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.panel-header-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
 .panel-header h2 {
   margin: 0;
   font-family: var(--font-editorial);
