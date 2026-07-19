@@ -35,7 +35,11 @@
   gap: var(--space-4);
   padding: 16px 18px;
   border-bottom: 1px solid var(--color-line);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(250, 248, 242, 0.48));
+  /* Theme-aware header band. A hardcoded translucent-white gradient used to live here; it
+   * painted a near-white strip under --color-ink, so in dark mode the light title text sat on a
+   * light band and washed out. --color-surface-soft is a real token that inverts per theme, so the
+   * header reads as a subtle step off the panel body in both light and dark. */
+  background: var(--color-surface-soft);
 }
 .panel-header h2 {
   margin: 0;
@@ -43,6 +47,7 @@
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
   letter-spacing: -0.015em;
+  color: var(--color-ink);
 }
 .panel-header p {
   margin: 3px 0 0;
