@@ -12,8 +12,12 @@ export function Page({ title, eyebrow, description, breadcrumbs, metadata, actio
     <div className="page-content">{children}</div>
   </main>
 }
-export interface PanelProps {title?:string;subtitle?:string;action?:ReactNode;children:ReactNode;className?:string;elevation?:'flat'|'raised';tone?:'default'|'soft'|'dark';density?:'compact'|'comfortable';padding?:'none'|'sm'|'md'|'lg'}
-export function Panel({ title, subtitle, action, children, className='', elevation='flat', tone='default', density='comfortable', padding='none' }: PanelProps) { return <section className={`panel panel-${elevation} panel-${tone} panel-${density} panel-padding-${padding} ${className}`.trim()}>{(title||subtitle||action)&&<header className="panel-header"><div>{title&&<h2>{title}</h2>}{subtitle&&<p>{subtitle}</p>}</div>{action}</header>}<div className="panel-body">{children}</div></section> }
+export interface PanelProps {title?:string;subtitle?:string;icon?:ReactNode;action?:ReactNode;children:ReactNode;className?:string;elevation?:'flat'|'raised';tone?:'default'|'soft'|'dark';density?:'compact'|'comfortable';padding?:'none'|'sm'|'md'|'lg'}
+/* icon sits inside its own flex wrapper alongside the title/subtitle block, not as a third
+ * sibling of .panel-header -- that keeps .panel-header a fixed two-child space-between row
+ * (title block, action) regardless of whether icon is passed, so panels with a header action
+ * (e.g. a segmented control) don't have their spacing thrown off by an extra flex item. */
+export function Panel({ title, subtitle, icon, action, children, className='', elevation='flat', tone='default', density='comfortable', padding='none' }: PanelProps) { return <section className={`panel panel-${elevation} panel-${tone} panel-${density} panel-padding-${padding} ${className}`.trim()}>{(title||subtitle||action)&&<header className="panel-header"><div className="panel-header-title">{icon&&<span className="panel-header-icon">{icon}</span>}<div>{title&&<h2>{title}</h2>}{subtitle&&<p>{subtitle}</p>}</div></div>{action}</header>}<div className="panel-body">{children}</div></section> }
 export function Badge({ children, tone='neutral' }: {children:ReactNode;tone?:Tone}) { return <span className={`badge badge-${tone}`}>{children}</span> }
 
 /* Renders an already-resolved StatusMeta. Derived statuses use this directly -- an invitation's

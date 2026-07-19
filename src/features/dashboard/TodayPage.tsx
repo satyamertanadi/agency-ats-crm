@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ArrowRight,BriefcaseBusiness,CalendarClock,CheckCircle2,ChevronDown,Plus,TriangleAlert} from 'lucide-react'
+import {ArrowRight,BriefcaseBusiness,CalendarClock,CheckCircle2,ChevronDown,ListChecks,Plus,TriangleAlert} from 'lucide-react'
 import {Link,useSearchParams} from 'react-router-dom'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
@@ -13,7 +13,7 @@ import {Button} from '../../shared/ui/Button'
 import {Modal} from '../../shared/ui/Modal'
 import {Field,Input,Select} from '../../shared/ui/Field'
 import {formatDateTime} from '../../shared/lib/format'
-import {todayWorkKind} from '../../shared/lib/status'
+import {lookup,todayWorkKind} from '../../shared/lib/status'
 import {buildTodayWorkItems} from '../workflow/workflow'
 import {SetupChecklist,buildSetupSteps} from './SetupChecklist'
 
@@ -37,16 +37,16 @@ export function TodayPage(){
   const activeJobs=query.data.jobs.filter((job)=>job.status==='open'&&(scope==='team'||!job.owner_member_id||job.owner_member_id===currentMember?.id))
   return <Page title={name?`Today, ${name}`:'Today'} eyebrow={organization?.name} description="Your next recruitment actions, in the order they need attention." className="today-page" actions={<div className="page-scope-actions">{capabilities.data?.canViewTeamReports&&<div className="segmented-control" aria-label="Work scope"><button className={scope==='mine'?'active':''} onClick={()=>setScope('mine')}>My work</button><button className={scope==='team'?'active':''} onClick={()=>setScope('team')}>Team view</button></div>}{capabilities.data?.canWriteCandidates&&<Link className="button button-primary" to={`${base}/candidates?new=1`}><Plus size={15}/>Add candidate</Link>}</div>}>
     {!setupComplete&&<SetupChecklist steps={steps}/>}
-    {setupComplete&&<section className={`today-brief ${urgent?'today-brief-alert':''}`}><span>{urgent?<TriangleAlert size={21}/>:<CheckCircle2 size={21}/>}</span><div><p className="eyebrow">Operating brief</p><h2>{urgent?`${urgent} action${urgent===1?'':'s'} need attention`:'You are clear for today'}</h2><p>{items.length?`${items.length} total items · ${activeJobs.length} active jobs in this view`:'No overdue or upcoming work is waiting.'}</p></div></section>}
+    {setupComplete&&<section className={`today-brief ${urgent?'today-brief-alert':''}`}><div className="today-brief-main"><span>{urgent?<TriangleAlert size={21}/>:<CheckCircle2 size={21}/>}</span><div><p className="eyebrow">Operating brief</p><h2>{urgent?`${urgent} action${urgent===1?'':'s'} need attention`:'You are clear for today'}</h2>{items.length===0&&<p>No overdue or upcoming work is waiting.</p>}</div></div>{items.length>0&&<div className="today-brief-stats"><div className="today-brief-stat"><strong>{items.length}</strong><span>total items</span></div><div className="today-brief-stat"><strong>{activeJobs.length}</strong><span>active jobs</span></div></div>}</section>}
     <div className="today-layout">
-      <Panel title="Next actions" subtitle="One click opens the right record with its context preserved." elevation="raised">
-        {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<ol className="work-queue">{items.map((item)=>item.group
-          ?<li key={item.id} className="work-queue-group"><details><summary><div className="work-queue-main"><StatusBadge map={todayWorkKind} value={item.kind}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><span className="work-queue-group-toggle">{item.group.length} {item.groupNoun||'items'}<ChevronDown size={14}/></span></summary><ul className="work-queue-group-list">{item.group.map((sub)=><li key={sub.href}><span>{sub.label}</span><Link className="button button-secondary button-sm" to={sub.href}>{sub.cta}<ArrowRight size={13}/></Link></li>)}</ul></details></li>
-          :<li key={item.id}><div className="work-queue-main"><StatusBadge map={todayWorkKind} value={item.kind}/><div><strong>{item.title}</strong><p>{item.reason}</p>{item.dueAt&&<time dateTime={item.dueAt}>{formatDateTime(item.dueAt)}</time>}</div></div><Link className="button button-secondary button-sm" to={item.href}>{item.cta}<ArrowRight size={13}/></Link></li>
-        )}</ol>}
+      <Panel title="Next actions" subtitle="One click opens the right record with its context preserved." icon={<ListChecks size={16}/>} elevation="raised">
+        {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<ol className="work-queue">{items.map((item)=>{const meta=lookup(todayWorkKind,item.kind);return item.group
+          ?<li key={item.id} className={`work-queue-group tone-${meta.tone}`}><details><summary><div className="work-queue-main"><StatusBadge map={todayWorkKind} value={item.kind}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><span className="work-queue-group-toggle">{item.group.length} {item.groupNoun||'items'}<ChevronDown size={14}/></span></summary><ul className="work-queue-group-list">{item.group.map((sub)=><li key={sub.href}><span>{sub.label}</span><Link className="button button-secondary button-sm" to={sub.href}>{sub.cta}<ArrowRight size={13}/></Link></li>)}</ul></details></li>
+          :<li key={item.id} className={`tone-${meta.tone}`}><div className="work-queue-main"><StatusBadge map={todayWorkKind} value={item.kind}/><div><strong>{item.title}</strong><p>{item.reason}</p>{item.dueAt&&<time dateTime={item.dueAt}>{formatDateTime(item.dueAt)}</time>}</div></div><Link className="button button-secondary button-sm" to={item.href}>{item.cta}<ArrowRight size={13}/></Link></li>
+        })}</ol>}
       </Panel>
-      <Panel title={scope==='mine'?'My active jobs':'Active jobs'} subtitle="Jobs most likely to need your attention next.">
-        <div className="today-job-list">{activeJobs.slice(0,6).map((job)=><Link to={`${base}/jobs/${job.id}`} key={job.id}><span><BriefcaseBusiness size={16}/><span><strong>{job.title}</strong><small>{job.companies?.name||'Client'} · {job.location||'Location not set'}</small></span></span><ArrowRight size={14}/></Link>)}{activeJobs.length===0&&<p className="muted">No active jobs in this view.</p>}</div>
+      <Panel title={scope==='mine'?'My active jobs':'Active jobs'} subtitle="Jobs most likely to need your attention next." icon={<BriefcaseBusiness size={16}/>}>
+        <div className="today-job-list">{activeJobs.slice(0,6).map((job)=><Link to={`${base}/jobs/${job.id}`} key={job.id}><span><span className="today-job-icon"><BriefcaseBusiness size={15}/></span><span><strong>{job.title}</strong><small>{job.companies?.name||'Client'} · {job.location||'Location not set'}</small></span></span><ArrowRight size={14}/></Link>)}{activeJobs.length===0&&<p className="muted">No active jobs in this view.</p>}</div>
         <div className="panel-footer-action"><Link className="record-link" to={`${base}/jobs`}>View all jobs <ArrowRight size={13}/></Link></div>
       </Panel>
     </div>

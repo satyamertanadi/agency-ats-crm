@@ -986,13 +986,26 @@
 .inline-form{display:flex;align-items:flex-end;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-4)}
 .inline-form .field{flex:1;min-width:220px}
 
-.today-brief{display:flex;gap:var(--space-4);align-items:flex-start;padding:var(--space-5) var(--space-6);border:1px solid var(--color-line);border-left:3px solid var(--color-accent);border-radius:var(--radius-lg);background:linear-gradient(135deg,var(--color-accent-soft),var(--color-surface))}
-.today-brief>span{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--color-surface);border:1px solid var(--color-line-soft);color:var(--color-accent)}
-.today-brief h2,.today-brief p{margin:0}.today-brief .eyebrow{margin-bottom:3px}.today-brief-alert{border-left-color:var(--color-danger);background:linear-gradient(135deg,var(--color-warning-soft),var(--color-surface))}.today-brief-alert>span{color:var(--color-danger)}
+.today-brief{display:flex;align-items:stretch;border:1px solid var(--color-line);border-left:3px solid var(--color-accent);border-radius:var(--radius-lg);overflow:hidden;background:var(--color-surface)}
+.today-brief-main{display:flex;gap:var(--space-4);align-items:center;padding:var(--space-5) var(--space-6);flex:1;min-width:0}
+.today-brief-main>span{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:var(--color-accent-soft);color:var(--color-accent);flex-shrink:0}
+.today-brief h2,.today-brief-main p{margin:0}.today-brief .eyebrow{margin-bottom:3px}
+.today-brief-alert{border-left-color:var(--color-danger)}.today-brief-alert .today-brief-main>span{background:var(--color-danger-soft);color:var(--color-danger)}
+.today-brief-stats{display:flex;align-items:center;gap:var(--space-6);padding:0 var(--space-6);border-left:1px solid var(--color-line-soft)}
+.today-brief-stat{text-align:center}.today-brief-stat strong{display:block;font-size:var(--text-xl);font-weight:var(--weight-semibold)}.today-brief-stat span{display:block;font-size:var(--text-xs);color:var(--color-faint);margin-top:2px}
+@media(max-width:720px){.today-brief{flex-direction:column}.today-brief-stats{border-left:0;border-top:1px solid var(--color-line-soft);padding:var(--space-4) var(--space-6)}}
 .today-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.75fr);gap:var(--space-6)}
-/* Rows carry --space-3 side padding with a matching negative margin so the hover fill bleeds to the
- * panel edge instead of floating inset. align-items stays center (see note below). */
-.work-queue{list-style:none;margin:0;padding:0;display:grid}.work-queue li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-4) var(--space-3);margin:0 calc(-1 * var(--space-3));border-bottom:1px solid var(--color-line-soft);border-radius:var(--radius-sm);transition:background var(--motion-fast)}.work-queue li:hover{background:var(--color-surface-soft)}.work-queue li:first-child{margin-top:calc(-1 * var(--space-3))}.work-queue li:last-child{border-bottom:0;margin-bottom:calc(-1 * var(--space-3))}
+/* Rows are mini-cards, not divider-separated list lines: a tone-coloured left bar (matching the
+ * row's own badge) replaces the badge as the at-a-glance urgency signal, so scanning the list for
+ * "what's red" doesn't require reading each pill. */
+.work-queue{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-2)}
+.work-queue li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);background:var(--color-surface-soft);border-left:3px solid var(--color-line-strong);transition:background var(--motion-fast)}
+.work-queue li:hover{background:var(--color-canvas-deep)}
+.work-queue li.tone-bad{border-left-color:var(--tone-bad-fg)}
+.work-queue li.tone-warn{border-left-color:var(--tone-warn-fg)}
+.work-queue li.tone-info{border-left-color:var(--tone-info-fg)}
+.work-queue li.tone-good{border-left-color:var(--tone-good-fg)}
+.work-queue li.tone-neutral{border-left-color:var(--tone-neutral-fg)}
 /* align-items:center (not flex-start) is what keeps the badge vertically centered against its sibling
  * text stack regardless of whether that stack is 2 lines (title+reason) or 3 (title+reason+time) --
  * the same effect `vertical-align:middle` gives badges inside a <td> elsewhere in the app. A fixed
@@ -1009,9 +1022,14 @@
 .work-queue-group-toggle{display:flex;align-items:center;gap:6px;color:var(--color-muted);font-size:var(--text-sm);font-weight:var(--weight-semibold);flex-shrink:0}
 .work-queue-group[open] .work-queue-group-toggle svg{transform:rotate(180deg);transition:transform .15s ease}
 .work-queue-group-list{list-style:none;margin:var(--space-3) 0 0;padding-left:var(--space-8);display:grid;gap:var(--space-2)}
-.work-queue-group-list li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);color:var(--color-muted);font-size:var(--text-sm)}
+/* Resets the card treatment .work-queue li sets above -- these nested rows sit inside an
+ * already-carded group row, so a second layer of background/border-left would compete with it
+ * instead of reading as a sub-list. */
+.work-queue-group-list li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:0;background:transparent;border-left:0;border-radius:0;color:var(--color-muted);font-size:var(--text-sm)}
 .today-clear{display:flex;gap:var(--space-3);align-items:flex-start;color:var(--color-accent)}.today-clear strong{color:var(--color-ink)}.today-clear p{margin:3px 0 0;color:var(--color-muted)}
-.today-job-list{display:grid}.today-job-list>a{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--color-line-soft);color:inherit;text-decoration:none}.today-job-list>a>span{display:flex;gap:var(--space-3);align-items:flex-start}.today-job-list strong,.today-job-list small{display:block}.today-job-list small{margin-top:2px;color:var(--color-muted)}.panel-footer-action{padding-top:var(--space-4)}
+.today-job-list{display:grid;gap:var(--space-2)}.today-job-list>a{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-2);border-radius:var(--radius-md);color:inherit;text-decoration:none;transition:background var(--motion-fast)}.today-job-list>a:hover{background:var(--color-surface-soft)}.today-job-list>a>span{display:flex;gap:var(--space-3);align-items:center}.today-job-list strong,.today-job-list small{display:block}.today-job-list small{margin-top:2px;color:var(--color-muted)}
+.today-job-icon{display:grid;place-items:center;width:32px;height:32px;flex-shrink:0;border-radius:var(--radius-sm);background:var(--color-accent-soft);color:var(--color-accent)}
+.panel-footer-action{padding-top:var(--space-3)}
 .today-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}.today-shortcuts a{gap:var(--space-3);padding:var(--space-4);border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface);color:inherit;text-decoration:none}.today-shortcuts a:hover{border-color:var(--color-accent)}.today-shortcuts strong,.today-shortcuts small{display:block}.today-shortcuts small{color:var(--color-muted);margin-top:2px}
 
 .admin-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4)}.admin-grid a{gap:var(--space-4);align-items:flex-start;padding:var(--space-5);border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface);color:inherit;text-decoration:none}.admin-grid a:hover{border-color:var(--color-accent);box-shadow:var(--shadow-sm)}.admin-grid svg{color:var(--color-accent)}.admin-grid strong,.admin-grid small{display:block}.admin-grid small{margin-top:4px;color:var(--color-muted);line-height:1.45}
