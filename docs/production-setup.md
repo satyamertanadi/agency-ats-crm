@@ -25,7 +25,7 @@ Set a Sentry project per environment, keep traces conservative, and leave replay
 
 ## Automatic CV parsing
 
-Set `AI_PROVIDER=anthropic`, an explicit current `AI_MODEL`, `ANTHROPIC_API_KEY`, and a random `WORKER_SECRET` as Supabase Function secrets. Deploy `parse-candidate-cv`, then configure the repository secrets `SUPABASE_URL` and `CV_PARSE_WORKER_SECRET` so the hourly cleanup workflow can purge unconfirmed CV drafts after 24 hours. The GitHub secret must equal the Function `WORKER_SECRET`.
+Set `AI_PROVIDER=anthropic`, an explicit current `AI_MODEL`, `ANTHROPIC_API_KEY`, and a random `WORKER_SECRET` as Supabase Function secrets. Optionally set `AI_MODEL_PARSE` to a cheaper model (e.g. `claude-haiku-4-5`) for the mechanical CV and LinkedIn parsers; it falls back to `AI_MODEL` when unset, and evaluation (`generate-candidate-profile`) always uses `AI_MODEL`. Deploy `parse-candidate-cv`, then configure the repository secrets `SUPABASE_URL` and `CV_PARSE_WORKER_SECRET` so the hourly cleanup workflow can purge unconfirmed CV drafts after 24 hours. The GitHub secret must equal the Function `WORKER_SECRET`.
 
 Before enabling the feature for consultants, test one English PDF, Indonesian PDF, scanned PDF, and DOCX in staging. Confirm extracted PII is visible only to the uploader, duplicate email handling opens the existing candidate, accepted files remain available, and abandoned files disappear after cleanup.
 
@@ -47,7 +47,7 @@ Repository secrets the workflow requires:
 | `VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID` | credentials and identifiers for the pinned Vercel CLI deployment |
 | `PRODUCTION_APP_URL` | canonical HTTPS production URL used for rollback metadata and post-promotion browser smoke |
 
-Staging must mirror production's Function secrets (`AI_PROVIDER`, `AI_MODEL`, `ANTHROPIC_API_KEY`, `WORKER_SECRET`, `APP_ORIGIN`, and the email/Calendar secrets above). The gate fails when an AI secret, output schema, evidence contract, persistence step, or dual-format finalization contract breaks. Its synthetic organization, user, records, documents, and storage objects use a unique run identifier and are deleted after each run.
+Staging must mirror production's Function secrets (`AI_PROVIDER`, `AI_MODEL`, the optional `AI_MODEL_PARSE`, `ANTHROPIC_API_KEY`, `WORKER_SECRET`, `APP_ORIGIN`, and the email/Calendar secrets above). The gate fails when an AI secret, output schema, evidence contract, persistence step, or dual-format finalization contract breaks. Its synthetic organization, user, records, documents, and storage objects use a unique run identifier and are deleted after each run.
 
 ## Candidate profile rollout
 
