@@ -92,6 +92,18 @@ describe('mandatory client profile format',()=>{
     expect(rPr).not.toContain('w:sz w:val="32"')
   })
 
+  /* The approved template has no cell shading and no coloured text anywhere -- confirmed by reading
+   * its raw XML directly, every label cell is plain bold black on white. An earlier version of the
+   * renderer carried over EAF3EF shading and accent-coloured labels from the older, differently
+   * styled profile format; on an org with a saturated brand colour that reads as a solid green wash
+   * across every label cell, which is what a consultant actually flagged. */
+  it('shades no table cell and colours no label with the org accent',async()=>{
+    const xml=await documentXml(await buildCandidateProfileDocx(view()))
+    expect(xml).not.toContain('<w:shd')
+    expect(xml).not.toContain('EAF3EF')
+    expect(xml).not.toContain('196F52')   // the fixture's accent, #196f52, uppercased for a hex match
+  })
+
   it('sets the candidate name in faux small caps',async()=>{
     // Each word's initial is two points larger than the rest, as the approved cover does it.
     const xml=await documentXml(await buildCandidateProfileDocx(view()))

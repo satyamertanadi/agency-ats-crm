@@ -1,4 +1,4 @@
-import {AlignmentType,BorderStyle,Document,ExternalHyperlink,Footer,HeadingLevel,ImageRun,Packer,Paragraph,ShadingType,Table,TableCell,TableLayoutType,TableRow,TextRun,VerticalAlign,WidthType,type IBorderOptions,type ParagraphChild} from 'docx'
+import {AlignmentType,BorderStyle,Document,ExternalHyperlink,Footer,HeadingLevel,ImageRun,Packer,Paragraph,Table,TableCell,TableLayoutType,TableRow,TextRun,VerticalAlign,WidthType,type IBorderOptions,type ParagraphChild} from 'docx'
 import type {CandidateProfileViewModel} from './candidateProfileViewModel'
 
 /* Renders the agency's mandatory client template. Every geometry number here was measured from the
@@ -18,14 +18,17 @@ const LABEL_WIDTH=2900;const VALUE_WIDTH=CONTENT_WIDTH-LABEL_WIDTH
 // Cover logo 12.00x4.23cm and footer banner 17.01x4.89cm. docx takes pixels at 96 DPI, not cm.
 const COVER_LOGO={width:454,height:160} as const
 const FOOTER_BANNER={width:643,height:185} as const
-const border:IBorderOptions={style:BorderStyle.SINGLE,size:4,color:'D6D9DC'};const borders={top:border,bottom:border,left:border,right:border}
-const hex=(value:string)=>value.replace('#','').toUpperCase()
+/* The approved template has no colour anywhere in its own styling -- no cell shading, no coloured
+ * text, no accent-tinted dividers. Every label/value cell is plain bold-or-not black on white, and
+ * its logo/divider/footer images are themselves grayscale. Branding lives entirely in the org's
+ * uploaded logo and footer banner images; nothing here should tint text or fill a cell with colour.
+ * (An earlier version of this file did both, carried over by mistake from the older, differently
+ * styled profile format -- that read as a solid green wash across every label cell.) */
+const border:IBorderOptions={style:BorderStyle.SINGLE,size:4,color:'BEBEBE'};const borders={top:border,bottom:border,left:border,right:border}
 
 function textParagraph(text:string,options:{bold?:boolean;size?:number;color?:string;bullet?:boolean;after?:number}={}){return new Paragraph({spacing:{after:options.after??120,line:264},bullet:options.bullet?{level:0}:undefined,children:[new TextRun({text,bold:options.bold,size:options.size,color:options.color})]})}
 function heading(text:string){return new Paragraph({heading:HeadingLevel.HEADING_1,alignment:AlignmentType.CENTER,spacing:{before:260,after:100},children:[new TextRun({text,bold:true})]})}
-/* The template draws its rules as thin images. A paragraph border is the same ink at the same
- * weight without carrying two PNGs through the bundle and into every generated file. */
-function rule(thick:boolean,accent:string){return new Paragraph({spacing:{after:thick?160:100},border:{bottom:{style:BorderStyle.SINGLE,size:thick?32:4,color:thick?accent:'D6D9DC',space:1}},children:[]})}
+function rule(thick:boolean){return new Paragraph({spacing:{after:thick?160:100},border:{bottom:{style:BorderStyle.SINGLE,size:thick?32:4,color:'BEBEBE',space:1}},children:[]})}
 /* The name is set in faux small caps: each word's initial two points larger than the rest, which is
  * how the approved document does it -- Word's own smallCaps would render differently. */
 function smallCapsName(name:string):ParagraphChild[]{
@@ -34,21 +37,21 @@ function smallCapsName(name:string):ParagraphChild[]{
     return [new TextRun({text:`${spacer}${initial}`,bold:true,size:40}),...(rest?[new TextRun({text:rest,bold:true,size:32})]:[])]
   })
 }
-function cell(children:Paragraph[],width:number,shaded:boolean){return new TableCell({width:{size:width,type:WidthType.DXA},borders,shading:shaded?{type:ShadingType.CLEAR,fill:'EAF3EF'}:undefined,margins:{top:100,bottom:100,left:120,right:120},verticalAlign:VerticalAlign.CENTER,children})}
+function cell(children:Paragraph[],width:number){return new TableCell({width:{size:width,type:WidthType.DXA},borders,margins:{top:100,bottom:100,left:120,right:120},verticalAlign:VerticalAlign.CENTER,children})}
 // A label may carry more than one line -- the first information row is literally "Name" over "Photo".
-function row(label:string,value:string,accent:string){return new TableRow({cantSplit:true,children:[cell(label.split('\n').map((line)=>textParagraph(line,{bold:true,color:accent,after:0})),LABEL_WIDTH,true),cell(value.split('\n').map((line)=>textParagraph(line,{after:0})),VALUE_WIDTH,false)]})}
-function headerRow(label:string,accent:string){return new TableRow({tableHeader:true,cantSplit:true,children:[new TableCell({columnSpan:2,width:{size:CONTENT_WIDTH,type:WidthType.DXA},borders,shading:{type:ShadingType.CLEAR,fill:'EAF3EF'},margins:{top:100,bottom:100,left:120,right:120},children:[textParagraph(label,{bold:true,color:accent,after:0})]})]})}
+function row(label:string,value:string){return new TableRow({cantSplit:true,children:[cell(label.split('\n').map((line)=>textParagraph(line,{bold:true,after:0})),LABEL_WIDTH),cell(value.split('\n').map((line)=>textParagraph(line,{after:0})),VALUE_WIDTH)]})}
+function headerRow(label:string){return new TableRow({tableHeader:true,cantSplit:true,children:[new TableCell({columnSpan:2,width:{size:CONTENT_WIDTH,type:WidthType.DXA},borders,margins:{top:100,bottom:100,left:120,right:120},children:[textParagraph(label,{bold:true,after:0})]})]})}
 function table(rows:TableRow[]){return new Table({width:{size:CONTENT_WIDTH,type:WidthType.DXA},layout:TableLayoutType.FIXED,indent:{size:0,type:WidthType.DXA},rows})}
 // Omitted entirely when blank: a "To be confirmed" hyperlink is worse than no line at all.
 function websiteLine(url:string){return new Paragraph({spacing:{after:60,line:264},children:[new ExternalHyperlink({link:url,children:[new TextRun({text:url,style:'Hyperlink'})]})]})}
 
-function coverTable(view:CandidateProfileViewModel,accent:string){
+function coverTable(view:CandidateProfileViewModel){
   const identity=new TableRow({cantSplit:true,children:[new TableCell({columnSpan:2,width:{size:CONTENT_WIDTH,type:WidthType.DXA},borders,margins:{top:160,bottom:160,left:120,right:120},children:[
     new Paragraph({spacing:{after:80},children:smallCapsName(view.candidateName)}),
     new Paragraph({spacing:{after:40},children:[new TextRun({text:`${forTheRole(view)} ${view.jobTitle.toUpperCase()}`,bold:true,size:32})]}),
     new Paragraph({spacing:{after:0},children:[new TextRun({text:`${atLabel(view)} ${view.companyName.toUpperCase()}`,bold:true,size:32})]}),
   ]})]})
-  return table([identity,row(preparedByLabel(view),view.preparedBy,accent),row(dateLabel(view),view.preparedDate,accent),row(remarksLabel(view),`${view.confidentialityText}\n${view.confidentialLabel}`,accent)])
+  return table([identity,row(preparedByLabel(view),view.preparedBy),row(dateLabel(view),view.preparedDate),row(remarksLabel(view),`${view.confidentialityText}\n${view.confidentialLabel}`)])
 }
 const forTheRole=(view:CandidateProfileViewModel)=>view.language==='id'?'UNTUK POSISI':'FOR THE ROLE OF'
 const atLabel=(view:CandidateProfileViewModel)=>view.language==='id'?'DI':'AT'
@@ -58,13 +61,12 @@ const remarksLabel=(view:CandidateProfileViewModel)=>view.language==='id'?'Catat
 const informationLabel=(view:CandidateProfileViewModel)=>view.language==='id'?'INFORMASI':'INFORMATION'
 
 export function buildProfileDocument(view:CandidateProfileViewModel){
-  const accent=hex(view.accent)
-  const cover:(Paragraph|Table)[]=[coverTable(view,accent)]
+  const cover:(Paragraph|Table)[]=[coverTable(view)]
   if(view.logo)cover.push(new Paragraph({spacing:{before:200,after:200},children:[new ImageRun({data:view.logo.bytes,type:view.logo.type,transformation:COVER_LOGO,altText:{title:`${view.organizationName} logo`,description:'Organization logo',name:'Organization logo'}})]}))
-  else cover.push(new Paragraph({spacing:{before:200,after:200},children:[new TextRun({text:view.organizationName,bold:true,size:22,color:accent})]}))
-  cover.push(table([headerRow(informationLabel(view),accent),...view.information.map(([label,value])=>row(label,value,accent))]))
+  else cover.push(new Paragraph({spacing:{before:200,after:200},children:[new TextRun({text:view.organizationName,bold:true,size:22})]}))
+  cover.push(table([headerRow(informationLabel(view)),...view.information.map(([label,value])=>row(label,value))]))
   const children:(Paragraph|Table)[]=[]
-  children.push(heading(view.sectionLabels.summary.toUpperCase()),rule(true,accent))
+  children.push(heading(view.sectionLabels.summary.toUpperCase()),rule(true))
   for(const paragraph of view.summary)children.push(textParagraph(paragraph))
   if(view.currentRoleLine)children.push(textParagraph(view.currentRoleLine))
   for(const bullet of view.summaryBullets)children.push(textParagraph(bullet,{bullet:true,after:50}))
@@ -75,7 +77,7 @@ export function buildProfileDocument(view:CandidateProfileViewModel){
     children.push(textParagraph(`${dateLabel(view)}: ${item.date}`,{bold:true,after:60}))
     if(item.website)children.push(websiteLine(item.website))
     for(const bullet of item.relevance)children.push(textParagraph(bullet,{bullet:true,after:50}))
-    if(index<view.employment.length-1)children.push(rule(false,accent))
+    if(index<view.employment.length-1)children.push(rule(false))
   })
   // No employment rows on the record -- match the old renderer's fallback rather than leaving the
   // heading with nothing under it.
