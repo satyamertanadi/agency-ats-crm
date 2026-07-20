@@ -8,6 +8,12 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary'|'secondary'|'danger'|'caution'|'quiet'|'bronze'
   size?: 'sm'|'md'|'lg'
   loading?: boolean
+  /* Pass an icon here, not as a bare JSX child alongside the label -- `children` gets wrapped in its
+   * own <span>, so `<Button><Icon/>Label</Button>` packs the icon inside that span instead of beside
+   * it. That escapes .button's flex `gap` entirely and drops the icon back to inline baseline
+   * alignment, so it reads as cramped and vertically off. This exact mistake has recurred
+   * independently across the app; leadingIcon/trailingIcon are flex siblings of the label and don't
+   * have either problem. */
   leadingIcon?: ReactNode
   trailingIcon?: ReactNode
   iconOnlyLabel?: string

@@ -68,8 +68,8 @@ export function SavedViewBar({resource,paramKeys,params,onApply,onExport,exporti
       {views.data?.length===0&&<span className="muted">No saved views yet.</span>}
     </div>
     <div className="table-actions">
-      {onExport&&<Button size="sm" variant="secondary" loading={exporting} onClick={onExport}><Download size={14}/>Export CSV</Button>}
-      {member&&<Button size="sm" variant="secondary" disabled={activeCount===0} title={activeCount===0?'Set a filter or sort before saving a view.':undefined} onClick={()=>setSaveOpen(true)}><BookmarkPlus size={14}/>Save view</Button>}
+      {onExport&&<Button size="sm" variant="secondary" loading={exporting} leadingIcon={<Download size={14}/>} onClick={onExport}>Export CSV</Button>}
+      {member&&<Button size="sm" variant="secondary" disabled={activeCount===0} title={activeCount===0?'Set a filter or sort before saving a view.':undefined} leadingIcon={<BookmarkPlus size={14}/>} onClick={()=>setSaveOpen(true)}>Save view</Button>}
     </div>
 
     <Modal title="Save this view" open={saveOpen} onClose={()=>setSaveOpen(false)}>
