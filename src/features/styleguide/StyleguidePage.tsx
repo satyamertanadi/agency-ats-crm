@@ -22,7 +22,7 @@ import './styleguide.css'
 
 const TEXT_TOKENS=['--text-2xs','--text-xs','--text-sm','--text-base','--text-md','--text-lg','--text-xl','--text-2xl','--text-3xl','--text-4xl','--text-5xl']
 const WEIGHT_TOKENS=['--weight-regular','--weight-medium','--weight-semibold','--weight-bold']
-const PRIMITIVES=['--color-ink','--color-ink-soft','--color-muted','--color-faint','--color-canvas','--color-canvas-deep','--color-surface','--color-surface-soft','--color-line-soft','--color-line','--color-line-strong','--color-accent','--color-accent-hover','--color-accent-soft','--color-bronze','--color-bronze-dark','--color-bronze-soft','--color-forest','--color-forest-deep','--color-sidebar','--color-sidebar-deep']
+const PRIMITIVES=['--color-ink','--color-ink-soft','--color-muted','--color-faint','--color-canvas','--color-canvas-deep','--color-surface','--color-surface-soft','--color-line-soft','--color-line','--color-line-strong','--color-accent','--color-accent-hover','--color-accent-soft','--color-accent-on-dark','--color-info','--color-violet','--color-mist','--color-steel','--color-slate','--color-slate-deep','--color-sidebar','--color-sidebar-deep']
 const TONES=['neutral','good','warn','bad','info'] as const
 const RADII=['--radius-xs','--radius-sm','--radius-md','--radius-lg','--radius-pill']
 const SHADOWS=['--shadow-xs','--shadow-sm','--shadow-md','--shadow-lg']
@@ -122,7 +122,7 @@ export function StyleguidePage(){
 
     <Section id="buttons" title="Buttons" note="5 variants x 3 sizes, plus loading / disabled / icon states.">
       <div className="sg-grid">
-        {(['primary','secondary','bronze','danger','quiet'] as const).map((variant)=><div className="sg-row" key={variant}>
+        {(['primary','secondary','caution','danger','quiet'] as const).map((variant)=><div className="sg-row" key={variant}>
           <code>{variant}</code>
           <Button variant={variant} size="sm">Small</Button>
           <Button variant={variant}>Medium</Button>

@@ -165,7 +165,7 @@
   align-content: end;
 }
 .sg-space span {
-  background: var(--color-bronze);
+  background: var(--color-accent);
   display: block;
   border-radius: 2px;
 }

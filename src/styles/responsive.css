@@ -28,7 +28,7 @@
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(2, 10, 7, 0.62);
+    background: var(--color-scrim);
     border: 0;
     z-index: 25;
   }

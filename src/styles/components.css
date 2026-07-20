@@ -1,3 +1,32 @@
+.collapsible-section {
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+.collapsible-section + .collapsible-section {
+  margin-top: var(--space-3);
+}
+.collapsible-section > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-weight: var(--weight-semibold);
+  color: var(--color-ink-soft);
+}
+.collapsible-section > summary::-webkit-details-marker {
+  display: none;
+}
+.collapsible-section[open] > summary {
+  margin-bottom: var(--space-3);
+}
+.collapsible-section-body {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .panel {
   background: var(--color-surface);
   border: 1px solid var(--color-line);
@@ -173,13 +202,6 @@
   border-color: var(--color-danger);
   background: var(--color-danger-soft);
 }
-.button-bronze {
-  background: var(--color-bronze);
-  color: var(--color-on-dark);
-}
-.button-bronze:hover:not(:disabled) {
-  background: var(--color-bronze-dark);
-}
 .icon-button {
   border: 0;
   background: transparent;
@@ -311,7 +333,7 @@
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(8, 18, 14, 0.58);
+  background: var(--color-scrim);
   backdrop-filter: blur(5px);
   z-index: 100;
   padding: 20px;
@@ -544,7 +566,7 @@ td span:not([class]) {
   display: inline-grid;
   place-items: center;
   border-radius: var(--radius-circle);
-  background: linear-gradient(145deg, var(--color-accent-soft), var(--color-sand));
+  background: linear-gradient(145deg, var(--color-accent-soft), var(--color-steel));
   color: var(--color-accent-hover);
   font-weight: var(--weight-semibold);
   overflow: hidden;
@@ -609,7 +631,7 @@ td span:not([class]) {
 .command-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(8, 18, 14, 0.5);
+  background: var(--color-scrim);
   backdrop-filter: blur(5px);
   z-index: 120;
   display: flex;

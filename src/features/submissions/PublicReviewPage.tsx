@@ -20,7 +20,7 @@ export function ReviewHeader({pkg,documents,branding}:{pkg:PublicReview['package
   const accent=branding?.primary_color&&/^#[0-9a-f]{6}$/i.test(branding.primary_color)?branding.primary_color:null
   const logoUrl=branding?.logo_path?supabase.storage.from('organization-assets').getPublicUrl(branding.logo_path).data.publicUrl:null
   // Scoped to this element, so an agency accent can never leak into the rest of the page.
-  const style=accent?{'--color-sidebar':accent,'--color-forest':accent} as CSSProperties:undefined
+  const style=accent?{'--color-sidebar':accent,'--color-slate':accent} as CSSProperties:undefined
   return <header className="review-header" style={style}>
     {(logoUrl||branding?.organization_name)&&<div className="review-brand">
       {logoUrl

@@ -67,57 +67,65 @@
   --weight-bold: 700;
 
   /* ---- colour primitives ------------------------------------------------------------------ */
-  --color-ink: #18211d;
-  --color-ink-soft: #3f4b46;
-  --color-muted: #6c7771;
-  --color-faint: #929b96;
-  --color-canvas: #f5f3ed;
-  --color-canvas-deep: #ece9df;
-  --color-surface: #fffefa;
-  --color-surface-soft: #faf8f2;
+  /* Blue-slate. The neutrals carry a cool cast the way they previously carried a green one:
+     tinting only the accent and leaving warm-grey neutrals reads as "a green app with a blue
+     button", which is louder than either choice made wholly. */
+  --color-ink: #141a21;
+  --color-ink-soft: #3c4653;
+  --color-muted: #67717e;
+  --color-faint: #8e96a2;
+  --color-canvas: #f4f6f9;
+  --color-canvas-deep: #e8ecf2;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f8fafc;
 
   /* Three deliberate line tiers. --color-line-soft is for dividers WITHIN a surface (table
    * rows, list rows); --color-line is the container's own border. That distinction was real
    * and was being expressed as a hardcoded #eceae2 five times over. */
-  --color-line-soft: #e9e7dd;
-  --color-line: #dfddd4;
-  --color-line-strong: #cbc8bc;
+  --color-line-soft: #e8ecf1;
+  --color-line: #dae0e8;
+  --color-line-strong: #c2cbd6;
 
-  --color-accent: #196f52;
-  --color-accent-hover: #115b41;
-  --color-accent-soft: #e6f0eb;
+  --color-accent: #1d5a94;
+  --color-accent-hover: #164a7c;
+  --color-accent-soft: #e7eef7;
+  /* The accent is a mid-navy chosen for 7:1 on white, which makes it far too dark to sit ON a
+     dark surface. The auth hero, review header, and sidebar rail are dark in BOTH themes, so
+     they need an accent that is light in both -- this is that value, not a theme override. */
+  --color-accent-on-dark: #86b8e8;
   --color-on-accent: #ffffff;
   --color-on-dark: #ffffff;
 
-  --color-bronze: #9a6b36;
-  --color-bronze-dark: #755027;
-  --color-bronze-light: #d5b27f;
-  --color-bronze-soft: #f3eadc;
-  /* Warm metallic gradient stops, shared by the brand mark and the avatar fallback. Previously
-     three near-identical one-offs: #f4efe1 / #d9c5a3 / #d8c9ac. */
-  --color-parchment: #f4efe1;
-  --color-sand: #d9c5a3;
+  /* Cool metallic gradient stops, shared by the brand mark and the avatar fallback. */
+  --color-mist: #eaeff6;
+  --color-steel: #c6d3e2;
 
-  /* One editorial dark green. Was typed three times with typos: #16372c / #15372c / #15392c. */
-  --color-forest: #15372c;
-  --color-forest-deep: #10251e;
-  --color-forest-lift: #1c4436;
+  /* One editorial dark slate -- the hero/auth counterpart to the sidebar. */
+  --color-slate: #1e2a38;
+  --color-slate-deep: #16202b;
+  --color-slate-lift: #29384a;
 
-  --color-danger: #a83a31;
-  --color-danger-hover: #8b2c24;
-  --color-danger-soft: #fbe9e6;
-  --color-warning: #96600f;
-  --color-warning-soft: #fff2d8;
-  --color-info: #305f8d;
-  --color-info-soft: #e7eff8;
+  --color-danger: #b03a30;
+  --color-danger-hover: #922c23;
+  --color-danger-soft: #fbe9e7;
+  --color-warning: #8a6216;
+  --color-warning-soft: #fdf3dc;
+  /* Info stays a distinct cyan rather than collapsing into the accent: the pipeline ramp puts
+     screening (info) directly beside shortlist (accent), and identical neighbours would erase
+     the distinction the bar exists to draw. */
+  --color-info: #2b7f9c;
+  --color-info-soft: #e4f0f5;
+  /* Sixth pipeline hue, for client review. Replaces the bronze that stage used to borrow,
+     without reintroducing a second brand colour anywhere else. */
+  --color-violet: #6b5ca8;
 
-  --color-sidebar: #10271f;
-  --color-sidebar-deep: #0b1e18;
-  --color-sidebar-text: #e5eee9;
-  --color-sidebar-muted: #91a69c;
-  --color-on-dark-muted: #aec2b9;
+  --color-sidebar: #16202b;
+  --color-sidebar-deep: #101822;
+  --color-sidebar-text: #e6ebf1;
+  --color-sidebar-muted: #94a1b0;
+  --color-on-dark-muted: #aebac8;
 
-  --color-scrim: rgba(8, 18, 14, 0.58);
+  --color-scrim: rgba(10, 16, 24, 0.58);
 
   /* ---- tone triplets -----------------------------------------------------------------------
    * The missing layer. Every tonal surface (badge, success box, warning box, form error,
@@ -126,25 +134,28 @@
    * rather than re-palettes. Previously there were THREE unrelated "warning" palettes and two
    * "good" borders differing by one character (#cbe0d6 vs #cae0d6).
    */
-  --tone-neutral-bg: #eeeee9;
-  --tone-neutral-fg: #58615c;
-  --tone-neutral-border: #dedcd2;
+  --tone-neutral-bg: #eef0f3;
+  --tone-neutral-fg: #5a636e;
+  --tone-neutral-border: #dce1e7;
 
-  --tone-good-bg: var(--color-accent-soft);
-  --tone-good-fg: #145b43;
-  --tone-good-border: #cae0d6;
+  /* `good` no longer aliases --color-accent-soft. While the brand was green, "good" and "brand"
+     were the same colour and the alias was free; with a blue brand it would have turned every
+     success badge blue. Green now means only good, which is the clearer end state. */
+  --tone-good-bg: #e6f2ec;
+  --tone-good-fg: #1a6647;
+  --tone-good-border: #c9e2d5;
 
   --tone-warn-bg: var(--color-warning-soft);
-  --tone-warn-fg: #7b4d09;
-  --tone-warn-border: #efd9aa;
+  --tone-warn-fg: #7a5410;
+  --tone-warn-border: #ecd9a8;
 
   --tone-bad-bg: var(--color-danger-soft);
-  --tone-bad-fg: #8f2f27;
-  --tone-bad-border: #f0c4bf;
+  --tone-bad-fg: #943026;
+  --tone-bad-border: #f0c6c1;
 
   --tone-info-bg: var(--color-info-soft);
-  --tone-info-fg: #2a5480;
-  --tone-info-border: #c6d9ec;
+  --tone-info-fg: #245f74;
+  --tone-info-border: #c3dee7;
 
   /* ---- radius ------------------------------------------------------------------------------
    * Values revised to match what authors actually reach for. The old tokens lost to the
@@ -180,10 +191,10 @@
   --space-14: 56px;
 
   /* ---- elevation, motion, layout ---------------------------------------------------------- */
-  --shadow-xs: 0 1px 2px rgba(25, 35, 30, 0.05);
-  --shadow-sm: 0 5px 18px rgba(32, 40, 35, 0.06);
-  --shadow-md: 0 18px 46px rgba(21, 31, 26, 0.12);
-  --shadow-lg: 0 30px 90px rgba(7, 20, 15, 0.22);
+  --shadow-xs: 0 1px 2px rgba(18, 26, 38, 0.05);
+  --shadow-sm: 0 5px 18px rgba(22, 30, 42, 0.06);
+  --shadow-md: 0 18px 46px rgba(15, 22, 33, 0.12);
+  --shadow-lg: 0 30px 90px rgba(8, 14, 24, 0.22);
   --focus: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
 
   --motion-fast: 120ms;
@@ -209,63 +220,61 @@
  * and manual selection.
  */
 :root[data-theme='dark'] {
-  --color-ink: #e9ede9;
-  --color-ink-soft: #c1ccc5;
-  --color-muted: #97a29b;
-  --color-faint: #717c76;
-  --color-canvas: #121714;
-  --color-canvas-deep: #0d120f;
-  --color-surface: #1a201c;
-  --color-surface-soft: #161c19;
+  --color-ink: #e8ecf2;
+  --color-ink-soft: #c3cbd6;
+  --color-muted: #98a3b1;
+  --color-faint: #6f7986;
+  --color-canvas: #11151b;
+  --color-canvas-deep: #0c1015;
+  --color-surface: #181d25;
+  --color-surface-soft: #141920;
 
-  --color-line-soft: #262e29;
-  --color-line: #323b36;
-  --color-line-strong: #45514b;
+  --color-line-soft: #252c36;
+  --color-line: #303945;
+  --color-line-strong: #434e5c;
 
-  /* Lifted well above the light theme's #196f52: that green on a dark surface lands near 2:1 and is
+  /* Lifted well above the light theme's #1d5a94: that navy on a dark surface lands near 2:1 and is
      unreadable as body text or a small-button background. */
-  --color-accent: #57b491;
-  --color-accent-hover: #6cc7a3;
-  --color-accent-soft: #16302a;
-  --color-on-accent: #06231a;
+  --color-accent: #5aa2e0;
+  --color-accent-hover: #74b4ea;
+  --color-accent-soft: #16283a;
+  --color-on-accent: #0a1a28;
 
-  --color-bronze: #cb9659;
-  --color-bronze-dark: #a97a41;
-  --color-bronze-light: #e0bd91;
-  --color-bronze-soft: #2a2016;
-  --color-parchment: #2b2418;
-  --color-sand: #4a3f2c;
+  --color-mist: #232c37;
+  --color-steel: #38455a;
 
-  --color-forest: #0f231c;
-  --color-forest-deep: #0a1814;
-  --color-forest-lift: #17352a;
+  --color-slate: #16202b;
+  --color-slate-deep: #0e161f;
+  --color-slate-lift: #24303f;
 
   --color-danger: #ef8b81;
   --color-danger-hover: #f5a49b;
   --color-danger-soft: #33201e;
   --color-warning: #dfae5c;
   --color-warning-soft: #2f2617;
-  --color-info: #86b6e2;
-  --color-info-soft: #1a2632;
+  --color-info: #6cb6d1;
+  --color-info-soft: #16262d;
+  --color-violet: #9b8ed6;
 
   /* The sidebar is the one surface that was already dark. It now sits just *above* the canvas
      rather than below it, so the shell still reads as layered instead of merging into one slab. */
-  --color-sidebar: #182019;
-  --color-sidebar-deep: #121a15;
-  --color-sidebar-text: #e5eee9;
-  --color-sidebar-muted: #8fa199;
+  --color-sidebar: #171d25;
+  --color-sidebar-deep: #11161d;
+  --color-sidebar-text: #e6ebf1;
+  --color-sidebar-muted: #8e9aa8;
   --color-on-dark: #ffffff;
-  --color-on-dark-muted: #aec2b9;
+  --color-on-dark-muted: #aebac8;
 
   --color-scrim: rgba(0, 0, 0, 0.66);
 
-  --tone-neutral-bg: #222a25;
-  --tone-neutral-fg: #b9c4bd;
-  --tone-neutral-border: #333c37;
+  --tone-neutral-bg: #212831;
+  --tone-neutral-fg: #b8c2cd;
+  --tone-neutral-border: #323b46;
 
-  --tone-good-bg: var(--color-accent-soft);
-  --tone-good-fg: #8fd9ba;
-  --tone-good-border: #26493d;
+  /* Own green, not the accent alias -- see the light block. */
+  --tone-good-bg: #142c22;
+  --tone-good-fg: #7fd3ac;
+  --tone-good-border: #24463a;
 
   --tone-warn-bg: var(--color-warning-soft);
   --tone-warn-fg: #f0c880;
@@ -276,8 +285,8 @@
   --tone-bad-border: #4d302c;
 
   --tone-info-bg: var(--color-info-soft);
-  --tone-info-fg: #a9cdee;
-  --tone-info-border: #2b3d4f;
+  --tone-info-fg: #97cde2;
+  --tone-info-border: #294a57;
 
   /* Shadows do almost nothing on a dark canvas; depth comes from the surface steps above. Kept as
      subtle dark halos so elevated surfaces still separate without the milky haze that light-theme

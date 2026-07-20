@@ -13,7 +13,7 @@
  * source of truth for the JS that has to hand a colour to something that is not CSS. If one changes,
  * change both -- there is no mechanism that will tell you.
  */
-export const DEFAULT_ACCENT='#196f52'
+export const DEFAULT_ACCENT='#1d5a94'
 
 /* Six-digit hex only. The editor writes that form, and the exporters cannot resolve anything else. */
 export const isHexColor=(value:string|null|undefined):value is string=>/^#[0-9a-f]{6}$/i.test(value||'')

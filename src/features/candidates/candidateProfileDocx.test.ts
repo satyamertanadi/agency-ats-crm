@@ -12,7 +12,7 @@ const candidate:ProfileCandidate={full_name:'Franco George Wenas',current_positi
 const filled:ProfileDetails={...emptyProfileDetails(),age:'40',nationality:'Indonesian',current_salary:'To be confirmed',expected_salary:'To be confirmed'}
 
 function view(options:{anonymized?:boolean;language?:'en'|'id';details?:ProfileDetails;websites?:Record<string,string>}={}){
-  return buildCandidateProfileViewModel({candidate,job:{title:'Operations Manager',company_name:'House of Kairos'},draft,template:defaultCandidateProfileTemplate(options.language||'en'),preparedBy:'Felina Kuswanto',preparedDate:'June 2026',organizationName:'Agency ATS',accent:'#196f52',anonymized:Boolean(options.anonymized),details:options.details||filled,websites:options.websites})
+  return buildCandidateProfileViewModel({candidate,job:{title:'Operations Manager',company_name:'House of Kairos'},draft,template:defaultCandidateProfileTemplate(options.language||'en'),preparedBy:'Felina Kuswanto',preparedDate:'June 2026',organizationName:'Agency ATS',accent:'#1d5a94',anonymized:Boolean(options.anonymized),details:options.details||filled,websites:options.websites})
 }
 async function documentXml(blob:Blob){const zip=await JSZip.loadAsync(await blob.arrayBuffer());return zip.file('word/document.xml')!.async('string')}
 async function partXml(blob:Blob,path:string){const zip=await JSZip.loadAsync(await blob.arrayBuffer());return zip.file(path)?.async('string')||''}
@@ -101,7 +101,7 @@ describe('mandatory client profile format',()=>{
     const xml=await documentXml(await buildCandidateProfileDocx(view()))
     expect(xml).not.toContain('<w:shd')
     expect(xml).not.toContain('EAF3EF')
-    expect(xml).not.toContain('196F52')   // the fixture's accent, #196f52, uppercased for a hex match
+    expect(xml).not.toContain('1D5A94')   // the fixture's accent, #1d5a94, uppercased for a hex match
   })
 
   /* Read cell-by-cell from the approved template: only the label/value seam carries a vertical line

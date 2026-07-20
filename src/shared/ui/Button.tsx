@@ -5,7 +5,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /* 'danger' is reserved for irreversible actions and 'caution' for reversible ones -- see Severity
    * in lib/status.ts. Reach for 'caution' by default when something is destructive; 'danger' is for
    * the cases that also warrant a ConfirmDialog. */
-  variant?: 'primary'|'secondary'|'danger'|'caution'|'quiet'|'bronze'
+  variant?: 'primary'|'secondary'|'danger'|'caution'|'quiet'
   size?: 'sm'|'md'|'lg'
   loading?: boolean
   /* Pass an icon here, not as a bare JSX child alongside the label -- `children` gets wrapped in its
