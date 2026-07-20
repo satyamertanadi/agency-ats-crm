@@ -1,4 +1,4 @@
-import {AlignmentType,BorderStyle,Document,ExternalHyperlink,Footer,HeadingLevel,ImageRun,Packer,Paragraph,Table,TableCell,TableLayoutType,TableRow,TextRun,VerticalAlign,WidthType,type IBorderOptions,type ParagraphChild} from 'docx'
+import {AlignmentType,BorderStyle,Document,ExternalHyperlink,Footer,HeadingLevel,ImageRun,Packer,Paragraph,Table,TableBorders,TableCell,TableLayoutType,TableRow,TextRun,VerticalAlign,WidthType,type IBorderOptions,type ParagraphChild} from 'docx'
 import type {CandidateProfileViewModel} from './candidateProfileViewModel'
 
 /* Renders the agency's mandatory client template. Every geometry number here was measured from the
@@ -23,8 +23,19 @@ const FOOTER_BANNER={width:643,height:185} as const
  * its logo/divider/footer images are themselves grayscale. Branding lives entirely in the org's
  * uploaded logo and footer banner images; nothing here should tint text or fill a cell with colour.
  * (An earlier version of this file did both, carried over by mistake from the older, differently
- * styled profile format -- that read as a solid green wash across every label cell.) */
-const border:IBorderOptions={style:BorderStyle.SINGLE,size:4,color:'BEBEBE'};const borders={top:border,bottom:border,left:border,right:border}
+ * styled profile format -- that read as a solid green wash across every label cell.)
+ *
+ * Its table borders are sparser than a plain grid, too: read cell-by-cell from the approved .docx,
+ * only the label/value seam carries a vertical line on every row, and a horizontal line appears only
+ * where a section actually breaks -- above the first content row, and (in the information table only)
+ * closing the last one in a near-black line rather than the pale gray used everywhere else. Applying a
+ * uniform 4-sided border to every cell, which an earlier version of this file did, draws a full grid
+ * the template doesn't have. */
+const grey:IBorderOptions={style:BorderStyle.SINGLE,size:4,color:'BEBEBE'}
+const closing:IBorderOptions={style:BorderStyle.SINGLE,size:4,color:'auto'}
+type Edges={top?:boolean;bottom?:boolean;left?:boolean;right?:boolean}
+function edgeBorders(edges:Edges,bottomAuto=false){return {top:edges.top?grey:undefined,bottom:edges.bottom?(bottomAuto?closing:grey):undefined,left:edges.left?grey:undefined,right:edges.right?grey:undefined}}
+type RowPosition='top'|'middle'|'bottom'
 
 function textParagraph(text:string,options:{bold?:boolean;size?:number;color?:string;bullet?:boolean;after?:number}={}){return new Paragraph({spacing:{after:options.after??120,line:264},bullet:options.bullet?{level:0}:undefined,children:[new TextRun({text,bold:options.bold,size:options.size,color:options.color})]})}
 function heading(text:string){return new Paragraph({heading:HeadingLevel.HEADING_1,alignment:AlignmentType.CENTER,spacing:{before:260,after:100},children:[new TextRun({text,bold:true})]})}
@@ -37,21 +48,32 @@ function smallCapsName(name:string):ParagraphChild[]{
     return [new TextRun({text:`${spacer}${initial}`,bold:true,size:40}),...(rest?[new TextRun({text:rest,bold:true,size:32})]:[])]
   })
 }
-function cell(children:Paragraph[],width:number){return new TableCell({width:{size:width,type:WidthType.DXA},borders,margins:{top:100,bottom:100,left:120,right:120},verticalAlign:VerticalAlign.CENTER,children})}
+function cell(children:Paragraph[],width:number,edges:Edges,bottomAuto=false){return new TableCell({width:{size:width,type:WidthType.DXA},borders:edgeBorders(edges,bottomAuto),margins:{top:100,bottom:100,left:120,right:120},verticalAlign:VerticalAlign.CENTER,children})}
 // A label may carry more than one line -- the first information row is literally "Name" over "Photo".
-function row(label:string,value:string){return new TableRow({cantSplit:true,children:[cell(label.split('\n').map((line)=>textParagraph(line,{bold:true,after:0})),LABEL_WIDTH),cell(value.split('\n').map((line)=>textParagraph(line,{after:0})),VALUE_WIDTH)]})}
-function headerRow(label:string){return new TableRow({tableHeader:true,cantSplit:true,children:[new TableCell({columnSpan:2,width:{size:CONTENT_WIDTH,type:WidthType.DXA},borders,margins:{top:100,bottom:100,left:120,right:120},children:[textParagraph(label,{bold:true,after:0})]})]})}
-function table(rows:TableRow[]){return new Table({width:{size:CONTENT_WIDTH,type:WidthType.DXA},layout:TableLayoutType.FIXED,indent:{size:0,type:WidthType.DXA},rows})}
+function row(label:string,value:string,position:RowPosition,closingRow=false){
+  const top=position==='top';const bottom=position==='bottom'
+  return new TableRow({cantSplit:true,children:[
+    cell(label.split('\n').map((line)=>textParagraph(line,{bold:true,after:0})),LABEL_WIDTH,{top,bottom,right:true},closingRow),
+    cell(value.split('\n').map((line)=>textParagraph(line,{after:0})),VALUE_WIDTH,{top,bottom,left:true},closingRow),
+  ]})
+}
+function headerRow(label:string){return new TableRow({tableHeader:true,cantSplit:true,children:[new TableCell({columnSpan:2,width:{size:CONTENT_WIDTH,type:WidthType.DXA},borders:edgeBorders({bottom:true}),margins:{top:100,bottom:100,left:120,right:120},children:[textParagraph(label,{bold:true,after:0})]})]})}
+// docx always emits its own table-level default borders (auto, single, every side incl. insideH/V)
+// unless told otherwise, and Word falls back to those for any side a cell doesn't specify itself --
+// which would have silently filled in every gap the sparse per-cell borders above leave open.
+function table(rows:TableRow[]){return new Table({width:{size:CONTENT_WIDTH,type:WidthType.DXA},layout:TableLayoutType.FIXED,indent:{size:0,type:WidthType.DXA},borders:TableBorders.NONE,rows})}
 // Omitted entirely when blank: a "To be confirmed" hyperlink is worse than no line at all.
 function websiteLine(url:string){return new Paragraph({spacing:{after:60,line:264},children:[new ExternalHyperlink({link:url,children:[new TextRun({text:url,style:'Hyperlink'})]})]})}
 
 function coverTable(view:CandidateProfileViewModel){
-  const identity=new TableRow({cantSplit:true,children:[new TableCell({columnSpan:2,width:{size:CONTENT_WIDTH,type:WidthType.DXA},borders,margins:{top:160,bottom:160,left:120,right:120},children:[
+  const identity=new TableRow({cantSplit:true,children:[new TableCell({columnSpan:2,width:{size:CONTENT_WIDTH,type:WidthType.DXA},borders:edgeBorders({bottom:true}),margins:{top:160,bottom:160,left:120,right:120},children:[
     new Paragraph({spacing:{after:80},children:smallCapsName(view.candidateName)}),
     new Paragraph({spacing:{after:40},children:[new TextRun({text:`${forTheRole(view)} ${view.jobTitle.toUpperCase()}`,bold:true,size:32})]}),
     new Paragraph({spacing:{after:0},children:[new TextRun({text:`${atLabel(view)} ${view.companyName.toUpperCase()}`,bold:true,size:32})]}),
   ]})]})
-  return table([identity,row(preparedByLabel(view),view.preparedBy),row(dateLabel(view),view.preparedDate),row(remarksLabel(view),`${view.confidentialityText}\n${view.confidentialLabel}`)])
+  // Unlike the information table, the cover's last row (Remarks) closes with no bottom border at
+  // all in the approved document -- matched here rather than the two tables sharing one rule.
+  return table([identity,row(preparedByLabel(view),view.preparedBy,'top'),row(dateLabel(view),view.preparedDate,'middle'),row(remarksLabel(view),`${view.confidentialityText}\n${view.confidentialLabel}`,'middle')])
 }
 const forTheRole=(view:CandidateProfileViewModel)=>view.language==='id'?'UNTUK POSISI':'FOR THE ROLE OF'
 const atLabel=(view:CandidateProfileViewModel)=>view.language==='id'?'DI':'AT'
@@ -62,9 +84,11 @@ const informationLabel=(view:CandidateProfileViewModel)=>view.language==='id'?'I
 
 export function buildProfileDocument(view:CandidateProfileViewModel){
   const cover:(Paragraph|Table)[]=[coverTable(view)]
+  // The approved template always carries an actual logo image; there is no text fallback in it. An
+  // org that hasn't uploaded one yet gets no placeholder here rather than a mismatched text line.
   if(view.logo)cover.push(new Paragraph({spacing:{before:200,after:200},children:[new ImageRun({data:view.logo.bytes,type:view.logo.type,transformation:COVER_LOGO,altText:{title:`${view.organizationName} logo`,description:'Organization logo',name:'Organization logo'}})]}))
-  else cover.push(new Paragraph({spacing:{before:200,after:200},children:[new TextRun({text:view.organizationName,bold:true,size:22})]}))
-  cover.push(table([headerRow(informationLabel(view)),...view.information.map(([label,value])=>row(label,value))]))
+  const lastRow=view.information.length-1
+  cover.push(table([headerRow(informationLabel(view)),...view.information.map(([label,value],index)=>row(label,value,index===0?'top':index===lastRow?'bottom':'middle',index===lastRow))]))
   const children:(Paragraph|Table)[]=[]
   children.push(heading(view.sectionLabels.summary.toUpperCase()),rule(true))
   for(const paragraph of view.summary)children.push(textParagraph(paragraph))

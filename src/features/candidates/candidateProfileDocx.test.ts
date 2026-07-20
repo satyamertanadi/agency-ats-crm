@@ -104,6 +104,30 @@ describe('mandatory client profile format',()=>{
     expect(xml).not.toContain('196F52')   // the fixture's accent, #196f52, uppercased for a hex match
   })
 
+  /* Read cell-by-cell from the approved template: only the label/value seam carries a vertical line
+   * on every row, a horizontal line appears only where a section actually breaks, and the
+   * information table's very last row closes in a near-black line rather than the pale gray used
+   * everywhere else. A uniform four-sided border on every cell -- what an earlier version of this
+   * file drew -- is a full grid the template does not have. */
+  it('draws the sparse label/value grid the template uses, not a uniform box',async()=>{
+    const xml=await documentXml(await buildCandidateProfileDocx(view()))
+    const blocks=[...xml.matchAll(/<w:tcBorders>([\s\S]*?)<\/w:tcBorders>/g)].map((match)=>match[1]!)
+    expect(blocks.length).toBeGreaterThan(0)
+    for(const block of blocks){
+      const sides=(['top','bottom','left','right'] as const).filter((side)=>block.includes(`<w:${side}`))
+      expect(sides.length,`a cell should never carry all four sides: ${block}`).toBeLessThan(4)
+    }
+    // "auto" also appears in docx's own suppressed table-level default (w:val="none"), which draws
+    // nothing; only the two single, visible borders on the closing row should carry it.
+    expect([...xml.matchAll(/w:val="single"[^/]*w:color="auto"/g)]).toHaveLength(2)
+  })
+
+  it('omits the organization name entirely when no logo has been uploaded',async()=>{
+    // The approved template always carries an actual logo image and has no text fallback for one.
+    const xml=await documentXml(await buildCandidateProfileDocx(view()))
+    expect(textRuns(xml)).not.toContain('Agency ATS')
+  })
+
   it('sets the candidate name in faux small caps',async()=>{
     // Each word's initial is two points larger than the rest, as the approved cover does it.
     const xml=await documentXml(await buildCandidateProfileDocx(view()))
