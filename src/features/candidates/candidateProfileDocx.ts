@@ -12,7 +12,7 @@ import type {CandidateProfileViewModel} from './candidateProfileViewModel'
  * the last is the closing summary bullet. */
 const PAGE={width:11910,height:16840} as const
 const MARGIN={top:1220,right:1260,bottom:0,left:1320,header:720,footer:720} as const
-const BODY_MARGIN={top:1580,right:1260,bottom:2780,left:1320,header:720,footer:2595} as const
+const BODY_MARGIN={top:1580,right:1260,bottom:2780,left:1320,header:0,footer:2595} as const
 const CONTENT_WIDTH=PAGE.width-MARGIN.left-MARGIN.right   // 9330
 const LABEL_WIDTH=2900;const VALUE_WIDTH=CONTENT_WIDTH-LABEL_WIDTH
 // Cover logo 12.00x4.23cm and footer banner 17.01x4.89cm. docx takes pixels at 96 DPI, not cm.
@@ -69,7 +69,7 @@ export function buildProfileDocument(view:CandidateProfileViewModel){
   if(view.currentRoleLine)children.push(textParagraph(view.currentRoleLine))
   for(const bullet of view.summaryBullets)children.push(textParagraph(bullet,{bullet:true,after:50}))
   children.push(heading(view.sectionLabels.experience.toUpperCase()))
-  view.employment.forEach((item,index)=>{
+  if(view.employment.length)view.employment.forEach((item,index)=>{
     children.push(textParagraph(`${companyLabel(view)}: ${item.companyName}`,{bold:true,after:0}))
     children.push(textParagraph(`${titleLabel(view)}: ${item.title}`,{bold:true,after:0}))
     children.push(textParagraph(`${dateLabel(view)}: ${item.date}`,{bold:true,after:60}))
@@ -77,11 +77,22 @@ export function buildProfileDocument(view:CandidateProfileViewModel){
     for(const bullet of item.relevance)children.push(textParagraph(bullet,{bullet:true,after:50}))
     if(index<view.employment.length-1)children.push(rule(false,accent))
   })
+  // No employment rows on the record -- match the old renderer's fallback rather than leaving the
+  // heading with nothing under it.
+  else children.push(textParagraph(view.language==='id'?'Perlu dikonfirmasi.':'To be confirmed.'))
   const footer=view.footerBanner?new Footer({children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({data:view.footerBanner.bytes,type:view.footerBanner.type,transformation:FOOTER_BANNER,altText:{title:`${view.organizationName} footer`,description:'Organization footer banner',name:'Organization footer banner'}})]})]}):new Footer({children:[new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun({text:view.confidentialLabel,size:16,color:'6B7280'})]})]})
   return new Document({
-    // Heading1 inherits size and font from Normal exactly as the approved template does; only bold,
-    // the left indent, and the outline level are its own.
-    styles:{default:{document:{run:{font:'Calibri',size:22},paragraph:{spacing:{after:120,line:264}}}},paragraphStyles:[{id:'Heading1',name:'Heading 1',basedOn:'Normal',next:'Normal',quickFormat:true,run:{bold:true},paragraph:{indent:{left:120},outlineLevel:0,spacing:{before:260,after:100},keepNext:true}}]},
+    /* Heading1 must be overridden via styles.default.heading1, not a custom paragraphStyles entry:
+     * the docx library always constructs its own built-in Heading1 style (Word's stock blue, 16pt --
+     * see Heading1Style in the library source) and merges options.heading1 into it. A same-ID entry
+     * in paragraphStyles produces a second "Heading1" definition that Word ignores in favour of the
+     * library's own, which is why an earlier version of this file rendered blue oversized headings
+     * despite specifying `run:{bold:true}` on a paragraphStyles entry -- that entry was never read.
+     * color and size are set explicitly because the library's spread-merge only overrides keys that
+     * are present; omitting them here would silently keep the library's blue/32 defaults. The result
+     * matches the approved template, whose Heading1 has no run-level color or size at all and so
+     * inherits Normal's black, 11pt. */
+    styles:{default:{document:{run:{font:'Calibri',size:22},paragraph:{spacing:{after:120,line:264}}},heading1:{run:{bold:true,color:'auto',size:22},paragraph:{indent:{left:120},outlineLevel:0,spacing:{before:260,after:100},keepNext:true}}}},
     // Two sections mirroring the approved document: the cover runs to a zero bottom margin, the body
     // reserves the deep bottom band the footer banner occupies.
     sections:[

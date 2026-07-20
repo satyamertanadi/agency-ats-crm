@@ -80,6 +80,18 @@ describe('mandatory client profile format',()=>{
     expect(await documentXml(blob)).toContain('<w:jc w:val="center"/>')
   })
 
+  /* docx always constructs its own built-in Heading1 (Word's stock blue, 16pt) and merges
+   * styles.default.heading1 into it; a same-ID entry under paragraphStyles instead produces a
+   * second, ignored definition. This regression shipped once already -- the heading rendered blue
+   * and oversized despite the code specifying bold-only -- because nothing asserted the colour. */
+  it('renders headings in the body colour, not the library default blue/16pt',async()=>{
+    const styles=await partXml(await buildCandidateProfileDocx(view()),'word/styles.xml')
+    const heading1=styles.slice(styles.indexOf('w:styleId="Heading1"'))
+    const rPr=heading1.slice(0,heading1.indexOf('</w:style>'))
+    expect(rPr).not.toContain('2E74B5')
+    expect(rPr).not.toContain('w:sz w:val="32"')
+  })
+
   it('sets the candidate name in faux small caps',async()=>{
     // Each word's initial is two points larger than the rest, as the approved cover does it.
     const xml=await documentXml(await buildCandidateProfileDocx(view()))
