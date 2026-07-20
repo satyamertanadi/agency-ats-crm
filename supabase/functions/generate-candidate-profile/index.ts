@@ -2,6 +2,7 @@ import {FunctionError,requireUser} from '../_shared/auth.ts'
 import {sha256} from '../_shared/crypto.ts'
 import {corsHeaders,json,log,requestId} from '../_shared/http.ts'
 import {candidateProfileJsonSchema,validateCandidateProfileDraft,type CandidateProfileDraft} from '../_shared/profile-schema.ts'
+import {providerBillingExhausted} from '../_shared/provider-outage.ts'
 
 interface Input {organizationId?:string;candidateId?:string;jobId?:string;templateId?:string;anonymize?:boolean;force?:boolean}
 type Context=Awaited<ReturnType<typeof requireUser>>
@@ -35,21 +36,38 @@ Deno.serve(async(request)=>{
     evaluationId=evaluation.data.id
     if(provider!=='anthropic'||!model||!Deno.env.get('ANTHROPIC_API_KEY'))throw new FunctionError(503,'profile_generator_not_configured','Profile generation is not configured.')
 
-    const generated=await callProvider(prepared,model,requestID)
+    // A billing refusal is an environment condition, not a defect in this request, so it degrades to
+    // a blank-but-finalizable draft rather than failing. Failing here would return before the
+    // profile version is inserted, and finalize_candidate_profile refuses without a completed
+    // evaluation -- leaving a consultant unable to produce or audit any document while the balance
+    // is empty. Every other provider error still throws.
+    let generated:Awaited<ReturnType<typeof callProvider>>|null=null;let degraded:{reason:string;message:string}|null=null
+    try{generated=await callProvider(prepared,model,requestID)}
+    catch(error){const message=error instanceof Error?error.message:'';if(!providerBillingExhausted(message))throw error;degraded={reason:'provider_billing_exhausted',message}}
     let draft:CandidateProfileDraft
-    try{draft=validateCandidateProfileDraft(JSON.parse(generated.text))}catch(error){throw new FunctionError(502,'invalid_provider_output',error instanceof Error?error.message:'The provider returned invalid output.')}
+    if(degraded)draft=degradedDraft(prepared)
+    else{
+      const text=generated?.text
+      if(!text)throw new FunctionError(502,'empty_result','The profile generator returned no result.')
+      try{draft=validateCandidateProfileDraft(JSON.parse(text))}catch(error){throw new FunctionError(502,'invalid_provider_output',error instanceof Error?error.message:'The provider returned invalid output.')}
+    }
     const duration=Date.now()-started
     const classified={
       matched:draft.requirement_evidence.filter((item)=>item.classification==='matched'),
       missing:draft.requirement_evidence.filter((item)=>item.classification==='missing'),
       uncertain:draft.requirement_evidence.filter((item)=>item.classification==='partial'||item.classification==='uncertain'),
     }
-    const updated=await context.admin.from('ai_evaluations').update({status:'completed',evidence:draft.requirement_evidence,matched_requirements:classified.matched,missing_requirements:classified.missing,uncertainties:classified.uncertain,summary:draft.candidate_summary.join('\n\n'),score:draft.score,input_tokens:generated.inputTokens,output_tokens:generated.outputTokens,duration_ms:duration,completed_at:new Date().toISOString(),raw_response:null}).eq('id',evaluationId).eq('organization_id',input.organizationId)
+    // 'completed' here means the pipeline produced a finalizable draft, which is exactly what
+    // finalize_candidate_profile's scope check asserts -- it is not a claim that the model ran.
+    // failure_code keeps the degradation queryable, so a completed row carrying one is intentional.
+    const updated=await context.admin.from('ai_evaluations').update({status:'completed',evidence:draft.requirement_evidence,matched_requirements:classified.matched,missing_requirements:classified.missing,uncertainties:classified.uncertain,summary:draft.candidate_summary.join('\n\n'),score:draft.score,input_tokens:generated?.inputTokens||0,output_tokens:generated?.outputTokens||0,duration_ms:duration,completed_at:new Date().toISOString(),raw_response:null,failure_code:degraded?.reason||null,failure_message:degraded?.message.slice(0,1000)||null}).eq('id',evaluationId).eq('organization_id',input.organizationId)
     if(updated.error)throw new FunctionError(500,'evaluation_persistence_failed','Could not save the profile evidence.')
-    const profile=await context.admin.from('candidate_profile_versions').insert({organization_id:input.organizationId,candidate_id:input.candidateId,job_id:input.jobId,template_id:input.templateId,template_version:prepared.template.version,ai_evaluation_id:evaluationId,status:'draft',generated_content:draft,template_snapshot:prepared.configuration,input_hash:inputHash,input_versions:inputVersions,anonymized:input.anonymize??prepared.configuration.anonymize_by_default,generation_ms:duration,created_by:context.user.id}).select('id,version').single()
+    // A degraded draft must never enter the dedup cache: the lookup above matches on input_hash, so
+    // an unprefixed one would keep serving blank judgment fields back after the balance is restored.
+    const profile=await context.admin.from('candidate_profile_versions').insert({organization_id:input.organizationId,candidate_id:input.candidateId,job_id:input.jobId,template_id:input.templateId,template_version:prepared.template.version,ai_evaluation_id:evaluationId,status:'draft',generated_content:draft,template_snapshot:prepared.configuration,input_hash:degraded?`degraded:${inputHash}`:inputHash,input_versions:inputVersions,anonymized:input.anonymize??prepared.configuration.anonymize_by_default,generation_ms:duration,created_by:context.user.id}).select('id,version').single()
     if(profile.error||!profile.data)throw new FunctionError(500,'profile_persistence_failed','The evaluation completed, but its profile draft could not be saved.')
-    log('info','candidate_profile_generated',{requestId:requestID,organizationId:input.organizationId,candidateId:input.candidateId,jobId:input.jobId,profileVersionId:profile.data.id,version:profile.data.version,durationMs:duration,inputTokens:generated.inputTokens,outputTokens:generated.outputTokens})
-    return json(request,{profileVersionId:profile.data.id,draft,evaluation:{id:evaluationId,score:draft.score,evidence:draft.requirement_evidence},requestId:requestID})
+    log(degraded?'warn':'info',degraded?'candidate_profile_degraded':'candidate_profile_generated',{requestId:requestID,organizationId:input.organizationId,candidateId:input.candidateId,jobId:input.jobId,profileVersionId:profile.data.id,version:profile.data.version,durationMs:duration,inputTokens:generated?.inputTokens||0,outputTokens:generated?.outputTokens||0,degraded:degraded?.reason})
+    return json(request,{profileVersionId:profile.data.id,draft,evaluation:{id:evaluationId,score:draft.score,evidence:draft.requirement_evidence},requestId:requestID,degraded})
   }catch(error){
     const failure=error instanceof FunctionError?error:new FunctionError(500,'unexpected_error',error instanceof Error?error.message:'Unexpected error')
     if(context&&evaluationId)await context.admin.from('ai_evaluations').update({status:'failed',duration_ms:Date.now()-started,failure_code:failure.code,failure_message:failure.message.slice(0,1000),completed_at:new Date().toISOString()}).eq('id',evaluationId)
@@ -86,6 +104,27 @@ function validateTemplate(value:unknown):TemplateConfiguration{
   const item=value as Record<string,unknown>
   if(item.schema_version!==1||(item.output_language!=='en'&&item.output_language!=='id')||typeof item.anonymize_by_default!=='boolean'||typeof item.confidentiality_text!=='string'||!Array.isArray(item.sections)||item.sections.length!==7)throw new FunctionError(400,'invalid_template','The selected template is invalid.')
   return item as unknown as TemplateConfiguration
+}
+
+// The blank draft served when the provider refuses on billing. Everything factual on the document
+// still comes from the database via the view model, so what is missing here is exactly the judgment
+// text a consultant would otherwise edit anyway -- the fields are left empty for them to write.
+// Deliberately NOT passed through validateCandidateProfileDraft, which requires at least one
+// evidence entry and would reject a vacancy whose requirements field is empty.
+function degradedDraft(prepared:Awaited<ReturnType<typeof prepareInput>>):CandidateProfileDraft{
+  const indonesian=prepared.configuration.output_language==='id'
+  const employment=([...(prepared.candidate.candidate_employment||[])] as Employment[]).sort((a,b)=>a.sort_order-b.sort_order)
+  const requirements=String(prepared.job.requirements||'').split('\n').map((line)=>line.trim()).filter(Boolean).slice(0,20)
+  const explanation=indonesian?'Belum dievaluasi: penyedia AI tidak tersedia karena alasan penagihan.':'Not evaluated: the AI provider was unavailable for billing reasons.'
+  return {
+    candidate_summary:[indonesian?'Perlu dikonfirmasi.':'To be confirmed.'],
+    strengths_opportunities:'',risks_challenges:'',points_to_validate:[],
+    experience_relevance:employment.map((item)=>({company_name:item.company_name,title:item.title,relevance:[]})),
+    requirement_evidence:requirements.map((requirement)=>({requirement,classification:'uncertain' as const,source:'none' as const,source_path:'',excerpt:'',explanation})),
+    // Explicitly zero rather than calculateEvidenceScore, which weights 'uncertain' at .25 and would
+    // present a candidate nobody evaluated as scoring 25 out of 100.
+    score:0,
+  }
 }
 
 function stableStringify(value:unknown):string{

@@ -16,8 +16,11 @@ export function json(request:Request,body:unknown,status=200){
 
 export function requestId(request:Request){return request.headers.get('x-request-id')||crypto.randomUUID()}
 
-export function log(level:'info'|'error',message:string,context:Record<string,unknown>={}){
+// 'warn' exists for degraded-but-successful outcomes -- a request that returned a usable result
+// while something operational was wrong (an exhausted provider balance, say). Logging those as
+// 'info' buries them; logging them as 'error' makes a served request look failed.
+export function log(level:'info'|'warn'|'error',message:string,context:Record<string,unknown>={}){
   const safe=Object.fromEntries(Object.entries(context).filter(([key])=>!['email','token','refreshToken','candidate','payload'].includes(key)))
   const entry={level,message,...safe,timestamp:new Date().toISOString()}
-  if(level==='error')console.error(JSON.stringify(entry));else console.log(JSON.stringify(entry))
+  if(level==='error')console.error(JSON.stringify(entry));else if(level==='warn')console.warn(JSON.stringify(entry));else console.log(JSON.stringify(entry))
 }

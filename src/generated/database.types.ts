@@ -4812,7 +4812,7 @@ export type Database = {
           p_docx_document_id: string
           p_edited_field_count?: number
           p_organization_id: string
-          p_pdf_document_id: string
+          p_pdf_document_id?: string | null
           p_profile_version_id: string
           p_reviewed_content: Json
         }

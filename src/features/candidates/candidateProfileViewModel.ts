@@ -1,20 +1,24 @@
 import {resolveAccent} from '../../shared/lib/branding'
 import type {CandidateProfileDraft,CandidateProfileTemplateConfig,ProfileLanguage,ProfileSectionKey} from './candidateProfile'
+import {detailFields,emptyProfileDetails,roleKey,type ProfileDetailKey,type ProfileDetails,type RoleWebsites} from './candidateProfileDetails'
 
 export type ProfileEmployment={company_name:string;title:string;started_on:string|null;ended_on:string|null;started_on_precision:string|null;ended_on_precision:string|null;is_current:boolean}
 export type ProfileEducation={degree:string|null;field_of_study:string|null;institution:string}
 export type ProfileCandidate={full_name:string;current_position:string|null;current_company:string|null;location:string|null;employment:ProfileEmployment[];education:ProfileEducation[];languages:string[]}
 export type ProfileLogo={bytes:Uint8Array;type:'png'|'jpg'}
 export interface CandidateProfileViewModel {
-  language:ProfileLanguage;accent:string;logo?:ProfileLogo;organizationName:string;candidateName:string;jobTitle:string;companyName:string;
+  language:ProfileLanguage;accent:string;logo?:ProfileLogo;footerBanner?:ProfileLogo;organizationName:string;candidateName:string;jobTitle:string;companyName:string;
   preparedBy:string;preparedDate:string;confidentialityText:string;confidentialLabel:string;anonymized:boolean;
-  sectionOrder:Array<{key:ProfileSectionKey;label:string}>;information:Array<[string,string]>;summary:string[];
-  employment:Array<{companyName:string;title:string;date:string;relevance:string[]}>;education:string[];strengths:string;risks:string;questions:string[];
+  /* Section labels, not section order. The client template is mandatory, so the document's order is
+   * fixed in the renderer; the template's `sections` survive only to supply bilingual wording. */
+  sectionLabels:Record<ProfileSectionKey,string>;information:Array<[string,string]>;
+  summary:string[];currentRoleLine:string;summaryBullets:string[];
+  employment:Array<{companyName:string;title:string;date:string;website:string;relevance:string[]}>;
 }
 
 const copy={
-  en:{anonymous:'Confidential candidate',unknown:'To be confirmed',withheld:'Withheld',preparedBy:'Prepared by',date:'Date',name:'Name',currentEmployment:'Current employment',education:'Education',location:'Current location',languages:'Languages',confidential:'CONFIDENTIAL - FOR CLIENT USE ONLY',present:'Present'},
-  id:{anonymous:'Kandidat rahasia',unknown:'Perlu dikonfirmasi',withheld:'Dirahasiakan',preparedBy:'Disiapkan oleh',date:'Tanggal',name:'Nama',currentEmployment:'Pekerjaan saat ini',education:'Pendidikan',location:'Lokasi saat ini',languages:'Bahasa',confidential:'RAHASIA - HANYA UNTUK KLIEN',present:'Sekarang'},
+  en:{anonymous:'Confidential candidate',unknown:'To be confirmed',withheld:'Withheld',preparedBy:'Prepared by',date:'Date',remarks:'Remarks',name:'Name',photo:'Photo',currentEmployment:'Current Employment',education:'Education',location:'Current Location',languages:'Languages',strengths:'Strengths & Opportunities',risks:'Risks & Challenge',information:'INFORMATION',currentRole:'Current Role',forTheRole:'FOR THE ROLE OF',at:'AT',confidential:'CONFIDENTIAL - FOR CLIENT USE ONLY',present:'Present'},
+  id:{anonymous:'Kandidat rahasia',unknown:'Perlu dikonfirmasi',withheld:'Dirahasiakan',preparedBy:'Disiapkan oleh',date:'Tanggal',remarks:'Catatan',name:'Nama',photo:'Foto',currentEmployment:'Pekerjaan saat ini',education:'Pendidikan',location:'Lokasi saat ini',languages:'Bahasa',strengths:'Kekuatan & Peluang',risks:'Risiko & Tantangan',information:'INFORMASI',currentRole:'Peran saat ini',forTheRole:'UNTUK POSISI',at:'DI',confidential:'RAHASIA - HANYA UNTUK KLIEN',present:'Sekarang'},
 } as const
 
 function datePart(value:string|null,precision:string|null,language:ProfileLanguage){
@@ -38,18 +42,40 @@ function educationText(candidate:ProfileCandidate,language:ProfileLanguage){
   return candidate.education.map((item)=>[item.degree,item.field_of_study,item.institution].filter(Boolean).join(' - ')).filter(Boolean).map(String).concat(candidate.education.length?[]:[copy[language].unknown])
 }
 
-export function buildCandidateProfileViewModel(input:{candidate:ProfileCandidate;job:{title:string;company_name:string|null};draft:CandidateProfileDraft;template:CandidateProfileTemplateConfig;preparedBy:string;preparedDate:string;organizationName:string;accent?:string;logo?:ProfileLogo;anonymized:boolean}):CandidateProfileViewModel{
+export function buildCandidateProfileViewModel(input:{candidate:ProfileCandidate;job:{title:string;company_name:string|null};draft:CandidateProfileDraft;template:CandidateProfileTemplateConfig;preparedBy:string;preparedDate:string;organizationName:string;accent?:string;logo?:ProfileLogo;footerBanner?:ProfileLogo;anonymized:boolean;details?:ProfileDetails;websites?:RoleWebsites}):CandidateProfileViewModel{
   const {candidate,job,draft,template}=input;const language=template.output_language;const labels=copy[language];const current=[candidate.current_position,candidate.current_company].filter(Boolean).join(language==='id'?' di ':' at ')
   const candidateName=input.anonymized?labels.anonymous:(candidate.full_name||labels.unknown)
+  const details=input.details||emptyProfileDetails();const websites=input.websites||{}
+  const sectionLabels=Object.fromEntries(template.sections.map(({key,label})=>[key,label])) as Record<ProfileSectionKey,string>
+  /* Anonymizing withholds who the person is -- name, age, nationality, precise location -- but keeps
+   * the commercial terms, because salary and notice are the substance a client is being asked to
+   * judge. Withholding those would leave a document with nothing to decide on. */
+  const withheld=(value:string)=>input.anonymized?labels.withheld:(value.trim()||labels.unknown)
+  const row=(key:ProfileDetailKey):[string,string]=>[detailLabel(key,language),details[key].trim()||labels.unknown]
   const information:Array<[string,string]>=[
-    [labels.name,candidateName],[labels.currentEmployment,current||labels.unknown],
-    [labels.education,educationText(candidate,language).join('; ')],[labels.location,input.anonymized?labels.withheld:(candidate.location||labels.unknown)],
+    [`${labels.name}\n${labels.photo}`,candidateName],
+    [detailLabel('age',language),withheld(details.age)],
+    [labels.currentEmployment,current||labels.unknown],
+    [labels.education,educationText(candidate,language).join('; ')],
+    [detailLabel('nationality',language),withheld(details.nationality)],
+    [labels.location,input.anonymized?labels.withheld:(candidate.location||labels.unknown)],
+    row('current_salary'),row('other_benefits'),row('expected_salary'),row('notice_period'),
     [labels.languages,candidate.languages.length?candidate.languages.join(', '):labels.unknown],
+    row('motivation_to_move'),row('other_interview_process'),row('first_impression_company'),row('first_impression_job'),
+    [labels.strengths,draft.strengths_opportunities.trim()||labels.unknown],
+    [labels.risks,draft.risks_challenges.trim()||labels.unknown],
   ]
-  return {language,accent:resolveAccent(input.accent),logo:input.logo,organizationName:input.organizationName,candidateName,jobTitle:job.title,companyName:job.company_name||labels.unknown,preparedBy:input.preparedBy||labels.unknown,preparedDate:input.preparedDate||labels.unknown,confidentialityText:template.confidentiality_text,confidentialLabel:labels.confidential,anonymized:input.anonymized,sectionOrder:template.sections.filter((section)=>section.visible).map(({key,label})=>({key,label})),information,summary:draft.candidate_summary,employment:candidate.employment.map((item,index)=>({companyName:item.company_name,title:item.title,date:formatEmploymentRange(item,language),relevance:relevanceFor(draft,item,index)})),education:educationText(candidate,language),strengths:draft.strengths_opportunities||labels.unknown,risks:draft.risks_challenges||labels.unknown,questions:draft.points_to_validate.length?draft.points_to_validate:[labels.unknown]}
+  /* The summary reads as one intro paragraph, a current-role line, then bullets, with the points to
+   * validate collapsed into the final bullet rather than standing as their own section. */
+  const [intro,...rest]=draft.candidate_summary
+  const summaryBullets=[...rest,...(draft.points_to_validate.length?[`${sectionLabels.questions}: ${draft.points_to_validate.join(', ')}`]:[])]
+  return {language,accent:resolveAccent(input.accent),logo:input.logo,footerBanner:input.footerBanner,organizationName:input.organizationName,candidateName,jobTitle:job.title,companyName:job.company_name||labels.unknown,preparedBy:input.preparedBy||labels.unknown,preparedDate:input.preparedDate||labels.unknown,confidentialityText:template.confidentiality_text,confidentialLabel:labels.confidential,anonymized:input.anonymized,sectionLabels,information,summary:intro?[intro]:[],currentRoleLine:current?`${labels.currentRole}: ${current}.`:'',summaryBullets,employment:candidate.employment.map((item,index)=>({companyName:item.company_name,title:item.title,date:formatEmploymentRange(item,language),website:(websites[roleKey(item.company_name,item.title)]||'').trim(),relevance:relevanceFor(draft,item,index)}))}
 }
 
-export function profileFilename(view:Pick<CandidateProfileViewModel,'candidateName'|'jobTitle'|'companyName'|'anonymized'>,extension:'docx'|'pdf'){
+// One label source for both the fill-in form and the table row, so the two cannot drift apart.
+function detailLabel(key:ProfileDetailKey,language:ProfileLanguage){return detailFields.find((field)=>field.key===key)!.label[language]}
+
+export function profileFilename(view:Pick<CandidateProfileViewModel,'candidateName'|'jobTitle'|'companyName'|'anonymized'>,extension:'docx'){
   const base=[view.anonymized?'confidential-candidate':view.candidateName,view.jobTitle,view.companyName].filter(Boolean).join('_').replace(/[^a-zA-Z0-9._-]+/g,'_')||'candidate-profile'
   return `${base}.${extension}`
 }

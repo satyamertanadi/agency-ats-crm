@@ -50,7 +50,7 @@ export type PipelinePhaseKey='sourcing'|'screening'|'shortlist'|'client_review'|
  * same reason as ProfileStatus: shared/lib/status.ts owns its wording and must not import features/. */
 export type TodayWorkKind='blocked'|'overdue'|'today'|'upcoming'|'recommended'
 
-export type Organization = { id: string; name: string; slug: string; base_currency: string; salary_period?: 'annual'|'monthly'; timezone: string; seat_limit: number; pilot_status: PilotStatus; primary_color?:string;logo_path?:string|null;logo_url?:string|null;profile_enabled?:boolean;consultant_first_enabled?:boolean }
+export type Organization = { id: string; name: string; slug: string; base_currency: string; salary_period?: 'annual'|'monthly'; timezone: string; seat_limit: number; pilot_status: PilotStatus; primary_color?:string;logo_path?:string|null;logo_url?:string|null;profile_footer_banner_path?:string|null;profile_footer_banner_url?:string|null;profile_enabled?:boolean;consultant_first_enabled?:boolean }
 export type Membership = { id: string; organization_id: string; user_id?:string; status: MemberStatus; organizations: Organization }
 export type Candidate = {
   id: string; organization_id: string; full_name: string; current_company: string | null; current_position: string | null;
