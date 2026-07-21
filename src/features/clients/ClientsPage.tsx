@@ -6,7 +6,7 @@ import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {createCompany,createContact,listContacts} from '../core/repository'
-import {listCompanyPipeline} from '../core/commercialRepository'
+import {listCompanyPipeline,listTeamMembers} from '../core/commercialRepository'
 import {Button} from '../../shared/ui/Button'
 import {Drawer} from '../../shared/ui/Drawer'
 import {Field,Input,Select} from '../../shared/ui/Field'
@@ -31,12 +31,14 @@ export function ClientsPage(){
   const setView=(next:'list'|'board')=>setParam('view',next==='board'?'board':'')
   const setQuery=(value:string)=>setParam('q',value)
   const [name,setName]=useState('');const [status,setStatus]=useState('prospect');const [contactName,setContactName]=useState('');const [contactEmail,setContactEmail]=useState('')
+  const [industry,setIndustry]=useState('');const [location,setLocation]=useState('');const [website,setWebsite]=useState('');const [ownerMemberId,setOwnerMemberId]=useState('');const [contactPhone,setContactPhone]=useState('');const [contactPosition,setContactPosition]=useState('')
   useOpenOnNewParam(setOpen)
   // One aggregated query serves both views. The list used to load companies and contacts and count
   // in the browser, which is why it could not show open jobs, follow-ups, or commercial state at all.
   const companies=useQuery({queryKey:['company-pipeline',organization?.id],enabled:Boolean(organization),queryFn:()=>listCompanyPipeline(organization!.id)})
   const contacts=useQuery({queryKey:['contacts',organization?.id],enabled:Boolean(organization),queryFn:()=>listContacts(organization!.id)})
-  const create=useMutation({mutationFn:async()=>{const companyId=await createCompany(organization!.id,user!.id,{name,account_status:status});if(contactName.trim())await createContact(organization!.id,user!.id,{company_id:companyId,full_name:contactName,email:contactEmail||undefined});return companyId},onSuccess:async(companyId)=>{const created=name.trim();setOpen(false);setName('');setContactName('');setContactEmail('');await Promise.all([cache.invalidateQueries({queryKey:['company-pipeline',organization?.id]}),cache.invalidateQueries({queryKey:['contacts',organization?.id]})]);navigate(`/app/${organization!.slug}/clients/${companyId}`);toast.success(`${created} was added.`)},onError:(error)=>toast.error(error,'The client was not created.')}) 
+  const team=useQuery({queryKey:['team',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
+  const create=useMutation({mutationFn:async()=>{const companyId=await createCompany(organization!.id,user!.id,{name,account_status:status,industry:industry||undefined,location:location||undefined,website:website||undefined,owner_member_id:ownerMemberId||undefined});if(contactName.trim())await createContact(organization!.id,user!.id,{company_id:companyId,full_name:contactName,email:contactEmail||undefined,phone:contactPhone||undefined,position:contactPosition||undefined});return companyId},onSuccess:async(companyId)=>{const created=name.trim();setOpen(false);setName('');setContactName('');setContactEmail('');setIndustry('');setLocation('');setWebsite('');setOwnerMemberId('');setContactPhone('');setContactPosition('');await Promise.all([cache.invalidateQueries({queryKey:['company-pipeline',organization?.id]}),cache.invalidateQueries({queryKey:['contacts',organization?.id]})]);navigate(`/app/${organization!.slug}/clients/${companyId}`);toast.success(`${created} was added.`)},onError:(error)=>toast.error(error,'The client was not created.')})
   const needle=query.trim().toLowerCase()
   const visibleRows=(companies.data||[]).filter((company)=>!needle||[company.name,company.industry,company.location].some((value)=>value?.toLowerCase().includes(needle)))
   // Declared before the loading/error guards: a hook after an early return changes hook order
@@ -49,8 +51,8 @@ export function ClientsPage(){
     },
     onError:(error)=>toast.error(error,'Nothing was exported.'),
   })
-  if(companies.isLoading||contacts.isLoading||capabilities.isLoading)return <TableSkeleton rows={7} columns={5} label="Opening clients…"/>
-  if(companies.error||contacts.error)return <ErrorState error={companies.error||contacts.error}/>
+  if(companies.isLoading||contacts.isLoading||team.isLoading||capabilities.isLoading)return <TableSkeleton rows={7} columns={5} label="Opening clients…"/>
+  if(companies.error||contacts.error||team.error)return <ErrorState error={companies.error||contacts.error||team.error}/>
   const visible=visibleRows
   const summary=bdSummary(visible,new Date())
   // Won accounts arrive at the job form with the client already chosen, so the guided step does not
@@ -88,6 +90,6 @@ export function ClientsPage(){
           :null}
     </Panel>
     {visible.length>0&&view==='board'&&<BdBoard rows={visible} canWrite={Boolean(capabilities.data?.canWriteClients)} onCreateJob={(row)=>startJobForAccount(row.id)}/>}
-    <Drawer title="Add client" description="Start with the account and, if useful, its primary contact." open={open} onClose={()=>setOpen(false)}><div className="stack"><Field label="Client name"><Input autoFocus value={name} onChange={(event)=>setName(event.target.value)}/></Field><Field label="Account status"><Select value={status} onChange={(event)=>setStatus(event.target.value)}><option value="prospect">Prospect</option><option value="active_client">Active client</option></Select></Field><div className="progressive-section"><div><Building2 size={16}/><span><strong>Primary contact</strong><small>Optional — this can be added later.</small></span></div><Field label="Contact name"><Input value={contactName} onChange={(event)=>setContactName(event.target.value)}/></Field><Field label="Contact email"><Input type="email" value={contactEmail} onChange={(event)=>setContactEmail(event.target.value)}/></Field></div>{create.error&&<p className="form-error" role="alert">{create.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={()=>setOpen(false)}>Cancel</Button><Button loading={create.isPending} disabled={name.trim().length<2} onClick={()=>create.mutate()}>Create client</Button></div></div></Drawer>
+    <Drawer title="Add client" description="Start with the account and, if useful, its primary contact." open={open} onClose={()=>setOpen(false)}><div className="stack"><Field label="Client name"><Input autoFocus value={name} onChange={(event)=>setName(event.target.value)}/></Field><Field label="Account status"><Select value={status} onChange={(event)=>setStatus(event.target.value)}><option value="prospect">Prospect</option><option value="active_client">Active client</option></Select></Field><div className="form-grid"><Field label="Industry"><Input value={industry} onChange={(event)=>setIndustry(event.target.value)}/></Field><Field label="Location"><Input value={location} onChange={(event)=>setLocation(event.target.value)}/></Field><Field label="Website"><Input type="url" value={website} onChange={(event)=>setWebsite(event.target.value)}/></Field><Field label="Owner"><Select value={ownerMemberId} onChange={(event)=>setOwnerMemberId(event.target.value)}><option value="">Unassigned</option>{team.data?.filter((member)=>member.status==='active').map((member)=><option key={member.id} value={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field></div><div className="progressive-section"><div><Building2 size={16}/><span><strong>Primary contact</strong><small>Optional — this can be added later.</small></span></div><Field label="Contact name"><Input value={contactName} onChange={(event)=>setContactName(event.target.value)}/></Field><Field label="Contact email"><Input type="email" value={contactEmail} onChange={(event)=>setContactEmail(event.target.value)}/></Field><Field label="Contact phone"><Input value={contactPhone} onChange={(event)=>setContactPhone(event.target.value)}/></Field><Field label="Contact position"><Input value={contactPosition} onChange={(event)=>setContactPosition(event.target.value)}/></Field></div>{create.error&&<p className="form-error" role="alert">{create.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={()=>setOpen(false)}>Cancel</Button><Button loading={create.isPending} disabled={name.trim().length<2} onClick={()=>create.mutate()}>Create client</Button></div></div></Drawer>
   </Page>
 }
