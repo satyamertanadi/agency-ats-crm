@@ -123,6 +123,14 @@
 .cv-inline-row-short {
   grid-template-columns: 1fr 1fr auto;
 }
+.cv-inline-row-header {
+  margin-top: 10px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
 .cv-checkbox {
   display: flex;
   align-items: center;
@@ -136,6 +144,18 @@
   font-size: var(--text-sm);
   display: grid;
   gap: var(--space-1);
+}
+.cv-parser-notes {
+  border: 1px solid var(--tone-warn-fg);
+  border-radius: var(--radius-md);
+  background: var(--tone-warn-bg);
+  padding: var(--space-3);
+}
+.cv-parser-notes h3 {
+  margin: 0 0 var(--space-2);
+}
+.cv-parser-notes .cv-uncertainties {
+  color: inherit;
 }
 @media (max-width: 700px) {
   .cv-review-heading {

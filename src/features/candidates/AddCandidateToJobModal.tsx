@@ -36,6 +36,6 @@ export function AddCandidateToJobModal({open,onClose,candidates:fixedCandidates=
     {selectedJob&&<div className="job-choice-context"><BriefcaseBusiness size={17}/><dl><div><dt>Owner</dt><dd>{selectedJob.owner_name||'Unassigned'}</dd></div><div><dt>Pipeline</dt><dd>{selectedJob.candidate_count} candidates · {selectedJob.waiting_count} waiting</dd></div><div><dt>Salary</dt><dd>{formatSalary(selectedJob.salary_min,selectedJob.currency)}{selectedJob.salary_max?` – ${formatSalary(selectedJob.salary_max,selectedJob.currency)}`:''}</dd></div><div><dt>Expected fee</dt><dd>{formatMoney(selectedJob.expected_fee,selectedJob.currency)}{selectedJob.fee_source?` · ${selectedJob.fee_source}`:''}</dd></div></dl></div>}
     {jobId&&<Field label="Starting stage"><Select value={stageId} onChange={(event)=>setStageId(event.target.value)}><option value="">Default first stage</option>{stages.data?.map((stage)=><option value={stage.id} key={stage.id}>{stage.name}</option>)}</Select></Field>}
     {mutation.error&&<p className="form-error" role="alert">{mutation.error.message}</p>}
-    <div className="form-actions"><Button variant="quiet" onClick={close}>Cancel</Button><Button loading={mutation.isPending} disabled={!candidateIds.length||!jobId||blocked}>Add to job</Button></div>
+    <div className="form-actions"><Button variant="quiet" onClick={close}>Cancel</Button><Button onClick={()=>mutation.mutate()} loading={mutation.isPending} disabled={!candidateIds.length||!jobId||blocked}>Add to job</Button></div>
   </div></Modal>
 }

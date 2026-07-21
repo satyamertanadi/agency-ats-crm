@@ -1,21 +1,7 @@
 import {z} from 'zod'
+import {cvEducationSchema,cvEmploymentSchema,cvLanguageSchema,cvSkillSchema,optionalString} from '../../shared/validation/candidateFields'
 
-const optionalString=z.string().trim().nullable().default(null)
-const datePrecision=z.enum(['day','month','year']).nullable().default(null)
-const dateValue=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null)
-
-export const cvEmploymentSchema=z.object({
-  company_name:z.string().trim().min(1),title:z.string().trim().min(1),location:optionalString,
-  started_on:dateValue,ended_on:dateValue,is_current:z.boolean().default(false),summary:optionalString,
-  started_on_precision:datePrecision,ended_on_precision:datePrecision,sort_order:z.number().int().nonnegative().default(0),
-})
-export const cvEducationSchema=z.object({
-  institution:z.string().trim().min(1),degree:optionalString,field_of_study:optionalString,
-  started_on:dateValue,ended_on:dateValue,started_on_precision:datePrecision,ended_on_precision:datePrecision,
-  sort_order:z.number().int().nonnegative().default(0),
-})
-export const cvSkillSchema=z.object({name:z.string().trim().min(1),proficiency:optionalString,years_experience:z.number().nonnegative().nullable().default(null)})
-export const cvLanguageSchema=z.object({language:z.string().trim().min(1),proficiency:optionalString})
+export {cvEducationSchema,cvEmploymentSchema,cvLanguageSchema,cvSkillSchema}
 
 export const candidateCvExtractionSchema=z.object({
   full_name:z.string().trim().default(''),current_company:optionalString,current_position:optionalString,location:optionalString,
