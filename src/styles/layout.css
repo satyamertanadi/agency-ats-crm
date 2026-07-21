@@ -90,6 +90,12 @@
 .workspace-select option {
   color: var(--color-ink);
 }
+/* The sidebar has its own dark-surface text tokens (color-sidebar-text/-muted) distinct from the
+   main content's -- the shared .select-chevron's --color-muted is tuned for the lighter surface,
+   so it's overridden here to match how every other sidebar label already does this. */
+.workspace-select .select-chevron {
+  color: var(--color-sidebar-muted);
+}
 .sidebar nav {
   display: grid;
   gap: var(--space-3);

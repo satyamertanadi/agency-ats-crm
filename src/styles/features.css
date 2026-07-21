@@ -840,11 +840,17 @@
   overflow-wrap: break-word;
 }
 /* .input's width:100% is right for form fields but blows this select out to fill the row --
-   it needs its own intrinsic width here, same as the badge and button beside it. */
-.team-access-row > select,
-.finance-row > select {
+   it needs its own intrinsic width here, same as the badge and button beside it. Targets
+   .select-wrap (Select now wraps its <select> for the custom arrow, see components.css) rather
+   than `select` directly, since the wrapper is the row's direct child now. */
+.team-access-row > .select-wrap,
+.finance-row > .select-wrap {
   width: auto;
   flex: 0 0 auto;
+}
+.team-access-row > .select-wrap select,
+.finance-row > .select-wrap select {
+  width: auto;
 }
 .team-access-row > .badge,
 .team-access-row > .button,
@@ -1156,6 +1162,10 @@
 .saved-view-chip button:hover{background:var(--color-canvas)}
 .saved-view-chip-shared{border-style:dashed}
 .saved-view-chip .saved-view-delete{border-left:1px solid var(--color-line);color:var(--color-muted);padding:5px 8px}
+/* Matches a chip's vertical padding so the empty-state line sits at the same height/baseline as
+   the Export/Save buttons beside it, instead of reading as a thinner, oddly-placed fragment when
+   no chips are present to set the row's rhythm. */
+.saved-view-chips > .muted{padding-block:5px}
 .checkbox-row{display:flex;align-items:flex-start;gap:var(--space-2);font-size:var(--text-sm)}
 .checkbox-row small{display:block;color:var(--color-muted);font-size:var(--text-xs)}
 .fee-suggestion{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);margin:0 0 var(--space-3);padding:var(--space-3);border:1px solid var(--tone-good-border);background:var(--tone-good-bg);color:var(--tone-good-fg);border-radius:var(--radius-sm);font-size:var(--text-sm)}

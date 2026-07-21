@@ -283,6 +283,26 @@
     box-shadow var(--motion-fast),
     background var(--motion-fast);
 }
+/* Wraps every <select> (shared Select component, plus the sidebar workspace switcher) so a single
+   custom arrow replaces the browser's native one -- the native arrow's exact position/size varies
+   by browser and zoom level, which is what read as "a bit off." */
+.select-wrap {
+  position: relative;
+  display: block;
+}
+.select-wrap select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 32px;
+}
+.select-chevron {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  pointer-events: none;
+}
 .input:hover {
   border-color: color-mix(in srgb, var(--color-line-strong) 70%, var(--color-ink));
 }
