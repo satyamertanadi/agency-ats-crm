@@ -15,9 +15,10 @@ vi.mock('../core/commercialRepository',()=>({getCandidateDetail,listCandidateDoc
   addCandidateEducation:vi.fn(),addCandidateEmployment:vi.fn(),addCandidateLanguage:vi.fn(),addCandidateSkill:vi.fn(),addCandidateTag:vi.fn(),
   deleteCandidateDocument:vi.fn(),deleteCandidateProfileItem:vi.fn(),removeCandidateSkill:vi.fn(),removeCandidateTag:vi.fn(),
   setCandidateArchived:vi.fn(),updateCandidateProfile:vi.fn()}))
-vi.mock('../core/repository',()=>({listCandidatePipelineAssignments}))
+vi.mock('../core/repository',()=>({listCandidatePipelineAssignments,createActivity:vi.fn()}))
 vi.mock('../../app/useWorkspaceCapabilities',()=>({useWorkspaceCapabilities:()=>({data:capabilities()})}))
 vi.mock('../../app/AuthProvider',()=>({useAuth:()=>({user:{id:'user-1'}})}))
+vi.mock('../../shared/ui/Toast',()=>({useToast:()=>({success:vi.fn(),error:vi.fn(),info:vi.fn()})}))
 vi.mock('./CandidateCvParser',()=>({CandidateCvParser:()=><div/>}))
 vi.mock('./CandidateProfileGenerator',()=>({CandidateProfileGenerator:()=><div/>}))
 vi.mock('./AddCandidateToJobModal',()=>({AddCandidateToJobModal:({open}:{open:boolean})=>open?<div>Add to job modal</div>:null}))

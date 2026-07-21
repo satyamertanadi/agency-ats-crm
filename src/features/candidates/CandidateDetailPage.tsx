@@ -2,7 +2,7 @@ import {useState,type FocusEvent} from 'react'
 import {useForm} from 'react-hook-form'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {Archive,ArrowLeft,Briefcase,FileSignature,FileText,GraduationCap,Inbox,Languages,Layers3,Mail,MoreHorizontal,Plus,RotateCcw,Tag,Trash2,Upload,Wrench} from 'lucide-react'
+import {Archive,ArrowLeft,Briefcase,FileSignature,FileText,GraduationCap,Inbox,Languages,Layers3,Mail,MessageSquare,MoreHorizontal,Plus,RotateCcw,Tag,Trash2,Upload,Wrench} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router-dom'
 import type {z} from 'zod'
 import {useOrganization} from '../../app/OrganizationProvider'
@@ -16,16 +16,18 @@ import {Badge,Panel,StatusBadge} from '../../shared/ui/Page'
 import {candidateStatus,consentStatus,lookup,profileStatus,type Tone} from '../../shared/lib/status'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
 import {formatCvDate,formatDate,formatSalary} from '../../shared/lib/format'
+import {whatsAppLink} from '../../shared/lib/whatsapp'
 import {CandidateCvParser} from './CandidateCvParser'
 import {CandidateProfileGenerator} from './CandidateProfileGenerator'
 import {EducationListEditor,EmploymentListEditor,LanguagesListEditor,SkillsListEditor,type EducationItem,type EmploymentItem,type LanguageItem,type SkillItem} from './CandidateProfileEditors'
 import {ActivityFeed} from '../activities/ActivityFeed'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {Table} from '../../shared/ui/Table'
-import {listCandidatePipelineAssignments} from '../core/repository'
+import {createActivity,listCandidatePipelineAssignments} from '../core/repository'
 import {phaseForStage,pipelinePhases} from '../workflow/workflow'
 import {AddCandidateToJobModal} from './AddCandidateToJobModal'
 import {TaskButton} from '../activities/TaskButton'
+import {useToast} from '../../shared/ui/Toast'
 
 type AddMode='tag'|null
 type EditFormInput=z.input<typeof candidateProfileEditSchema>;type EditFormData=z.output<typeof candidateProfileEditSchema>
@@ -42,7 +44,7 @@ const TABS=[{key:'overview',label:'Overview'},{key:'profile',label:'Profile'},{k
 type TabKey=typeof TABS[number]['key']
 
 export function CandidateDetailPage(){
-  const {candidateId=''}=useParams();const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const [params,setParams]=useSearchParams();const [addMode,setAddMode]=useState<AddMode>(null);const [cvOpen,setCvOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false);const [editing,setEditing]=useState(false);const [jobOpen,setJobOpen]=useState(false);const [menuOpen,setMenuOpen]=useState(false);const [renderedAt]=useState(Date.now)
+  const {candidateId=''}=useParams();const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams();const [addMode,setAddMode]=useState<AddMode>(null);const [cvOpen,setCvOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false);const [editing,setEditing]=useState(false);const [jobOpen,setJobOpen]=useState(false);const [menuOpen,setMenuOpen]=useState(false);const [renderedAt]=useState(Date.now)
   const detail=useQuery({queryKey:['candidate-detail',organization?.id,candidateId],enabled:Boolean(organization&&candidateId),queryFn:()=>getCandidateDetail(organization!.id,candidateId)})
   const documents=useQuery({queryKey:['candidate-documents',organization?.id,candidateId],enabled:Boolean(organization&&candidateId),queryFn:()=>listCandidateDocuments(organization!.id,candidateId)})
   const profileVersions=useQuery({queryKey:['candidate-profile-versions',organization?.id,candidateId],enabled:Boolean(organization&&candidateId&&organization.profile_enabled),queryFn:()=>listCandidateProfileVersions(organization!.id,candidateId)})
@@ -57,6 +59,10 @@ export function CandidateDetailPage(){
   const removeItem=useMutation({mutationFn:({table,id}:{table:'candidate_employment'|'candidate_education'|'candidate_languages';id:string})=>deleteCandidateProfileItem(table,organization!.id,id),onSuccess:refresh})
   const removeSkill=useMutation({mutationFn:(skillId:string)=>removeCandidateSkill(organization!.id,candidateId,skillId),onSuccess:refresh})
   const removeTag=useMutation({mutationFn:(tagId:string)=>removeCandidateTag(organization!.id,candidateId,tagId),onSuccess:refresh})
+  // wa.me only opens a chat with the message pre-filled -- nothing sends until the recruiter hits
+  // send inside WhatsApp itself, so this logs "opened," not "sent," and never blocks the tab from
+  // opening even if the activity write fails.
+  const logWhatsApp=useMutation({mutationFn:(name:string)=>createActivity(organization!.id,{activity_type:'whatsapp',direction:'outbound',summary:`WhatsApp conversation opened with ${name}.`},[{candidate_id:candidateId}]),onSuccess:refresh})
   // In-place panel editing (Phase 5): each panel keeps its own open/draft state and diffs the draft
   // against the record on save (present id -> update, missing id -> delete, no id -> insert). This
   // replaces AddProfileItem's old one-entry-at-a-time flow for these four profile sections.
@@ -80,6 +86,14 @@ export function CandidateDetailPage(){
   const startSkillsEdit=()=>{const existing=candidate.candidate_skills||[];setSkillsDraft(existing.length?existing.map((item)=>({skill_id:item.skill_id,name:item.skills?.name||'',proficiency:item.proficiency,years_experience:item.years_experience})):[{name:'',proficiency:null,years_experience:null}]);setSkillsEditing(true)}
   const preparedBy=members.data?.find((member)=>member.user_id===user?.id)?.profiles?.full_name||''
   const canWrite=Boolean(capabilities.data?.canWriteCandidates)
+  const openWhatsApp=()=>{
+    if(!privateData?.phone){toast.error('No phone number on file for this candidate.');return}
+    const firstName=candidate.full_name.split(/\s+/)[0]||candidate.full_name
+    const link=whatsAppLink(privateData.phone,`Hi ${firstName}, this is ${preparedBy||'the team'} from ${organization?.name||'our agency'}. Do you have a moment to chat?`)
+    if(!link){toast.error('That phone number could not be turned into a WhatsApp link.');return}
+    window.open(link,'_blank','noopener,noreferrer')
+    logWhatsApp.mutate(candidate.full_name)
+  }
   const tab=(TABS.find((item)=>item.key===params.get('tab'))?.key||'overview') as TabKey
   const selectTab=(next:TabKey)=>{const nextParams=new URLSearchParams(params);if(next==='overview')nextParams.delete('tab');else nextParams.set('tab',next);setParams(nextParams)}
   const initials=candidate.full_name.split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0]?.toUpperCase()||'').join('')||'?'
@@ -140,7 +154,7 @@ export function CandidateDetailPage(){
       <div className="page-content">
         {tab==='overview'&&<>
           <Panel title="In pipelines" icon={<Layers3 size={17}/>} subtitle="Every job this candidate is being considered for, with both the recruitment phase and exact working stage.">{pipelineCount?<Table headers={['Job','Client','Phase','Detailed stage','Owner','Added','Days in stage']}>{pipelines.data!.map((assignment)=>{const stage=assignment.pipeline_stages;const phase=stage?pipelinePhases.find((item)=>item.key===phaseForStage(stage))?.label:'Unknown';const changed=assignment.stage_history[0]?.occurred_at||assignment.updated_at;const days=Math.max(0,Math.floor((renderedAt-new Date(changed).getTime())/86_400_000));return <tr key={assignment.id}><td><Link className="record-link" to={`/app/${organization?.slug}/jobs/${assignment.job_id}`}>{assignment.jobs?.title||'Job'}</Link></td><td>{assignment.jobs?.companies?.name||'—'}</td><td>{phase}</td><td>{stage?.name||'—'}</td><td>{assignment.jobs?.organization_members?.profiles?.full_name||assignment.jobs?.organization_members?.profiles?.email||'Unassigned'}</td><td>{formatDate(assignment.added_at)}</td><td>{days}</td></tr>})}</Table>:<EmptyState title="Not in a job pipeline" description="This candidate is not being considered for any job yet. Add them to one to start tracking their progress." action={capabilities.data?.canMovePipeline&&<Button onClick={()=>setJobOpen(true)} disabled={Boolean(candidate.deleted_at)||candidate.status==='do_not_contact'}>Add to job</Button>}/>}</Panel>
-          <Panel title="Contact details" icon={<Mail size={17}/>}><dl className="record-summary"><div><dt>Email</dt><dd>{privateData?.email||'Not recorded'}</dd></div><div><dt>Phone</dt><dd>{privateData?.phone||'Not recorded'}</dd></div><div><dt>Notice period</dt><dd>{candidate.notice_period_days!=null?`${candidate.notice_period_days} days`:'Not recorded'}</dd></div><div><dt>Source</dt><dd>{candidate.source||'Not recorded'}</dd></div><div><dt>LinkedIn</dt><dd>{candidate.linkedin_url?<a className="record-link" href={candidate.linkedin_url} target="_blank" rel="noreferrer">Profile</a>:'Not recorded'}</dd></div><div><dt>Portfolio</dt><dd>{candidate.portfolio_url?<a className="record-link" href={candidate.portfolio_url} target="_blank" rel="noreferrer">Portfolio</a>:'Not recorded'}</dd></div></dl></Panel>
+          <Panel title="Contact details" icon={<Mail size={17}/>}><dl className="record-summary"><div><dt>Email</dt><dd>{privateData?.email||'Not recorded'}</dd></div><div><dt>Phone</dt><dd>{privateData?.phone||'Not recorded'}{privateData?.phone&&canWrite&&<Button size="sm" variant="secondary" leadingIcon={<MessageSquare size={13}/>} onClick={openWhatsApp}>WhatsApp</Button>}</dd></div><div><dt>Notice period</dt><dd>{candidate.notice_period_days!=null?`${candidate.notice_period_days} days`:'Not recorded'}</dd></div><div><dt>Source</dt><dd>{candidate.source||'Not recorded'}</dd></div><div><dt>LinkedIn</dt><dd>{candidate.linkedin_url?<a className="record-link" href={candidate.linkedin_url} target="_blank" rel="noreferrer">Profile</a>:'Not recorded'}</dd></div><div><dt>Portfolio</dt><dd>{candidate.portfolio_url?<a className="record-link" href={candidate.portfolio_url} target="_blank" rel="noreferrer">Portfolio</a>:'Not recorded'}</dd></div></dl></Panel>
         </>}
 
         {tab==='profile'&&<div className="two-column">
