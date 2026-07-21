@@ -474,6 +474,41 @@ td span:not([class]) {
 .table-scroll tbody tr:last-child td {
   border-bottom: 0;
 }
+/* Scoped to the Candidates table only (via Table's `className` prop) rather than added to the
+   shared tbody/tr rules above -- Jobs and Clients tables were not asked for this and should keep
+   their current look. The hover rule is repeated at the same specificity as the zebra rule and
+   placed after it, so hover still visibly changes an even row instead of the zebra tint winning. */
+.candidates-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-surface-soft) 45%, transparent);
+}
+.candidates-table tbody tr:hover {
+  background: var(--color-surface-soft);
+}
+/* A smaller sibling of .candidate-summary-avatar (features.css) for list rows, where a 52px
+   circle would dominate the row -- same recipe, list-appropriate size. */
+.avatar-sm {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-circle);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+}
+.candidate-row-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.chip-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
 /* Money in a column. tabular-nums makes every digit the same advance width, so thousands separators
    stack vertically and two amounts of the same magnitude are the same length -- without it,
    proportional digits make 111,000 visibly narrower than 999,000 and the column reads ragged.
