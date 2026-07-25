@@ -4712,6 +4712,13 @@ export type Database = {
         Args: { p_organization_id: string; p_template_id: string }
         Returns: undefined
       }
+      audit_function_grants: {
+        Args: never
+        Returns: {
+          function_name: string
+          granted_roles: string[]
+        }[]
+      }
       capture_prospect: {
         Args: {
           p_job_id?: string
