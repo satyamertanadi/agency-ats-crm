@@ -5155,6 +5155,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_organization_salary_period: {
+        Args: {
+          p_organization_id: string
+          p_salary_period: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
