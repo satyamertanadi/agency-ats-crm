@@ -57,6 +57,7 @@ async function start(request:Request,context:Context,input:ScopedInput,requestID
   ])
   if((recent.count||0)>=10)throw new FunctionError(429,'parse_rate_limited','You have reached the CV parsing limit. Try again later.')
   if((active.count||0)>=3)throw new FunctionError(429,'too_many_active_parses','Finish or cancel an active CV parse before starting another.')
+  await enforceDispatchLimit(context)
 
   const downloaded=await context.admin.storage.from(bucket).download(input.storagePath)
   if(downloaded.error||!downloaded.data)throw new FunctionError(400,'cv_upload_missing','The uploaded CV could not be found.')
@@ -94,6 +95,12 @@ async function status(request:Request,context:Context,input:ScopedInput,requestI
 async function retry(request:Request,context:Context,input:ScopedInput,requestID:string){
   const row=await ownParse(context,input.organizationId,input.parseId)
   if(row.status!=='failed'||row.attempts>=3)throw new FunctionError(409,'parse_not_retryable','This CV parse cannot be retried.')
+  // retry() reuses the existing row rather than inserting a new one, so `recent` (rows created in the
+  // last hour, checked only in start()) never counts it -- a single row can be retried up to 3 times
+  // total, so 10 rows/hour x 3 attempts previously meant up to 30 provider calls/hour rather than the
+  // intended 10. This counts actual dispatches (processing_started_at, set fresh on every attempt by
+  // processParse below) across all of the user's parses, new or retried, closing that gap.
+  await enforceDispatchLimit(context)
   const model=Deno.env.get('AI_MODEL_PARSE')?.trim()||Deno.env.get('AI_MODEL')?.trim()
   if(Deno.env.get('AI_PROVIDER')!=='anthropic'||!model||!Deno.env.get('ANTHROPIC_API_KEY'))throw new FunctionError(503,'cv_parser_not_configured','CV parsing is not configured.')
   await context.admin.from('candidate_cv_parses').update({status:'uploaded',model,error_code:null,error_message:null}).eq('id',row.id)
@@ -127,6 +134,15 @@ async function ownParse(context:Context,organizationId:string,parseId:string){
   const {data,error}=await context.admin.from('candidate_cv_parses').select('*').eq('id',parseId).eq('organization_id',organizationId).eq('uploaded_by',context.user.id).maybeSingle()
   if(error||!data)throw new FunctionError(404,'parse_not_found','CV parse not found.')
   return data
+}
+
+// Counts actual provider dispatches in the last hour, not rows -- processing_started_at is
+// overwritten on every attempt (see processParse below), whether triggered by start() or retry(), so
+// this is the true cost-relevant limit rather than a proxy for it.
+async function enforceDispatchLimit(context:Context){
+  const hourAgo=new Date(Date.now()-60*60*1000).toISOString()
+  const dispatched=await context.admin.from('candidate_cv_parses').select('id',{count:'exact',head:true}).eq('uploaded_by',context.user.id).gte('processing_started_at',hourAgo)
+  if((dispatched.count||0)>=10)throw new FunctionError(429,'parse_rate_limited','You have reached the CV parsing limit. Try again later.')
 }
 
 async function processParse(context:Context,organizationId:string,parseId:string,requestID:string){

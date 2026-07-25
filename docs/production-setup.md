@@ -29,6 +29,8 @@ Set `AI_PROVIDER=anthropic`, an explicit current `AI_MODEL`, `ANTHROPIC_API_KEY`
 
 Before enabling the feature for consultants, test one English PDF, Indonesian PDF, scanned PDF, and DOCX in staging. Confirm extracted PII is visible only to the uploader, duplicate email handling opens the existing candidate, accepted files remain available, and abandoned files disappear after cleanup.
 
+`generate-candidate-profile` and `parse-candidate-cv` both enforce per-user and per-organization hourly caps (20 and 100 profile generations/hour; 10 CV parse dispatches/hour, counting retries), plus a monthly per-organization token ceiling on profile generation, since `ANTHROPIC_API_KEY` is one key for the whole deployment and an unbounded caller can exhaust it for every tenant. The monthly ceiling defaults to 50,000,000 tokens and is overridable per environment via the `AI_PROFILE_MONTHLY_TOKEN_CEILING` Supabase Function secret. These are deliberately generous starting points, not tuned limits — watch for `profile_rate_limited`, `org_profile_rate_limited`, `org_monthly_ceiling_reached`, and `parse_rate_limited` in the Function logs and tighten once real usage is visible.
+
 ## Staging-gated Supabase and Vercel promotion
 
 Migrations, Edge Functions, and the web application deploy through `.github/workflows/deploy.yml`, never by hand. Every `main` commit first passes lint, typecheck, unit tests, and build. Supabase then deploys to staging, where Edge preflights and the real-provider CV/profile contract run. Only that same commit can update production Supabase. Vercel builds one production candidate, browser-smokes its unaliased URL, and promotes that exact artifact; a rebuild between browser gate and promotion is forbidden.

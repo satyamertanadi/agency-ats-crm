@@ -9,13 +9,26 @@ type Context=Awaited<ReturnType<typeof requireUser>>
 interface Employment {company_name:string;title:string;location:string|null;started_on:string|null;ended_on:string|null;started_on_precision:string|null;ended_on_precision:string|null;is_current:boolean;summary:string|null;sort_order:number}
 interface TemplateConfiguration {schema_version:number;output_language:'en'|'id';anonymize_by_default:boolean;confidentiality_text:string;sections:unknown[]}
 
+// This endpoint had no rate limit or cost ceiling at all -- no per-user or per-organization counter,
+// and `force` (client-supplied) bypasses the input-hash dedup cache that was the only other brake on
+// repeated calls, on the more expensive model (AI_MODEL, not the cheaper AI_MODEL_PARSE used for CV
+// parsing). One user sustaining 10 calls/minute costs roughly $1,700/day at typical token volumes,
+// and because ANTHROPIC_API_KEY is one key for the whole deployment, exhausting its balance or rate
+// limit takes profile generation AND CV parsing down for every tenant. These numbers are deliberately
+// generous starting points, not tuned limits -- watch profile_rate_limited/org_profile_rate_limited/
+// org_monthly_ceiling_reached in the logs and tighten once real usage is visible.
+const HOURLY_USER_LIMIT=20
+const HOURLY_ORG_LIMIT=100
+const MONTHLY_ORG_TOKEN_CEILING=Number(Deno.env.get('AI_PROFILE_MONTHLY_TOKEN_CEILING'))||50_000_000
+
 Deno.serve(async(request)=>{
   if(request.method==='OPTIONS')return new Response('ok',{headers:corsHeaders(request)})
-  const requestID=requestId(request);let evaluationId:string|undefined;let context:Context|undefined;const started=Date.now()
+  const requestID=requestId(request);let evaluationId:string|undefined;let context:Context|undefined;let input:Input|undefined;const started=Date.now()
   try{
-    const input=await request.json() as Input
+    input=await request.json() as Input
     if(!input.organizationId||!input.candidateId||!input.jobId||!input.templateId)throw new FunctionError(400,'invalid_request','Organization, candidate, job, and template identifiers are required.')
-    context=await requireProfilePermission(request,input.organizationId)
+    context=await requireProfilePermission(request,input.organizationId,Boolean(input.force))
+    await enforceProfileRateLimits(context,input.organizationId)
     const prepared=await prepareInput(context,input)
     const provider=Deno.env.get('AI_PROVIDER')?.trim()||'anthropic';const model=Deno.env.get('AI_MODEL')?.trim()||''
     const inputVersions={candidate_updated_at:prepared.candidate.updated_at,job_updated_at:prepared.job.updated_at,template_version:prepared.template.version,prompt_version:'candidate-profile-v2'}
@@ -71,15 +84,32 @@ Deno.serve(async(request)=>{
   }catch(error){
     const failure=error instanceof FunctionError?error:new FunctionError(500,'unexpected_error',error instanceof Error?error.message:'Unexpected error')
     if(context&&evaluationId)await context.admin.from('ai_evaluations').update({status:'failed',duration_ms:Date.now()-started,failure_code:failure.code,failure_message:failure.message.slice(0,1000),completed_at:new Date().toISOString()}).eq('id',evaluationId)
-    log('error','candidate_profile_generate_failed',{requestId:requestID,evaluationId,code:failure.code,status:failure.status})
+    log(failure.status===429?'warn':'error','candidate_profile_generate_failed',{requestId:requestID,evaluationId,organizationId:input?.organizationId,candidateId:input?.candidateId,code:failure.code,status:failure.status})
     return json(request,{error:{code:failure.code,message:failure.message,requestId:requestID}},failure.status)
   }
 })
 
-async function requireProfilePermission(request:Request,organizationId:string){
+// requireWrite is true only for a forced regenerate (input.force): candidates.read is enough to read
+// an existing draft, but bypassing the dedup cache to spend a paid model call again is a write-shaped
+// action, and gating it on candidates.write also means the force flag itself can't be used to spend
+// budget faster than a read-only member's own permission set allows.
+async function requireProfilePermission(request:Request,organizationId:string,requireWrite:boolean){
   const context=await requireUser(request)
-  for(const permission of ['candidates.read','ai.use']){const {data,error}=await context.caller.rpc('has_permission',{p_organization_id:organizationId,p_permission:permission});if(error||!data)throw new FunctionError(403,'permission_denied','You do not have permission to generate candidate profiles.')}
+  const permissions=['candidates.read','ai.use',...(requireWrite?['candidates.write']:[])]
+  for(const permission of permissions){const {data,error}=await context.caller.rpc('has_permission',{p_organization_id:organizationId,p_permission:permission});if(error||!data)throw new FunctionError(403,'permission_denied','You do not have permission to generate candidate profiles.')}
   return context
+}
+
+async function enforceProfileRateLimits(context:Context,organizationId:string){
+  const hourAgo=new Date(Date.now()-60*60*1000).toISOString()
+  const [perUser,perOrg,monthlyTokens]=await Promise.all([
+    context.admin.from('ai_evaluations').select('id',{count:'exact',head:true}).eq('requested_by',context.user.id).eq('evaluation_type','candidate_profile').gte('created_at',hourAgo),
+    context.admin.from('ai_evaluations').select('id',{count:'exact',head:true}).eq('organization_id',organizationId).eq('evaluation_type','candidate_profile').gte('created_at',hourAgo),
+    context.admin.rpc('candidate_profile_token_spend_this_month',{p_organization_id:organizationId}),
+  ])
+  if((perUser.count||0)>=HOURLY_USER_LIMIT)throw new FunctionError(429,'profile_rate_limited','You have reached the hourly profile generation limit. Try again later.')
+  if((perOrg.count||0)>=HOURLY_ORG_LIMIT)throw new FunctionError(429,'org_profile_rate_limited','Your workspace has reached its hourly profile generation limit. Try again later.')
+  if(!monthlyTokens.error&&Number(monthlyTokens.data||0)>=MONTHLY_ORG_TOKEN_CEILING)throw new FunctionError(429,'org_monthly_ceiling_reached','Your workspace has reached its monthly AI usage ceiling. Contact an admin to increase it.')
 }
 
 async function prepareInput(context:Context,input:Required<Pick<Input,'organizationId'|'candidateId'|'jobId'|'templateId'>>&Input){
