@@ -1,5 +1,5 @@
 {
-  "version": "5",
+  "version": "4",
   "specifiers": {
     "npm:@supabase/supabase-js@2.110.2": "2.110.2",
     "npm:mammoth@1.9.1": "1.9.1"
@@ -125,8 +125,7 @@
         "path-is-absolute",
         "underscore",
         "xmlbuilder"
-      ],
-      "bin": true
+      ]
     },
     "option@0.2.4": {
       "integrity": "sha512-pkEqbDyl8ou5cpq+VsnQbe/WlEy5qS7xPzMS1U55OCG9KPvwFD46zDbxQIj3egJSFc3D+XhYOPUzz49zQAVy7A=="

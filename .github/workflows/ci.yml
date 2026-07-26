@@ -52,7 +52,11 @@ jobs:
           version: latest
       - uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.x
+          # Pinned, not v2.x: Deno 2.3+ writes lockfile v5, which the Supabase Edge Functions
+          # runtime cannot read ("Failed reading lockfile") -- it only supports v4, produced by
+          # 2.0-2.2.x. supabase/functions/deno.lock was generated with this exact version; bumping
+          # it means regenerating that lockfile too, not just changing this line.
+          deno-version: 2.2.0
       - name: Reject unpinned Edge Function imports
         run: |
           # supabase/functions/deno.json pins @supabase/supabase-js to one exact npm version via an
