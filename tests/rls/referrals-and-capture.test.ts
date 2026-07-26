@@ -90,6 +90,11 @@ describe('referrals',()=>{
     expect(attempt.error).not.toBeNull()
   })
 
+  it('locks the public submitter to service_role (not reachable by an authenticated client)',async()=>{
+    const attempt=await owner.rpc('submit_referral',{p_token:'x'.repeat(43),p_payload:{candidate_full_name:'Direct RPC attack'}})
+    expect(attempt.error).not.toBeNull()
+  })
+
   it('lets an owner mint a referral link',async()=>{
     const link=await owner.rpc('create_referral_link',{p_organization_id:NORTHSTAR,p_label:'Test link'})
     expect(link.error).toBeNull()

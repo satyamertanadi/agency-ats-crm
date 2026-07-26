@@ -24,7 +24,13 @@ Deno.serve(async(request)=>{
     if(!input.token||input.token.length<32)throw new FunctionError(400,'invalid_link','This referral link is invalid.')
     const url=Deno.env.get('SUPABASE_URL');const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     if(!url||!service)throw new Error('Function environment is incomplete.')
-    const forwarded=request.headers.get('x-forwarded-for')||request.headers.get('cf-connecting-ip')||'unknown'
+    // cf-connecting-ip first: Cloudflare overwrites it with the actual connecting IP regardless of
+    // what a client sends, so it's non-spoofable when Cloudflare is in front of this deployment.
+    // x-forwarded-for is an ordinary request header a client can set to anything unless something
+    // between them and here rewrites it -- request_ip_hash() reads its rightmost element as a
+    // second layer of defense, but preferring the trustworthy header here avoids relying on that
+    // parsing at all whenever cf-connecting-ip is present.
+    const forwarded=request.headers.get('cf-connecting-ip')||request.headers.get('x-forwarded-for')||'unknown'
     const admin=createClient(url,service,{global:{headers:{'x-forwarded-for':forwarded}},auth:{persistSession:false}})
 
     if(input.action==='resolve'){
