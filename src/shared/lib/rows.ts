@@ -15,3 +15,14 @@ export function rows<T>(data:unknown,schema:z.ZodType<T>,fallback:string):T[]{
   }
   return result.data
 }
+
+// Same contract as rows(), for the single-object reads (an edge function response, an RPC that
+// returns one row) rather than a list.
+export function row<T>(data:unknown,schema:z.ZodType<T>,fallback:string):T{
+  const result=schema.safeParse(data)
+  if(!result.success){
+    captureError(new Error(fallback),{area:'row_shape_mismatch',issueCount:result.error.issues.length,issues:result.error.issues.slice(0,5).map((issue)=>({path:issue.path.join('.'),code:issue.code,message:issue.message}))})
+    return data as T
+  }
+  return result.data
+}

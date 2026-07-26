@@ -60,10 +60,14 @@ export const jobHealthSchema=z.object({
   already_in_job:z.boolean(),updated_at:z.string(),
 })
 
+// getPipeline() selects pipeline_stages with `select('*')`, which also returns organization_id and
+// is_client_visible -- neither is part of PipelineStage, so .passthrough() keeps them on the parsed
+// row instead of a plain z.object() silently stripping them (nothing reads them today, but a future
+// caller that does shouldn't discover they were quietly dropped by this validator).
 export const pipelineStageSchema=z.object({
   id:z.string(),pipeline_id:z.string(),name:z.string(),stage_key:z.string(),stage_type:z.string(),
   phase_key:phaseKey.nullable(),position:z.number(),color:z.string().nullable(),
-})
+}).passthrough()
 
 // job_candidates' own embeds (candidates, pipeline_stages) are the forward direction of their FK --
 // job_candidates.candidate_id -> candidates.id and .current_stage_id -> pipeline_stages.id -- so
@@ -78,4 +82,144 @@ const jobCandidateCandidate=z.object({
 export const jobCandidateSchema=z.object({
   id:z.string(),job_id:z.string(),candidate_id:z.string(),current_stage_id:z.string(),updated_at:z.string(),
   candidates:jobCandidateCandidate,pipeline_stages:pipelineStageSchema.nullable().optional(),
+})
+
+// companies selects `*`, which also carries company_size/created_at/created_by/deleted_at/
+// notes_summary/owner_member_id/updated_by (verified against the generated Row type) -- none are on
+// Company, so this passes them through rather than silently stripping them.
+export const companySchema=z.object({
+  id:z.string(),organization_id:z.string(),name:z.string(),industry:z.string().nullable(),
+  location:z.string().nullable(),website:z.string().nullable(),account_status:z.string(),
+  business_development_stage:z.string(),updated_at:z.string(),
+}).passthrough()
+
+export const contactSchema=z.object({
+  id:z.string(),organization_id:z.string(),company_id:z.string(),full_name:z.string(),
+  position:z.string().nullable(),email:z.string().nullable(),phone:z.string().nullable(),
+  contact_status:z.enum(['active','inactive','do_not_contact']),next_follow_up_at:z.string().nullable(),
+  companies:companyPick,
+})
+
+const profilePick=(...fields:Array<'full_name'|'email'>)=>z.object(Object.fromEntries(fields.map((field)=>[field,z.string().nullable().optional()])))
+const memberProfilePick=z.object({profiles:profilePick('full_name','email').nullable().optional()}).nullable().optional()
+
+const taskLinkSchema=z.object({
+  candidate_id:z.string().nullable(),company_id:z.string().nullable(),contact_id:z.string().nullable(),job_id:z.string().nullable(),
+  candidates:z.object({full_name:z.string()}).nullable().optional(),
+  companies:z.object({name:z.string()}).nullable().optional(),
+  contacts:z.object({full_name:z.string()}).nullable().optional(),
+  jobs:z.object({title:z.string()}).nullable().optional(),
+})
+
+// tasks selects `*` plus two explicit embeds -- passthrough preserves completed_at/created_by/
+// deleted_at/organization_id (present on the table, not on Task) exactly as before.
+export const taskSchema=z.object({
+  id:z.string(),title:z.string(),description:z.string().nullable(),
+  status:z.enum(['open','in_progress','completed','cancelled']),priority:z.enum(['low','normal','high','urgent']),
+  due_at:z.string().nullable(),owner_member_id:z.string().nullable(),created_at:z.string(),
+  organization_members:memberProfilePick,task_links:z.array(taskLinkSchema).optional(),
+}).passthrough()
+
+// The select also carries `activity_links!inner(...)` purely as an inner-join filter -- Activity
+// never declares that field and nothing reads it, so letting a plain z.object() drop it matches
+// the existing (data as unknown as Activity[]) cast's own effective behaviour.
+export const activitySchema=z.object({
+  id:z.string(),activity_type:z.enum(['call','email','whatsapp','meeting','interview','status_change','submission','client_feedback','placement','other']),
+  direction:z.enum(['inbound','outbound','internal']).nullable(),subject:z.string().nullable(),summary:z.string(),
+  occurred_at:z.string(),created_by:z.string(),actor_name_snapshot:z.string().nullable().optional(),
+  profiles:profilePick('full_name').nullable().optional(),
+})
+
+const revenueSplitSchema=z.object({
+  id:z.string(),member_id:z.string(),split_percentage:z.number(),split_amount:z.number().nullable(),
+  organization_members:memberProfilePick,
+})
+const placementInvoiceSchema=z.object({
+  id:z.string(),invoice_reference:z.string().nullable(),amount:z.number(),currency:z.string(),
+  issued_on:z.string().nullable(),due_on:z.string().nullable(),
+  status:z.enum(['not_issued','draft','issued','overdue','paid','void']),paid_on:z.string().nullable(),
+})
+export const placementSchema=z.object({
+  id:z.string(),job_candidate_id:z.string(),candidate_id:z.string(),job_id:z.string(),company_id:z.string(),
+  start_date:z.string(),salary:z.number(),placement_fee:z.number(),currency:z.string(),
+  guarantee_ends_on:z.string(),status:z.enum(['confirmed','started','failed_guarantee','completed','cancelled']),
+  candidates:z.object({full_name:z.string()}).nullable().optional(),
+  jobs:z.object({title:z.string()}).nullable().optional(),
+  companies:z.object({name:z.string()}).nullable().optional(),
+  placement_revenue_splits:z.array(revenueSplitSchema).optional(),
+  placement_invoices:z.array(placementInvoiceSchema).optional(),
+})
+
+const jobCandidateLinkPick=z.object({
+  candidate_id:z.string().optional(),
+  candidates:z.object({id:z.string(),full_name:z.string()}).nullable().optional(),
+  jobs:z.object({id:z.string(),title:z.string(),owner_member_id:z.string().nullable()}).nullable().optional(),
+}).nullable().optional()
+
+export const interviewSchema=z.object({
+  id:z.string(),job_candidate_id:z.string(),interview_type:z.string().nullable(),stage_label:z.string().nullable(),
+  starts_at:z.string(),ends_at:z.string(),timezone:z.string(),location:z.string().nullable(),
+  meeting_url:z.string().nullable(),status:z.enum(['scheduled','completed','cancelled','no_show']),
+  organizer_member_id:z.string().nullable(),attendee_emails:z.array(z.string()),create_google_meet:z.boolean(),
+  calendar_event_id:z.string().nullable(),calendar_event_url:z.string().nullable(),
+  calendar_sync_status:z.enum(['not_requested','pending','synced','failed','cancelled']),
+  calendar_last_error:z.string().nullable(),calendar_last_synced_at:z.string().nullable(),
+  calendar_retry_count:z.number(),calendar_sync_version:z.number(),calendar_synced_version:z.number(),
+  job_candidates:jobCandidateLinkPick,
+})
+
+export const offerSchema=z.object({
+  id:z.string(),job_candidate_id:z.string(),salary:z.number(),currency:z.string(),offered_at:z.string(),
+  start_date:z.string().nullable(),status:z.enum(['draft','presented','accepted','declined','withdrawn']),
+  notes:z.string().nullable(),job_candidates:jobCandidateLinkPick,
+})
+
+const publicSubmissionSchema=z.object({
+  submission_id:z.string(),candidate_name:z.string(),current_company:z.string().nullable(),
+  current_position:z.string().nullable(),location:z.string().nullable(),linkedin_url:z.string().nullable(),
+  portfolio_url:z.string().nullable(),candidate_summary:z.string(),recruiter_comments:z.string().nullable(),
+  suitability_assessment:z.string().nullable(),relevant_experience:z.string().nullable(),
+  expected_salary:z.number().nullable(),currency:z.string().nullable(),notice_period:z.string().nullable(),
+  availability:z.string().nullable(),motivation:z.string().nullable(),relocation_willingness:z.string().nullable(),
+  interview_availability:z.string().nullable(),
+  feedback:z.object({decision:z.string(),comments:z.string().nullable(),reviewer_name:z.string().nullable(),updated_at:z.string()}).nullable(),
+})
+// Shape of resolve_submission_link()'s jsonb result (supabase/migrations/20260726070000_atomic_rate_
+// limits.sql), plus the `documents` array the public-review edge function appends on top.
+export const publicReviewSchema=z.object({
+  package:z.object({id:z.string(),title:z.string(),message:z.string().nullable(),job_title:z.string(),company_name:z.string(),recipient_name:z.string().nullable(),expires_at:z.string()}),
+  branding:z.object({organization_name:z.string(),primary_color:z.string().nullable(),logo_path:z.string().nullable(),salary_period:z.enum(['annual','monthly']).nullable().optional()}).nullable().optional(),
+  candidates:z.array(publicSubmissionSchema),
+  documents:z.array(z.object({id:z.string(),filename:z.string(),mimeType:z.string(),url:z.string()})).optional(),
+})
+
+export const referralLinkSchema=z.object({
+  id:z.string(),label:z.string().nullable(),token_prefix:z.string(),member_id:z.string().nullable(),
+  expires_at:z.string().nullable(),revoked_at:z.string().nullable(),created_at:z.string(),
+})
+export const referralLinkCreationSchema=z.object({link_id:z.string(),token:z.string(),expires_at:z.string().nullable()})
+export const acceptReferralResultSchema=z.object({candidate_id:z.string(),deduped:z.boolean()})
+
+export const referralSchema=z.object({
+  id:z.string(),organization_id:z.string(),referrer_member_id:z.string().nullable(),
+  referrer_name:z.string().nullable(),referrer_email:z.string().nullable(),candidate_full_name:z.string(),
+  candidate_email:z.string().nullable(),candidate_linkedin_url:z.string().nullable(),candidate_note:z.string().nullable(),
+  resume_path:z.string().nullable(),target_job_id:z.string().nullable(),
+  status:z.enum(['new','accepted','rejected','duplicate']),created_candidate_id:z.string().nullable(),created_at:z.string(),
+  jobs:z.object({id:z.string(),title:z.string()}).nullable().optional(),
+  organization_members:z.object({profiles:z.object({full_name:z.string().nullable().optional()}).nullable().optional()}).nullable().optional(),
+})
+
+// jobs(id,title,companies(name)) / organization_members(profiles(full_name,email)) are all forward-FK
+// singular embeds; stage_history is the backward direction (many stage_history rows per job_candidate)
+// so it stays an array, matching CandidatePipelineAssignment.
+export const candidatePipelineAssignmentSchema=z.object({
+  id:z.string(),job_id:z.string(),candidate_id:z.string(),current_stage_id:z.string(),added_at:z.string(),updated_at:z.string(),
+  jobs:z.object({
+    id:z.string(),title:z.string(),
+    companies:z.object({name:z.string()}).nullable(),
+    organization_members:z.object({profiles:z.object({full_name:z.string().nullable(),email:z.string().nullable()}).nullable()}).nullable(),
+  }).nullable(),
+  pipeline_stages:pipelineStageSchema.nullable(),
+  stage_history:z.array(z.object({occurred_at:z.string(),to_stage_id:z.string()})),
 })

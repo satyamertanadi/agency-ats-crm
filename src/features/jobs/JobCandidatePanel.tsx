@@ -18,8 +18,6 @@ import {recommendedCandidateAction} from '../workflow/workflow'
 import {recordWorkflowEvent} from '../../shared/lib/productAnalytics'
 
 type ActionName='submit'|'check_feedback'|'interview'|'offer'|'placement'|'move'
-interface DocumentRow{id:string;file_name:string;original_filename:string|null;deleted_at:string|null}
-interface SubmissionCandidateRow{id:string;candidate_id:string;candidates?:{document_links?:Array<{documents:DocumentRow|DocumentRow[]|null}>}|null}
 
 export interface JobCandidatePanelProps {job:Job;item:JobCandidate;stage:PipelineStage;stages:PipelineStage[];currentMemberId?:string;interviews:Interview[];offers:Offer[];placement:Placement|null;hasSubmission:boolean;action:string|null;readOnly:boolean;onAction:(action:string|null)=>void;onClose:()=>void;onUpdated:()=>Promise<unknown>}
 
@@ -41,7 +39,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
   const [feeSource,setFeeSource]=useState<PlacementFeeSource>('manual')
   const privateData=Array.isArray(details.data?.candidate_private_details)?details.data.candidate_private_details[0]:details.data?.candidate_private_details
   useEffect(()=>{if(privateData?.email&&!attendeeEmails)setAttendeeEmails(privateData.email)},[privateData?.email,attendeeEmails])
-  const documents=useMemo(()=>{const rows=(submissionRows.data||[]) as unknown as SubmissionCandidateRow[];const row=rows.find((candidate)=>candidate.id===item.id);return (row?.candidates?.document_links||[]).flatMap((link)=>Array.isArray(link.documents)?link.documents:link.documents?[link.documents]:[]).filter((document)=>!document.deleted_at)},[item.id,submissionRows.data])
+  const documents=useMemo(()=>{const row=(submissionRows.data||[]).find((candidate)=>candidate.id===item.id);return (row?.candidates?.document_links||[]).flatMap((link)=>Array.isArray(link.documents)?link.documents:link.documents?[link.documents]:[]).filter((document)=>!document.deleted_at)},[item.id,submissionRows.data])
   const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
   const jobHealth=health.data?.find((entry)=>entry.id===job.id)
   const expectedFee=jobHealth?.expected_fee!=null?Number(jobHealth.expected_fee):null

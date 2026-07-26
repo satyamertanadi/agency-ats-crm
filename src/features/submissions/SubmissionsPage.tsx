@@ -3,6 +3,7 @@ import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {Copy,Plus,Send,ShieldX} from 'lucide-react'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {listSubmissionCandidateDocuments,revokeSubmissionLink,sendClientSubmission} from '../core/commercialRepository'
+type SubmissionCandidate=Awaited<ReturnType<typeof listSubmissionCandidateDocuments>>[number]
 import {listContacts,listJobs,listSubmissionPackages} from '../core/repository'
 import {Button} from '../../shared/ui/Button'
 import {ConfirmDialog} from '../../shared/ui/ConfirmDialog'
@@ -13,14 +14,12 @@ import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
 import {formatDate} from '../../shared/lib/format'
 import {Table} from '../../shared/ui/Table'
 
-interface SubmissionCandidate{ id:string;candidate_id:string;candidates:{id:string;full_name:string;current_company:string|null;current_position:string|null;document_links?:Array<{documents:SubmissionDocument|SubmissionDocument[]|null}>}|null }
-interface SubmissionDocument{id:string;file_name:string;original_filename:string|null;mime_type:string;deleted_at:string|null}
 export function SubmissionsPage(){
   const {organization}=useOrganization();const cache=useQueryClient();const [open,setOpen]=useState(false);const [jobId,setJobId]=useState('');const [contactId,setContactId]=useState('');const [selected,setSelected]=useState<string[]>([]);const [title,setTitle]=useState('Candidate shortlist');const [message,setMessage]=useState('Please review the shortlisted candidates below.');const [recipientName,setRecipientName]=useState('');const [recipientEmail,setRecipientEmail]=useState('');const [expiryDays,setExpiryDays]=useState('7');const [summaries,setSummaries]=useState<Record<string,string>>({});const [comments,setComments]=useState<Record<string,string>>({});const [documentIds,setDocumentIds]=useState<Record<string,string[]>>({});const [previewLink,setPreviewLink]=useState('');const [deliveryStatus,setDeliveryStatus]=useState('')
   // The client is holding this URL. Revoking breaks it permanently, so it asks first.
   const [revokeTarget,setRevokeTarget]=useState<{id:string;recipient_email?:string}|null>(null)
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)});const contacts=useQuery({queryKey:['contacts',organization?.id],enabled:Boolean(organization),queryFn:()=>listContacts(organization!.id)});const candidates=useQuery({queryKey:['submission-candidates',organization?.id,jobId],enabled:Boolean(organization&&jobId),queryFn:()=>listSubmissionCandidateDocuments(organization!.id,jobId)});const packages=useQuery({queryKey:['submissions',organization?.id],enabled:Boolean(organization),queryFn:()=>listSubmissionPackages(organization!.id)})
-  const job=jobs.data?.find((item)=>item.id===jobId);const candidateRows=(candidates.data||[]) as unknown as SubmissionCandidate[]
+  const job=jobs.data?.find((item)=>item.id===jobId);const candidateRows=candidates.data||[]
   const mutation=useMutation({mutationFn:()=>sendClientSubmission({organizationId:organization!.id,jobId,contactId:contactId||undefined,title,message,recipientName,recipientEmail,expiryDays:Number(expiryDays),items:candidateRows.filter((item)=>selected.includes(item.id)).map((item)=>({job_candidate_id:item.id,candidate_summary:summaries[item.id]||`${item.candidates?.full_name} — ${item.candidates?.current_position||'experienced candidate'}${item.candidates?.current_company?` at ${item.candidates.current_company}`:''}.`,recruiter_comments:comments[item.id]||undefined,document_ids:documentIds[item.id]||[]}))}),onSuccess:async(result)=>{setOpen(false);setPreviewLink(result.previewUrl||'');setDeliveryStatus(result.deliveryStatus);setSelected([]);await cache.invalidateQueries({queryKey:['submissions',organization?.id]})}})
   const revoke=useMutation({mutationFn:revokeSubmissionLink,onSuccess:async()=>{setRevokeTarget(null);await cache.invalidateQueries({queryKey:['submissions',organization?.id]})}})
   function selectContact(id:string){setContactId(id);const contact=contacts.data?.find((item)=>item.id===id);if(contact){setRecipientName(contact.full_name);setRecipientEmail(contact.email||'')}}
