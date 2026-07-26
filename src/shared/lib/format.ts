@@ -65,6 +65,13 @@ export function formatDateTime(value:string|null|undefined){
   return new Intl.DateTimeFormat(config.locale,{dateStyle:'medium',timeStyle:'short',timeZone:config.timeZone}).format(new Date(value))
 }
 
+/* Time only, for same-day items (Today's "due 16:00" badge) where the date is already implied by
+ * which band the item sits in -- formatDateTime's date prefix would be redundant there. */
+export function formatTime(value:string|null|undefined){
+  if(!value)return '—'
+  return new Intl.DateTimeFormat(config.locale,{timeStyle:'short',timeZone:config.timeZone}).format(new Date(value))
+}
+
 /* CV dates are date-only strings ('2019-03-01') carrying a precision that says how much of them to
  * trust -- a CV saying "2019" must not render as "1 Jan 2019".
  *

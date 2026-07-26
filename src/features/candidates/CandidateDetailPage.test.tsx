@@ -66,8 +66,10 @@ describe('CandidateDetailPage',()=>{
   it('warns that a CV is required when no document is attached',async()=>{
     listCandidateDocuments.mockResolvedValue([])
     renderPage()
-    expect(await screen.findByText('Upload required')).toBeInTheDocument()
-    expect(screen.getByText('CV').closest('.readiness-chip')).toHaveClass('tone-warn')
+    // A missing CV is promoted from the reference strip into the "Needs action" band, with a real
+    // upload CTA rather than a passive fact chip.
+    expect(await screen.findByText('CV missing')).toBeInTheDocument()
+    expect(screen.getByRole('button',{name:'Upload CV'})).toBeInTheDocument()
   })
 
   it('defaults to Overview and swaps sections when another tab is chosen',async()=>{
