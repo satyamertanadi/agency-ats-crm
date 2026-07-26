@@ -50,6 +50,26 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Reject unpinned Edge Function imports
+        run: |
+          # supabase/functions/deno.json pins @supabase/supabase-js to one exact npm version via an
+          # import map (see supabase/functions/deno.json + deno.lock) precisely so a floating
+          # `https://esm.sh/...@2` specifier can never silently reach production again -- catch a
+          # reintroduced one here rather than at the next cold start.
+          if grep -rn "from 'https://" supabase/functions/ --include=*.ts; then
+            echo "::error::Found an unpinned https:// import under supabase/functions -- pin it via supabase/functions/deno.json instead (see the reharden commit for the pattern)."
+            exit 1
+          fi
+      - name: Type-check Edge Functions
+        run: |
+          cd supabase/functions
+          # --frozen fails the build if deno.lock doesn't already cover the resolved dependency
+          # graph exactly, rather than silently rewriting it -- a deployment must be reproducible
+          # from what's committed, not from whatever the CI runner happened to resolve this time.
+          deno check --frozen ai-evaluate/index.ts calendar-auth-callback/index.ts calendar-auth-start/index.ts calendar-disconnect/index.ts calendar-sync/index.ts execute-import/index.ts generate-candidate-profile/index.ts parse-candidate-cv/index.ts parse-linkedin-profile/index.ts public-review/index.ts refer/index.ts send-invitation/index.ts send-submission/index.ts
       - run: supabase start
       - run: supabase db reset
       - run: supabase db lint --level warning

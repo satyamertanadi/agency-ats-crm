@@ -27,24 +27,31 @@ Deno.serve(async(request)=>{
   try{
     input=await request.json() as Input
     if(!input.organizationId||!input.candidateId||!input.jobId||!input.templateId)throw new FunctionError(400,'invalid_request','Organization, candidate, job, and template identifiers are required.')
-    context=await requireProfilePermission(request,input.organizationId,Boolean(input.force))
-    await enforceProfileRateLimits(context,input.organizationId)
-    const prepared=await prepareInput(context,input)
+    // input is `let`, hoisted above the try block so the catch handler below can still read
+    // input?.organizationId if this guard (or request.json() itself) throws. TypeScript cannot carry
+    // the guard's narrowing on a mutable outer-scope binding across the awaits that follow, so
+    // prepareInput's stricter parameter type would otherwise reject it -- this rebinds the four
+    // required fields into a fresh const with their now-proven-defined types, matching the
+    // ScopedInput pattern already used the same way in parse-candidate-cv/index.ts.
+    const scopedInput={...input,organizationId:input.organizationId,candidateId:input.candidateId,jobId:input.jobId,templateId:input.templateId}
+    context=await requireProfilePermission(request,scopedInput.organizationId,Boolean(scopedInput.force))
+    await enforceProfileRateLimits(context,scopedInput.organizationId)
+    const prepared=await prepareInput(context,scopedInput)
     const provider=Deno.env.get('AI_PROVIDER')?.trim()||'anthropic';const model=Deno.env.get('AI_MODEL')?.trim()||''
     const inputVersions={candidate_updated_at:prepared.candidate.updated_at,job_updated_at:prepared.job.updated_at,template_version:prepared.template.version,prompt_version:'candidate-profile-v2'}
-    const inputHash=await sha256(stableStringify({candidate:prepared.candidate,job:prepared.job,template:{id:prepared.template.id,version:prepared.template.version,configuration:prepared.configuration},anonymize:Boolean(input.anonymize)}))
+    const inputHash=await sha256(stableStringify({candidate:prepared.candidate,job:prepared.job,template:{id:prepared.template.id,version:prepared.template.version,configuration:prepared.configuration},anonymize:Boolean(scopedInput.anonymize)}))
     // Dedup: an unchanged input hash means an identical prior generation already exists. input_versions
     // folds in candidate/job/template updated_at, so any real edit busts the match. Serving the stored
     // draft skips a paid model call with no change to output; input.force lets an explicit regenerate bypass.
-    if(!input.force){
-      const cached=await context.admin.from('candidate_profile_versions').select('id,ai_evaluation_id,generated_content').eq('organization_id',input.organizationId).eq('candidate_id',input.candidateId).eq('job_id',input.jobId).eq('template_id',input.templateId).eq('input_hash',inputHash).eq('status','draft').order('version',{ascending:false}).limit(1).maybeSingle()
+    if(!scopedInput.force){
+      const cached=await context.admin.from('candidate_profile_versions').select('id,ai_evaluation_id,generated_content').eq('organization_id',scopedInput.organizationId).eq('candidate_id',scopedInput.candidateId).eq('job_id',scopedInput.jobId).eq('template_id',scopedInput.templateId).eq('input_hash',inputHash).eq('status','draft').order('version',{ascending:false}).limit(1).maybeSingle()
       if(cached.data&&cached.data.generated_content){
         const draft=cached.data.generated_content as CandidateProfileDraft
-        log('info','candidate_profile_cache_hit',{requestId:requestID,organizationId:input.organizationId,candidateId:input.candidateId,jobId:input.jobId,profileVersionId:cached.data.id})
+        log('info','candidate_profile_cache_hit',{requestId:requestID,organizationId:scopedInput.organizationId,candidateId:scopedInput.candidateId,jobId:scopedInput.jobId,profileVersionId:cached.data.id})
         return json(request,{profileVersionId:cached.data.id,draft,evaluation:{id:cached.data.ai_evaluation_id,score:draft.score,evidence:draft.requirement_evidence},requestId:requestID})
       }
     }
-    const evaluation=await context.admin.from('ai_evaluations').insert({organization_id:input.organizationId,candidate_id:input.candidateId,job_id:input.jobId,evaluation_type:'candidate_profile',provider,model:model||'unconfigured',prompt_version:'candidate-profile-v2',status:'processing',input_hash:inputHash,input_versions:inputVersions,requested_by:context.user.id}).select('id').single()
+    const evaluation=await context.admin.from('ai_evaluations').insert({organization_id:scopedInput.organizationId,candidate_id:scopedInput.candidateId,job_id:scopedInput.jobId,evaluation_type:'candidate_profile',provider,model:model||'unconfigured',prompt_version:'candidate-profile-v2',status:'processing',input_hash:inputHash,input_versions:inputVersions,requested_by:context.user.id}).select('id').single()
     if(evaluation.error||!evaluation.data)throw new FunctionError(500,'evaluation_persistence_failed','Could not start a tracked profile evaluation.')
     evaluationId=evaluation.data.id
     if(provider!=='anthropic'||!model||!Deno.env.get('ANTHROPIC_API_KEY'))throw new FunctionError(503,'profile_generator_not_configured','Profile generation is not configured.')
@@ -73,13 +80,13 @@ Deno.serve(async(request)=>{
     // 'completed' here means the pipeline produced a finalizable draft, which is exactly what
     // finalize_candidate_profile's scope check asserts -- it is not a claim that the model ran.
     // failure_code keeps the degradation queryable, so a completed row carrying one is intentional.
-    const updated=await context.admin.from('ai_evaluations').update({status:'completed',evidence:draft.requirement_evidence,matched_requirements:classified.matched,missing_requirements:classified.missing,uncertainties:classified.uncertain,summary:draft.candidate_summary.join('\n\n'),score:draft.score,input_tokens:generated?.inputTokens||0,output_tokens:generated?.outputTokens||0,duration_ms:duration,completed_at:new Date().toISOString(),raw_response:null,failure_code:degraded?.reason||null,failure_message:degraded?.message.slice(0,1000)||null}).eq('id',evaluationId).eq('organization_id',input.organizationId)
+    const updated=await context.admin.from('ai_evaluations').update({status:'completed',evidence:draft.requirement_evidence,matched_requirements:classified.matched,missing_requirements:classified.missing,uncertainties:classified.uncertain,summary:draft.candidate_summary.join('\n\n'),score:draft.score,input_tokens:generated?.inputTokens||0,output_tokens:generated?.outputTokens||0,duration_ms:duration,completed_at:new Date().toISOString(),raw_response:null,failure_code:degraded?.reason||null,failure_message:degraded?.message.slice(0,1000)||null}).eq('id',evaluationId).eq('organization_id',scopedInput.organizationId)
     if(updated.error)throw new FunctionError(500,'evaluation_persistence_failed','Could not save the profile evidence.')
     // A degraded draft must never enter the dedup cache: the lookup above matches on input_hash, so
     // an unprefixed one would keep serving blank judgment fields back after the balance is restored.
-    const profile=await context.admin.from('candidate_profile_versions').insert({organization_id:input.organizationId,candidate_id:input.candidateId,job_id:input.jobId,template_id:input.templateId,template_version:prepared.template.version,ai_evaluation_id:evaluationId,status:'draft',generated_content:draft,template_snapshot:prepared.configuration,input_hash:degraded?`degraded:${inputHash}`:inputHash,input_versions:inputVersions,anonymized:input.anonymize??prepared.configuration.anonymize_by_default,generation_ms:duration,created_by:context.user.id}).select('id,version').single()
+    const profile=await context.admin.from('candidate_profile_versions').insert({organization_id:scopedInput.organizationId,candidate_id:scopedInput.candidateId,job_id:scopedInput.jobId,template_id:scopedInput.templateId,template_version:prepared.template.version,ai_evaluation_id:evaluationId,status:'draft',generated_content:draft,template_snapshot:prepared.configuration,input_hash:degraded?`degraded:${inputHash}`:inputHash,input_versions:inputVersions,anonymized:scopedInput.anonymize??prepared.configuration.anonymize_by_default,generation_ms:duration,created_by:context.user.id}).select('id,version').single()
     if(profile.error||!profile.data)throw new FunctionError(500,'profile_persistence_failed','The evaluation completed, but its profile draft could not be saved.')
-    log(degraded?'warn':'info',degraded?'candidate_profile_degraded':'candidate_profile_generated',{requestId:requestID,organizationId:input.organizationId,candidateId:input.candidateId,jobId:input.jobId,profileVersionId:profile.data.id,version:profile.data.version,durationMs:duration,inputTokens:generated?.inputTokens||0,outputTokens:generated?.outputTokens||0,degraded:degraded?.reason})
+    log(degraded?'warn':'info',degraded?'candidate_profile_degraded':'candidate_profile_generated',{requestId:requestID,organizationId:scopedInput.organizationId,candidateId:scopedInput.candidateId,jobId:scopedInput.jobId,profileVersionId:profile.data.id,version:profile.data.version,durationMs:duration,inputTokens:generated?.inputTokens||0,outputTokens:generated?.outputTokens||0,degraded:degraded?.reason})
     return json(request,{profileVersionId:profile.data.id,draft,evaluation:{id:evaluationId,score:draft.score,evidence:draft.requirement_evidence},requestId:requestID,degraded})
   }catch(error){
     const failure=error instanceof FunctionError?error:new FunctionError(500,'unexpected_error',error instanceof Error?error.message:'Unexpected error')

@@ -1,6 +1,6 @@
 import {FunctionError,requirePermission} from '../_shared/auth.ts'
 import {corsHeaders,json,log,requestId} from '../_shared/http.ts'
-import type {SupabaseClient} from 'https://esm.sh/@supabase/supabase-js@2'
+import type {SupabaseClient} from '@supabase/supabase-js'
 
 type Row=Record<string,unknown>
 interface RelatedChange{entityType:string;entityId:string}

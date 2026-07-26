@@ -1,4 +1,4 @@
-import {createClient} from 'https://esm.sh/@supabase/supabase-js@2'
+import {createClient} from '@supabase/supabase-js'
 import {encryptSecret,sha256} from '../_shared/crypto.ts'
 import {corsHeaders,log,requestId} from '../_shared/http.ts'
 
