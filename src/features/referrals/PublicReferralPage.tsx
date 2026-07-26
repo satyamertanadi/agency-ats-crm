@@ -68,7 +68,7 @@ export function PublicReferralPage(){
         <Field label="Why are they a good fit? (optional)"><Textarea value={form.candidate_note} onChange={set('candidate_note')} rows={3}/></Field>
         <Field label="Attach a resume (optional)"><input className="input" type="file" accept=".pdf,.doc,.docx" onChange={(event)=>setResume(event.target.files?.[0]||null)}/></Field>
         {mutation.error&&<p className="form-error" role="alert">{(mutation.error as Error).message}</p>}
-        <Button type="submit" disabled={!form.candidate_full_name.trim()||mutation.isPending}>{mutation.isPending?'Submitting…':'Submit referral'}</Button>
+        <Button type="submit" loading={mutation.isPending} disabled={!form.candidate_full_name.trim()}>{'Submit referral'}</Button>
       </form>
     </section>
   </main>

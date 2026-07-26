@@ -1,11 +1,20 @@
 import { supabase } from '../../shared/lib/supabase'
-import { AppError } from '../../shared/lib/errors'
+import { AppError, humanizeRpcError } from '../../shared/lib/errors'
 import { row, rows } from '../../shared/lib/rows'
 import { acceptReferralResultSchema, activitySchema, candidatePipelineAssignmentSchema, candidateSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, referralLinkCreationSchema, referralLinkSchema, referralSchema, taskSchema } from './repositorySchemas'
 import type { Activity, Candidate, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReferral, PublicReview, Referral, ReferralLink, ReferralStatus, Task } from '../../shared/types/domain'
 import type {Json,TablesInsert} from '../../generated/database.types'
 
-function fail(error: {message:string;code?:string}|null, fallback:string): never { throw new AppError(error?.message||fallback,error?.code||'database_error',error) }
+function fail(error:{message:string;code?:string}|null,fallback:string):never{
+  /* Raw RPC identifiers (`invalid_nonnegative_value`, `permission_denied`, ...) used to reach the user
+   * verbatim, because this threw error.message unchanged. humanizeRpcError turns the ones the
+   * migrations actually raise into sentences and keeps the token as the AppError code, so callers can
+   * still branch on it. Anything unrecognised falls back to the caller's own message rather than
+   * leaking a database string. */
+  const humanized=error?.message?humanizeRpcError(error.message):null
+  if(humanized)throw new AppError(humanized.message,humanized.code,error)
+  throw new AppError(error?.message||fallback,error?.code||'database_error',error)
+}
 
 export async function listCandidates(organizationId:string, query='') {
   let request=supabase.from('candidates').select('id,organization_id,full_name,current_company,current_position,location,linkedin_url,status,source,availability,owner_member_id,created_at,candidate_private_details(email,phone,current_salary,expected_salary,salary_currency,consent_status)').eq('organization_id',organizationId).is('deleted_at',null).order('updated_at',{ascending:false}).limit(100)

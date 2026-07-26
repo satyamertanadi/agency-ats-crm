@@ -7,15 +7,16 @@ import {disconnectCalendar,listCalendarConnections,startCalendarConnection} from
 import {Button} from '../../shared/ui/Button'
 import {Page,Panel} from '../../shared/ui/Page'
 import {ErrorState,LoadingState} from '../../shared/ui/States'
+import {useToast} from '../../shared/ui/Toast'
 import {formatDateTime} from '../../shared/lib/format'
 
 export function PersonalSettingsPage(){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const [params]=useSearchParams();const cache=useQueryClient()
+  const {organization,memberships}=useOrganization();const {user}=useAuth();const [params]=useSearchParams();const cache=useQueryClient();const toast=useToast()
   const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
   const connections=useQuery({queryKey:['calendar-connections',organization?.id],enabled:Boolean(organization),queryFn:()=>listCalendarConnections(organization!.id)})
   const refresh=()=>cache.invalidateQueries({queryKey:['calendar-connections',organization?.id]})
-  const connect=useMutation({mutationFn:()=>startCalendarConnection(organization!.id,`/app/${organization!.slug}/admin/personal`),onSuccess:(result)=>window.location.assign(result.authorizationUrl)})
-  const disconnect=useMutation({mutationFn:()=>disconnectCalendar(organization!.id),onSuccess:refresh})
+  const connect=useMutation({mutationFn:()=>startCalendarConnection(organization!.id,`/app/${organization!.slug}/admin/personal`),onSuccess:(result)=>window.location.assign(result.authorizationUrl),onError:(error)=>toast.error(error,'Google was not contacted.')})
+  const disconnect=useMutation({mutationFn:()=>disconnectCalendar(organization!.id),onSuccess:async()=>{toast.success('Calendar disconnected.','Interviews stay in the ATS but no longer sync.');await refresh()},onError:(error)=>toast.error(error,'The calendar is still connected.')})
   if(connections.isLoading)return <LoadingState/>;if(connections.error)return <ErrorState error={connections.error}/>
   const own=connections.data?.find((item)=>item.member_id===currentMember?.id)
   return <Page title="My settings" eyebrow="Personal preferences" description="Connections and preferences that apply only to your account.">

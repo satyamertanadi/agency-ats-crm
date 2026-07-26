@@ -47,9 +47,10 @@ export function TodayPage(){
   const taskOpen=params.get('action')==='task'&&!capabilities.data?.readOnly
   const closeTask=()=>{const next=new URLSearchParams(params);next.delete('action');setParams(next,{replace:true})}
   const createFollowUp=useMutation({mutationFn:()=>createTask(organization!.id,user!.id,{title:taskTitle.trim(),priority:'normal',due_at:taskDue?new Date(taskDue).toISOString():undefined,owner_member_id:currentMember?.id,link:taskJobId?{type:'job',id:taskJobId}:undefined}),onSuccess:async()=>{const created=taskTitle.trim();setTaskTitle('');setTaskDue('');setTaskJobId('');closeTask();await cache.invalidateQueries({queryKey:['today',organization?.id]});toast.success(`Task added: ${created}`)},onError:(error)=>toast.error(error,'The follow-up was not created.')})
-  if(query.isLoading||capabilities.isLoading)return <TableSkeleton rows={6} columns={2} label="Preparing your work for today…"/>
+  const name=(user?.user_metadata.full_name as string|undefined)?.split(' ')[0]
+  if(query.isLoading||capabilities.isLoading)return <Page title={name?`Today, ${name}`:'Today'} eyebrow={organization?.name} description="Your next recruitment actions, in the order they need attention." className="today-page"><Panel><TableSkeleton rows={6} columns={2} label="Preparing your work for today…"/></Panel></Page>
   if(query.error||!query.data)return <ErrorState error={query.error} retry={()=>void query.refetch()}/>
-  const base=`/app/${organization!.slug}`;const name=(user?.user_metadata.full_name as string|undefined)?.split(' ')[0]
+  const base=`/app/${organization!.slug}`
   const now=new Date()
   const items=buildTodayWorkItems({base,now,currentMemberId:scope==='mine'?currentMember?.id:undefined,tasks:query.data.tasks,interviews:query.data.interviews,offers:query.data.offers,placements:query.data.placements,jobs:query.data.jobs,deliveryIssues:query.data.deliveryIssues,submissions:query.data.submissions})
   const steps=buildSetupSteps(query.data.summary,base);const setupComplete=steps.length>0&&steps.every((step)=>step.done)

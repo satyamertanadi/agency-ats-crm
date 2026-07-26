@@ -1,5 +1,5 @@
 import {supabase} from '../../shared/lib/supabase'
-import {AppError} from '../../shared/lib/errors'
+import {AppError,humanizeRpcError} from '../../shared/lib/errors'
 import {row,rows} from '../../shared/lib/rows'
 import {calendarConnectionSchema,candidateDetailSchema,candidateJobLinkRowSchema,candidateProfileVersionRowSchema,companyPipelineRowSchema,documentLinkRowSchema,importBatchSchema,organizationInvitationSchema,roleSchema,savedViewSchema,submissionCandidateDocumentRowSchema,teamMemberSchema} from './commercialRepositorySchemas'
 import type {CalendarConnection,CandidateDetail,CandidateDocument,CompanyPipelineRow,ImportBatch,OrganizationInvitation,PipelinePhaseKey,Role,SavedView,SavedViewResource,TeamMember} from '../../shared/types/domain'
@@ -7,7 +7,16 @@ import type {Json} from '../../generated/database.types'
 import {candidateCvExtractionSchema,type CandidateCvExtraction,type CvParseResult} from '../candidates/cvParsing'
 import {candidateProfileDraftSchema,candidateProfileTemplateConfigSchema,hasStaleProfileInputs,type CandidateProfileGeneration,type CandidateProfileJob,type CandidateProfileTemplate,type CandidateProfileVersion} from '../candidates/candidateProfile'
 
-function fail(error:{message:string;code?:string}|null,fallback:string):never{throw new AppError(error?.message||fallback,error?.code||'database_error',error)}
+function fail(error:{message:string;code?:string}|null,fallback:string):never{
+  /* Raw RPC identifiers (`invalid_nonnegative_value`, `permission_denied`, ...) used to reach the user
+   * verbatim, because this threw error.message unchanged. humanizeRpcError turns the ones the
+   * migrations actually raise into sentences and keeps the token as the AppError code, so callers can
+   * still branch on it. Anything unrecognised falls back to the caller's own message rather than
+   * leaking a database string. */
+  const humanized=error?.message?humanizeRpcError(error.message):null
+  if(humanized)throw new AppError(humanized.message,humanized.code,error)
+  throw new AppError(error?.message||fallback,error?.code||'database_error',error)
+}
 async function invoke<T>(name:string,body:Record<string,unknown>):Promise<T>{const {data,error}=await supabase.functions.invoke(name,{body});if(error)throw new AppError(error.message,'function_error',error);if((data as {error?:{message?:string;code?:string}})?.error)throw new AppError((data as {error:{message?:string}}).error.message||'Request failed.',(data as {error:{code?:string}}).error.code||'function_error',data);return data as T}
 
 export async function listTeamMembers(organizationId:string){const {data,error}=await supabase.from('organization_members').select('id,organization_id,user_id,job_title,status,is_vendor_support,profiles:user_id(full_name,email),member_roles(roles(id,name,role_key))').eq('organization_id',organizationId).order('joined_at');if(error)fail(error,'Could not load team members');return rows(data,teamMemberSchema,'Team member rows did not match the expected shape') as TeamMember[]}

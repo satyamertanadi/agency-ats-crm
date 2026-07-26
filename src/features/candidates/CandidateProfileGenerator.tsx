@@ -6,6 +6,7 @@ import {Button} from '../../shared/ui/Button'
 import {Badge} from '../../shared/ui/Page'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {LoadingState} from '../../shared/ui/States'
+import {useToast} from '../../shared/ui/Toast'
 import type {CandidateDetail} from '../../shared/types/domain'
 import {countEditedFields,type CandidateProfileDraft,type CandidateProfileGeneration} from './candidateProfile'
 import {buildCandidateProfileViewModel,loadProfileLogo,profileFilename,type ProfileCandidate,type ProfileEmployment} from './candidateProfileViewModel'
@@ -16,6 +17,7 @@ function byRecent(a:ProfileEmployment,b:ProfileEmployment){if(a.is_current!==b.i
 function lines(value:string){return value.split('\n').map((item)=>item.trim()).filter(Boolean)}
 
 export function CandidateProfileGenerator({organizationId,userId,candidate,organizationName,accent,logoUrl,footerBannerUrl,defaultPreparedBy,onClose,onFinalized}:{organizationId:string;userId:string;candidate:CandidateDetail;organizationName:string;accent?:string;logoUrl?:string|null;footerBannerUrl?:string|null;defaultPreparedBy:string;onClose:()=>void;onFinalized:()=>Promise<unknown>}){
+  const toast=useToast()
   const profileCandidate=useMemo<ProfileCandidate>(()=>({full_name:candidate.full_name,current_position:candidate.current_position,current_company:candidate.current_company,location:candidate.location,employment:(candidate.candidate_employment||[]).map((item)=>({company_name:item.company_name,title:item.title,started_on:item.started_on,ended_on:item.ended_on,started_on_precision:item.started_on_precision,ended_on_precision:item.ended_on_precision,is_current:item.is_current})).sort(byRecent),education:(candidate.candidate_education||[]).map((item)=>({degree:item.degree,field_of_study:item.field_of_study,institution:item.institution})),languages:(candidate.candidate_languages||[]).map((item)=>item.language).filter(Boolean)}),[candidate])
   const jobs=useQuery({queryKey:['candidate-jobs',organizationId,candidate.id],queryFn:()=>listCandidateJobs(organizationId,candidate.id)})
   const templates=useQuery({queryKey:['candidate-profile-templates',organizationId],queryFn:()=>listCandidateProfileTemplates(organizationId)})
@@ -29,7 +31,7 @@ export function CandidateProfileGenerator({organizationId,userId,candidate,organ
   useEffect(()=>{if(!jobId&&jobs.data?.[0])setJobId(jobs.data[0].id)},[jobId,jobs.data])
   useEffect(()=>{if(!templateId&&templates.data?.length){const selected=templates.data.find((item)=>item.is_default)||templates.data[0];if(selected){setTemplateId(selected.id);setAnonymized(selected.configuration.anonymize_by_default)}}},[templateId,templates.data])
   const selectedJob=jobs.data?.find((job)=>job.id===jobId);const selectedTemplate=templates.data?.find((template)=>template.id===templateId)
-  const generate=useMutation({mutationFn:()=>generateCandidateProfile({organizationId,candidateId:candidate.id,jobId,templateId,anonymize:anonymized}),onSuccess:(value)=>{setGeneration(value);setDraft(value.draft)}})
+  const generate=useMutation({mutationFn:()=>generateCandidateProfile({organizationId,candidateId:candidate.id,jobId,templateId,anonymize:anonymized}),onSuccess:(value)=>{toast.success('Draft profile generated.','Review every section before sending it to a client.');setGeneration(value);setDraft(value.draft)},onError:(error)=>toast.error(error,'No profile was generated and no AI budget was spent on a saved draft.')})
   const finalize=useMutation({mutationFn:async()=>{
     if(!generation||!draft||!selectedJob||!selectedTemplate)throw new Error('Generate and review a profile draft first.')
     const {buildCandidateProfileDocx,downloadBlob}=await import('./candidateProfileDocx')

@@ -11,12 +11,16 @@ import {Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {referralStatus} from '../../shared/lib/status'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
 import {Table} from '../../shared/ui/Table'
+import {ConfirmDialog} from '../../shared/ui/ConfirmDialog'
+import {useToast} from '../../shared/ui/Toast'
 import {formatDate} from '../../shared/lib/format'
 
 const statusFilters:Array<{key:ReferralStatus|'all';label:string}>=[{key:'new',label:'New'},{key:'accepted',label:'Accepted'},{key:'duplicate',label:'Already in ATS'},{key:'rejected',label:'Not pursued'},{key:'all',label:'All'}]
 
 export function ReferralsPage(){
-  const {organization}=useOrganization();const cache=useQueryClient()
+  const {organization}=useOrganization();const cache=useQueryClient();const toast=useToast()
+  // Rejecting tells the referrer nothing and cannot be re-offered, so it asks first.
+  const [rejectTarget,setRejectTarget]=useState<{id:string;name:string}|null>(null)
   const [tab,setTab]=useState<'inbox'|'links'>('inbox')
   const [filter,setFilter]=useState<ReferralStatus|'all'>('new')
   const [referOpen,setReferOpen]=useState(false)
@@ -26,8 +30,8 @@ export function ReferralsPage(){
   const links=useQuery({queryKey:['referral-links',organization?.id],enabled:Boolean(organization)&&tab==='links',queryFn:()=>listReferralLinks(organization!.id)})
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)})
 
-  const accept=useMutation({mutationFn:(id:string)=>acceptReferral(organization!.id,id),onSuccess:async(result)=>{setBanner(result.deduped?'This person was already in your ATS — their record was updated and linked.':'Candidate created from the referral.');await cache.invalidateQueries({queryKey:['referrals',organization?.id]})}})
-  const reject=useMutation({mutationFn:(id:string)=>rejectReferral(id),onSuccess:async()=>{await cache.invalidateQueries({queryKey:['referrals',organization?.id]})}})
+  const accept=useMutation({mutationFn:(id:string)=>acceptReferral(organization!.id,id),onSuccess:async(result)=>{setBanner(result.deduped?'This person was already in your ATS — their record was updated and linked.':'Candidate created from the referral.');await cache.invalidateQueries({queryKey:['referrals',organization?.id]})},onError:(error)=>toast.error(error,'No candidate was created from the referral.')})
+  const reject=useMutation({mutationFn:(id:string)=>rejectReferral(id),onSuccess:async()=>{toast.success('Referral marked as not pursued.');setRejectTarget(null);await cache.invalidateQueries({queryKey:['referrals',organization?.id]})},onError:(error)=>toast.error(error,'The referral is unchanged.')})
 
   const invalidate=()=>cache.invalidateQueries({queryKey:['referral-links',organization?.id]})
 
@@ -46,21 +50,24 @@ export function ReferralsPage(){
         <td>{referral.jobs?.title||'General'}</td>
         <td>{formatDate(referral.created_at)}</td>
         <td><StatusBadge map={referralStatus} value={referral.status}/></td>
-        <td>{referral.status==='new'?<div className="row-actions"><Button size="sm" leadingIcon={<Check size={14}/>} loading={accept.isPending&&accept.variables===referral.id} onClick={()=>accept.mutate(referral.id)}>Accept</Button><Button size="sm" variant="quiet" loading={reject.isPending&&reject.variables===referral.id} onClick={()=>reject.mutate(referral.id)}>Reject</Button></div>:referral.created_candidate_id?<a className="record-link" href={`/app/${organization?.slug}/candidates/${referral.created_candidate_id}`}>View candidate</a>:null}</td>
+        <td>{referral.status==='new'?<div className="row-actions"><Button size="sm" leadingIcon={<Check size={14}/>} loading={accept.isPending&&accept.variables===referral.id} onClick={()=>accept.mutate(referral.id)}>Accept</Button><Button size="sm" variant="quiet" loading={reject.isPending&&reject.variables===referral.id} onClick={()=>setRejectTarget({id:referral.id,name:referral.candidate_full_name})}>Reject</Button></div>:referral.created_candidate_id?<a className="record-link" href={`/app/${organization?.slug}/candidates/${referral.created_candidate_id}`}>View candidate</a>:null}</td>
       </tr>)}</Table>}
     </Panel>:<ReferralLinksPanel links={links} onInvalidate={invalidate}/>}
 
     <ReferCandidateDrawer open={referOpen} onClose={()=>setReferOpen(false)} jobs={jobs.data||[]} onDone={()=>cache.invalidateQueries({queryKey:['referrals',organization?.id]})}/>
+    <ConfirmDialog open={Boolean(rejectTarget)} title="Mark this referral as not pursued?" confirmLabel="Not pursued" loading={reject.isPending}
+      body={`${rejectTarget?.name??'This person'} will not be added to the ATS and the referral leaves the inbox. The referrer is not notified either way.`}
+      onClose={()=>setRejectTarget(null)} onConfirm={()=>{if(rejectTarget)reject.mutate(rejectTarget.id)}}/>
   </Page>
 }
 
 function ReferralLinksPanel({links,onInvalidate}:{links:ReturnType<typeof useQuery>;onInvalidate:()=>void}){
-  const {organization}=useOrganization()
+  const {organization}=useOrganization();const toast=useToast()
   const [label,setLabel]=useState('')
   const [minted,setMinted]=useState<string|null>(null)
   const [copied,setCopied]=useState(false)
-  const create=useMutation({mutationFn:()=>createReferralLink(organization!.id,{label:label||undefined}),onSuccess:async(result)=>{setMinted(`${window.location.origin}/refer/${result.token}`);setLabel('');await onInvalidate()}})
-  const revoke=useMutation({mutationFn:(id:string)=>revokeReferralLink(id),onSuccess:onInvalidate})
+  const create=useMutation({mutationFn:()=>createReferralLink(organization!.id,{label:label||undefined}),onSuccess:async(result)=>{toast.success('Sharing link created.','Copy it from the banner below — it is shown once.');setMinted(`${window.location.origin}/refer/${result.token}`);setLabel('');await onInvalidate()},onError:(error)=>toast.error(error,'No sharing link was created.')})
+  const revoke=useMutation({mutationFn:(id:string)=>revokeReferralLink(id),onSuccess:async()=>{toast.success('Sharing link revoked.','Anyone holding it can no longer submit referrals.');await onInvalidate()},onError:(error)=>toast.error(error,'The link is still live.')})
   const copy=async()=>{if(minted){await navigator.clipboard.writeText(minted);setCopied(true);setTimeout(()=>setCopied(false),1500)}}
   const rows=(links.data||[]) as Array<{id:string;label:string|null;token_prefix:string;created_at:string}>
   return <Panel title="Shareable referral links" subtitle="Send a link to your network. Anyone with it can refer a candidate — no login needed.">
@@ -75,10 +82,10 @@ function ReferralLinksPanel({links,onInvalidate}:{links:ReturnType<typeof useQue
 }
 
 function ReferCandidateDrawer({open,onClose,jobs,onDone}:{open:boolean;onClose:()=>void;jobs:Array<{id:string;title:string}>;onDone:()=>void}){
-  const {organization}=useOrganization()
+  const {organization}=useOrganization();const toast=useToast()
   const [form,setForm]=useState({candidate_full_name:'',candidate_email:'',candidate_linkedin_url:'',candidate_note:'',target_job_id:''})
   const set=(key:keyof typeof form)=>(event:{target:{value:string}})=>setForm((prev)=>({...prev,[key]:event.target.value}))
-  const mutation=useMutation({mutationFn:()=>submitInternalReferral(organization!.id,form),onSuccess:async()=>{setForm({candidate_full_name:'',candidate_email:'',candidate_linkedin_url:'',candidate_note:'',target_job_id:''});onClose();await onDone()}})
+  const mutation=useMutation({mutationFn:()=>submitInternalReferral(organization!.id,form),onSuccess:async()=>{toast.success(`${form.candidate_full_name} referred.`,'It appears in the referral inbox for review.');setForm({candidate_full_name:'',candidate_email:'',candidate_linkedin_url:'',candidate_note:'',target_job_id:''});onClose();await onDone()},onError:(error)=>toast.error(error,'The referral was not submitted.')})
   return <Drawer title="Refer a candidate" description="Add someone from your own network. They'll land in the referral inbox for review." open={open} onClose={onClose}>
     <form className="form-grid" onSubmit={(event)=>{event.preventDefault();mutation.mutate()}}>
       <Field label="Candidate name"><Input autoFocus required value={form.candidate_full_name} onChange={set('candidate_full_name')}/></Field>
