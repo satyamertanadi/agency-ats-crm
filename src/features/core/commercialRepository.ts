@@ -77,7 +77,12 @@ export async function listCandidateProfileVersions(organizationId:string,candida
 /* DOCX is the only client-facing output; the mandatory client template is a Word file consultants
  * still complete by hand. p_pdf_document_id is retained on the RPC for signature stability and is
  * ignored, so it is always passed null. */
-export async function finalizeCandidateProfile(input:{organizationId:string;profileVersionId:string;reviewedContent:unknown;anonymized:boolean;docxDocumentId:string;editedFieldCount:number}){const reviewed=candidateProfileDraftSchema.parse(input.reviewedContent);const {data,error}=await supabase.rpc('finalize_candidate_profile',{p_organization_id:input.organizationId,p_profile_version_id:input.profileVersionId,p_reviewed_content:reviewed as unknown as Json,p_anonymized:input.anonymized,p_docx_document_id:input.docxDocumentId,p_pdf_document_id:null,p_edited_field_count:input.editedFieldCount});if(error)fail(error,'Could not finalize candidate profile');return data as string}
+export async function finalizeCandidateProfile(input:{organizationId:string;profileVersionId:string;reviewedContent:unknown;anonymized:boolean;docxDocumentId:string;editedFieldCount:number}){const reviewed=candidateProfileDraftSchema.parse(input.reviewedContent);
+  // Same class of gap as p_fee_percentage/p_fixed_fee below: supabase gen types infers a no-default
+  // plpgsql parameter as its bare declared type (string), not string | null, because it has no way to
+  // introspect a function parameter's true nullability the way it can a column's NOT NULL. Passing
+  // null here is correct -- see the type's own comment -- the generated signature is just incomplete.
+  const {data,error}=await supabase.rpc('finalize_candidate_profile',{p_organization_id:input.organizationId,p_profile_version_id:input.profileVersionId,p_reviewed_content:reviewed as unknown as Json,p_anonymized:input.anonymized,p_docx_document_id:input.docxDocumentId,p_pdf_document_id:null as unknown as string,p_edited_field_count:input.editedFieldCount});if(error)fail(error,'Could not finalize candidate profile');return data as string}
 export async function recordCandidateProfileExportFailure(organizationId:string,profileVersionId:string,reason:string){const {error}=await supabase.rpc('record_candidate_profile_export_failure',{p_organization_id:organizationId,p_profile_version_id:profileVersionId,p_reason:reason.slice(0,500)});if(error)console.error('Could not record candidate profile export failure',error)}
 // started_on_precision/ended_on_precision are optional so the plain one-field-at-a-time add form
 // (which never captured precision) keeps its old "day if a date was entered" default, while callers

@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       activities: {
@@ -4719,6 +4724,10 @@ export type Database = {
           granted_roles: string[]
         }[]
       }
+      candidate_profile_token_spend_this_month: {
+        Args: { p_organization_id: string }
+        Returns: number
+      }
       capture_prospect: {
         Args: {
           p_job_id?: string
@@ -4819,7 +4828,7 @@ export type Database = {
           p_docx_document_id: string
           p_edited_field_count?: number
           p_organization_id: string
-          p_pdf_document_id?: string | null
+          p_pdf_document_id?: string
           p_profile_version_id: string
           p_reviewed_content: Json
         }
@@ -5163,10 +5172,7 @@ export type Database = {
         Returns: undefined
       }
       update_organization_salary_period: {
-        Args: {
-          p_organization_id: string
-          p_salary_period: string
-        }
+        Args: { p_organization_id: string; p_salary_period: string }
         Returns: undefined
       }
     }
@@ -5301,4 +5307,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
