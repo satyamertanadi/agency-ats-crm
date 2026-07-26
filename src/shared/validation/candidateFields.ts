@@ -10,7 +10,13 @@ export const dateValue=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().defaul
 
 export const emailField=z.string().trim().email().optional().or(z.literal(''))
 export const phoneField=optionalText
-export const salaryField=z.coerce.number().nonnegative().optional()
+/* An empty number input submits '', and z.coerce.number() turns '' into 0. So a blank "Notice period"
+ * was stored as `0`, which the record then displayed as "0 days" -- a confident statement of something
+ * nobody said. Same for the two salary columns, where a zero on a private field reads as a real
+ * figure. 0 has to stay available (a candidate genuinely on no notice), so the blank has to become
+ * absent rather than be clamped away. */
+export const blankToUndefined=(value:unknown)=>value===''||value===null?undefined:value
+export const salaryField=z.preprocess(blankToUndefined,z.coerce.number().nonnegative().optional())
 export const currencyField=z.string().trim().length(3).optional().or(z.literal(''))
 export const consentStatusField=z.enum(['unknown','requested','granted','withdrawn','expired'])
 

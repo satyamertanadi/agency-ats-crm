@@ -1,26 +1,29 @@
 import { supabase } from '../../shared/lib/supabase'
-import { AppError, humanizeRpcError } from '../../shared/lib/errors'
+import { AppError, DUPLICATE_CANDIDATE, humanizeRpcError } from '../../shared/lib/errors'
 import { row, rows } from '../../shared/lib/rows'
-import { acceptReferralResultSchema, activitySchema, candidatePipelineAssignmentSchema, candidateSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, referralLinkCreationSchema, referralLinkSchema, referralSchema, taskSchema } from './repositorySchemas'
-import type { Activity, Candidate, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReferral, PublicReview, Referral, ReferralLink, ReferralStatus, Task } from '../../shared/types/domain'
+import { acceptReferralResultSchema, activitySchema, candidatePipelineAssignmentSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, referralLinkCreationSchema, referralLinkSchema, referralSchema, taskSchema } from './repositorySchemas'
+import type { Activity, CandidateStatus, ConsentStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReferral, PublicReview, Referral, ReferralLink, ReferralStatus, Task } from '../../shared/types/domain'
 import type {Json,TablesInsert} from '../../generated/database.types'
 
 function fail(error:{message:string;code?:string}|null,fallback:string):never{
   /* Raw RPC identifiers (`invalid_nonnegative_value`, `permission_denied`, ...) used to reach the user
    * verbatim, because this threw error.message unchanged. humanizeRpcError turns the ones the
    * migrations actually raise into sentences and keeps the token as the AppError code, so callers can
-   * still branch on it. Anything unrecognised falls back to the caller's own message rather than
-   * leaking a database string. */
+   * still branch on it. */
   const humanized=error?.message?humanizeRpcError(error.message):null
   if(humanized)throw new AppError(humanized.message,humanized.code,error)
+  /* Postgres's own constraint violations are the other half of the leak, and the worse-looking half:
+   * a unique-violation message is `duplicate key value violates unique constraint
+   * "candidate_active_email_unique"`, which is what a recruitment consultant was shown when they
+   * re-entered someone already in the database. For these SQLSTATEs the caller's fallback is the better
+   * sentence by construction -- the caller knows which write it was attempting, the constraint name
+   * does not. */
+  if(error?.code&&CONSTRAINT_CODES.has(error.code))throw new AppError(fallback,error.code,error)
   throw new AppError(error?.message||fallback,error?.code||'database_error',error)
 }
-
-export async function listCandidates(organizationId:string, query='') {
-  let request=supabase.from('candidates').select('id,organization_id,full_name,current_company,current_position,location,linkedin_url,status,source,availability,owner_member_id,created_at,candidate_private_details(email,phone,current_salary,expected_salary,salary_currency,consent_status)').eq('organization_id',organizationId).is('deleted_at',null).order('updated_at',{ascending:false}).limit(100)
-  if(query) request=request.or(`full_name.ilike.%${query}%,current_company.ilike.%${query}%,current_position.ilike.%${query}%`)
-  const {data,error}=await request;if(error)fail(error,'Could not load candidates');return rows(data,candidateSchema,'Candidate rows did not match the expected shape') as Candidate[]
-}
+/* 23505 unique, 23503 foreign key, 23514 check, 23502 not-null: the four whose default text names a
+ * constraint or a column rather than describing anything a user did. */
+const CONSTRAINT_CODES=new Set(['23505','23503','23514','23502'])
 
 export interface CandidateListFilters {query?:string;status?:string;location?:string;source?:string;ownerMemberId?:string;tag?:string;skill?:string;availability?:string;consentStatus?:string;sort?:'updated'|'created'|'name'|'location';direction?:'asc'|'desc'}
 export async function listCandidatesPage(organizationId:string,filters:CandidateListFilters={},page=0,pageSize=50){
@@ -28,11 +31,62 @@ export async function listCandidatesPage(organizationId:string,filters:Candidate
   if(error)fail(error,'Could not load candidates');const resultRows=rows(data,candidateSearchRowSchema,'Candidate search rows did not match the expected shape') as CandidateSearchRow[];return {rows:resultRows,count:Number(resultRows[0]?.total_count||0)}
 }
 
-export async function createCandidate(organizationId:string,userId:string,input:{full_name:string;email?:string;phone?:string;current_company?:string;current_position?:string;location?:string;source?:string;expected_salary?:number;salary_currency?:string}) {
-  const {data,error}=await supabase.from('candidates').insert({organization_id:organizationId,full_name:input.full_name,current_company:input.current_company||null,current_position:input.current_position||null,location:input.location||null,source:input.source||null,status:'active',created_by:userId}).select('id').single()
-  if(error)fail(error,error.code==='23505'?'A candidate with this email already exists.':'Could not create candidate')
-  const privateResult=await supabase.from('candidate_private_details').insert({candidate_id:data.id,organization_id:organizationId,email:input.email||null,phone:input.phone||null,expected_salary:input.expected_salary??null,salary_currency:input.salary_currency||null})
-  if(privateResult.error){await supabase.from('candidates').delete().eq('id',data.id);fail(privateResult.error,privateResult.error.code==='23505'?'A candidate with this email already exists.':'Could not save candidate private details')}
+/* Accepts the whole field set the shared CandidateForm collects, not the nine columns the old add modal
+ * happened to render. Owner, status, consent and the contact/salary details are all writable at
+ * creation now, which is what stops every hand-entered candidate arriving unassigned with consent
+ * 'unknown' and needing a second visit.
+ *
+ * The compensating delete on a private-details failure stays: the two inserts cannot be one statement
+ * from the client, so a failure on the second would otherwise leave a candidate with no private row at
+ * all -- worse than not creating them. On a duplicate email the error names the collision so the caller
+ * can offer the existing record rather than just refusing. */
+/* A unique-violation tells you a collision happened, not what it collided with -- so "a candidate with
+ * this email already exists" was the end of the road: the consultant was informed and then left to go
+ * find the record themselves. One extra query, only on the failure path, turns that into a link.
+ *
+ * Looks the row up by canonical email through the same normalization the generated column uses, and
+ * stays quiet if it cannot find it (the caller's generic message is still better than a raw constraint
+ * name). Throws AppError with the DUPLICATE_CANDIDATE code and the id in `recordId` so the form can
+ * offer to open it. */
+async function raiseDuplicateCandidate(organizationId:string,email:string|undefined,error:{code?:string}){
+  if(error.code!=='23505'||!email?.trim())return
+  const {data}=await supabase.from('candidates')
+    .select('id,full_name,candidate_private_details!inner(canonical_email)')
+    .eq('organization_id',organizationId)
+    .eq('candidate_private_details.canonical_email',email.trim().toLowerCase())
+    .is('deleted_at',null).limit(1).maybeSingle()
+  const existing=data as {id?:string;full_name?:string}|null
+  if(!existing?.id)return
+  throw new DuplicateCandidateError(existing.id,existing.full_name||'An existing candidate')
+}
+export class DuplicateCandidateError extends AppError {
+  constructor(public readonly candidateId:string,public readonly candidateName:string){
+    super(`${candidateName} already has this email address.`,DUPLICATE_CANDIDATE)
+  }
+}
+
+export interface CreateCandidateInput {
+  full_name:string;email?:string;phone?:string;current_company?:string;current_position?:string;location?:string
+  source?:string;linkedin_url?:string;portfolio_url?:string;availability?:string;notice_period_days?:number
+  status?:CandidateStatus;owner_member_id?:string;current_salary?:number;expected_salary?:number;salary_currency?:string
+  work_authorization?:string;consent_status?:ConsentStatus;consent_expires_at?:string
+}
+export async function createCandidate(organizationId:string,userId:string,input:CreateCandidateInput) {
+  const {data,error}=await supabase.from('candidates').insert({organization_id:organizationId,full_name:input.full_name,
+    current_company:input.current_company||null,current_position:input.current_position||null,location:input.location||null,
+    source:input.source||null,linkedin_url:input.linkedin_url||null,portfolio_url:input.portfolio_url||null,
+    availability:input.availability||null,notice_period_days:input.notice_period_days??null,
+    status:input.status||'active',owner_member_id:input.owner_member_id||null,created_by:userId}).select('id').single()
+  if(error){await raiseDuplicateCandidate(organizationId,input.email,error);fail(error,'Could not create candidate')}
+  const privateResult=await supabase.from('candidate_private_details').insert({candidate_id:data.id,organization_id:organizationId,
+    email:input.email||null,phone:input.phone||null,current_salary:input.current_salary??null,expected_salary:input.expected_salary??null,
+    salary_currency:input.salary_currency||null,work_authorization:input.work_authorization||null,
+    consent_status:input.consent_status||'unknown',consent_expires_at:input.consent_expires_at||null})
+  if(privateResult.error){
+    await supabase.from('candidates').delete().eq('id',data.id)
+    await raiseDuplicateCandidate(organizationId,input.email,privateResult.error)
+    fail(privateResult.error,'Could not save candidate details')
+  }
   return data.id as string
 }
 

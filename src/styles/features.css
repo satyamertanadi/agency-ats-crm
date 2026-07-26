@@ -1196,3 +1196,34 @@
  * drag the first candidate of a phase into would trade a real interaction for reclaimed pixels --
  * but it stops reserving the height of a full column it has no cards to fill. */
 .kanban-column:not(:has(.candidate-card)){min-height:132px}
+
+/* Candidate form (src/features/candidates/CandidateForm.tsx). One form serves the add modal, the CV
+   review step and the detail page's edit mode, so it is grouped into four named sections rather than
+   being one 19-field grid -- "Who they are / Reaching them / How you will work them / Money" gives the
+   eye somewhere to stop, and matches the order a consultant learns these facts in. */
+.candidate-form {
+  display: grid;
+  gap: var(--space-5);
+}
+.candidate-form-section {
+  display: grid;
+  gap: var(--space-3);
+}
+.candidate-form-section > h3 {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--color-muted);
+}
+/* Sits under the contact fields, where the private-permission boundary is actually relevant, rather
+   than as a page-level note nobody reads. */
+.candidate-form-note {
+  margin: 0;
+  font-size: var(--text-xs);
+}
+.add-candidate > .segmented-control {
+  align-self: start;
+}

@@ -19,9 +19,13 @@ function sectionNeedsAttention(draft:CandidateCvExtraction,prefix:string,isEmpty
   return Object.entries(draft.field_evidence).some(([path,evidence])=>evidence.confidence==='low'&&(path===prefix||path.startsWith(`${prefix}.`)||path.startsWith(`${prefix}[`)))
 }
 
-type CandidateCvParserProps={organizationId:string;userId:string;targetCandidateId?:string;targetCandidateName?:string;onAccepted:(candidateId:string)=>void;onManual?:()=>void;onCancel:()=>void}
+type CandidateCvParserProps={organizationId:string;userId:string;targetCandidateId?:string;targetCandidateName?:string;onAccepted:(candidateId:string)=>void;onManual?:()=>void;onCancel:()=>void;
+  /* Reports whether there is work here that closing would throw away -- an upload in flight or a
+   * reviewed draft. The host owns the dialog, so the host has to be told; without this, Escape on a
+   * fully reviewed CV discarded several minutes of checking without a word. */
+  onDirtyChange?:(dirty:boolean)=>void}
 
-export function CandidateCvParser({organizationId,userId,targetCandidateId,targetCandidateName,onAccepted,onManual,onCancel}:CandidateCvParserProps){
+export function CandidateCvParser({organizationId,userId,targetCandidateId,targetCandidateName,onAccepted,onManual,onCancel,onDirtyChange}:CandidateCvParserProps){
   const {organization}=useOrganization();const toast=useToast();const salaryPeriodLabel=organization?.salary_period==='monthly'?'month':'year'
   const [parseId,setParseId]=useState('');const [draft,setDraft]=useState<CandidateCvExtraction|null>(null);const [loadedParseId,setLoadedParseId]=useState('');const [localError,setLocalError]=useState('');const [manualFallback,setManualFallback]=useState(false)
   const start=useMutation({mutationFn:(file:File)=>startCandidateCvParse(organizationId,userId,file,targetCandidateId),onSuccess:(id)=>{setParseId(id);setDraft(null);setLoadedParseId('');setLocalError('')},onError:(error)=>setLocalError(error.message)})
@@ -34,6 +38,7 @@ export function CandidateCvParser({organizationId,userId,targetCandidateId,targe
     onError:(error)=>setLocalError(error instanceof Error?error.message:String(error))})
   const cancel=useMutation({mutationFn:async()=>{if(parseId)await cancelCandidateCvParse(organizationId,parseId)},onSettled:onCancel})
   useEffect(()=>{if(parse.data?.status==='ready'&&parse.data.extraction&&loadedParseId!==parseId){setDraft({...parse.data.extraction,full_name:parse.data.extraction.full_name||targetCandidateName||''});setLoadedParseId(parseId);setManualFallback(false)}},[loadedParseId,parse.data,parseId,targetCandidateName])
+  useEffect(()=>{onDirtyChange?.(Boolean(parseId||draft))},[draft,onDirtyChange,parseId])
   const beginManualFallback=()=>{setDraft({...emptyCandidateCvExtraction,full_name:targetCandidateName||'',source:'CV upload'});setManualFallback(true);setLoadedParseId(parseId)}
   if(!parseId)return <div className="cv-upload-flow"><label className="cv-dropzone"><Upload size={26}/><strong>{'Upload CV to autofill'}</strong><span>PDF up to 25 MB or DOCX up to 10 MB. Scanned CVs are supported.</span><input type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled={start.isPending} onChange={(event)=>{const file=event.target.files?.[0];if(file)start.mutate(file)}}/></label>{(localError||start.error)&&<p className="form-error" role="alert">{localError||start.error?.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={onCancel}>Cancel</Button>{onManual&&<Button variant="secondary" onClick={onManual}>Enter manually</Button>}</div></div>
   const status=parse.data?.status
