@@ -138,10 +138,16 @@ describe('CandidateDetailPage',()=>{
     expect(screen.getByText('In pipelines',{selector:'dt'}).closest('.readiness-chip')).toHaveClass('tone-neutral')
   })
 
-  it('replaces the tab content with the edit form and hides the tab bar',async()=>{
+  it('replaces the tab content with the shared candidate form and hides the tab bar',async()=>{
     renderPage()
     fireEvent.click(await screen.findByRole('button',{name:'Edit candidate'}))
-    expect(await screen.findByRole('heading',{name:'Private details and consent'})).toBeInTheDocument()
+    expect(await screen.findByRole('heading',{name:'Edit candidate'})).toBeInTheDocument()
+    // The two hand-written panels are gone; what renders is CandidateForm's own four sections.
+    expect(screen.getByRole('heading',{name:'Reaching them'})).toBeInTheDocument()
+    expect(screen.getByRole('heading',{name:'Money'})).toBeInTheDocument()
+    // Currency was a free-text three-character box here, which is the same control the add form
+    // never rendered at all -- both are now the one picker.
+    expect(screen.getByLabelText('Currency').tagName).toBe('SELECT')
     expect(screen.queryByRole('tab',{name:'Profile'})).not.toBeInTheDocument()
     expect(screen.queryByRole('heading',{name:'Contact details'})).not.toBeInTheDocument()
   })

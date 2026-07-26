@@ -36,7 +36,7 @@ export function ScorecardPage(){
   const team=useQuery({queryKey:['team',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
   const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
 
-  if(performance.isLoading||team.isLoading||capabilities.isLoading)return <TableSkeleton rows={5} columns={4} label="Preparing your scorecard…"/>
+  if(performance.isLoading||team.isLoading||capabilities.isLoading)return <Page title="My scorecard" eyebrow="Personal performance" description="Your own recruitment activity and outcomes, using the same definitions as the team report."><Panel><TableSkeleton rows={5} columns={4} label="Preparing your scorecard…"/></Panel></Page>
   if(performance.error||team.error)return <ErrorState error={performance.error||team.error}/>
 
   const data=performance.data!

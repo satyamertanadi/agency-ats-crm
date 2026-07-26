@@ -2,6 +2,7 @@ import {QueryClient,QueryClientProvider} from '@tanstack/react-query'
 import {fireEvent,render,screen,waitFor} from '@testing-library/react'
 import {beforeEach,describe,expect,it,vi} from 'vitest'
 import {ActivityFeed} from './ActivityFeed'
+import {ToastProvider} from '../../shared/ui/Toast'
 import type {ActivityLink} from '../core/repository'
 
 const {listActivities,createActivity}=vi.hoisted(()=>({listActivities:vi.fn(),createActivity:vi.fn()}))
@@ -10,9 +11,13 @@ vi.mock('../../app/OrganizationProvider',()=>({useOrganization:()=>({organizatio
 
 const entry={id:'a1',activity_type:'call',direction:'outbound',subject:'Intro call',summary:'Interested, three months notice.',occurred_at:new Date().toISOString(),created_by:'user-1',profiles:{full_name:'Satya Rao'}}
 
+/* ToastProvider is part of the harness because the component now reports a failed write as a toast as
+ * well as inline. useToast deliberately throws without a provider rather than degrading to a no-op --
+ * a toast that silently does nothing is the bug that policy exists to prevent -- so the provider
+ * belongs here, exactly as it is mounted once around the real app in main.tsx. */
 function renderFeed(links:ActivityLink[]=[{candidate_id:'cand-1'}]){
   const client=new QueryClient({defaultOptions:{queries:{retry:false}}})
-  render(<QueryClientProvider client={client}><ActivityFeed links={links}/></QueryClientProvider>)
+  render(<QueryClientProvider client={client}><ToastProvider><ActivityFeed links={links}/></ToastProvider></QueryClientProvider>)
 }
 
 describe('ActivityFeed',()=>{

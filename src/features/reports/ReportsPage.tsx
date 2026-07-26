@@ -19,7 +19,7 @@ export function ReportsPage(){
   const range=reportDateRange(from,to,organization?.timezone||'UTC')
   const performance=useQuery({queryKey:['agency-performance',organization?.id,from,to],enabled:Boolean(organization&&from&&to),queryFn:()=>getAgencyPerformance(organization!.id,range.fromIso,range.toIso)})
   const team=useQuery({queryKey:['team',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
-  if(performance.isLoading||team.isLoading)return <TableSkeleton rows={6} columns={6} label="Preparing agency intelligence…"/>
+  if(performance.isLoading||team.isLoading)return <Page title="Reports" eyebrow="Agency intelligence" description="Defensible candidate milestones, workload, and commercial outcomes for a selectable period."><Panel><TableSkeleton rows={6} columns={6} label="Preparing agency intelligence…"/></Panel></Page>
   if(performance.error||team.error)return <ErrorState error={performance.error||team.error}/>
 
   const data=performance.data!;const recordedPlacements=data.placements.filter(isRecordedPlacement);const recordedPlacementCount=new Set(recordedPlacements.map((item)=>item.job_candidate_id)).size

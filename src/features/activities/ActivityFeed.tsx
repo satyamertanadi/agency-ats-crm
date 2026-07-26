@@ -7,6 +7,7 @@ import {Button} from '../../shared/ui/Button'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Panel} from '../../shared/ui/Page'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
+import {useToast} from '../../shared/ui/Toast'
 import {formatDate,formatDateTime} from '../../shared/lib/format'
 import type {ActivityType} from '../../shared/types/domain'
 import {presentActivity} from './activityPresentation'
@@ -28,7 +29,7 @@ const relative=(iso:string)=>{const diff=Date.now()-new Date(iso).getTime();cons
  * candidate and the vacancy at once.
  */
 export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, and meetings, plus pipeline movement recorded automatically.',readOnly=false}:{links:ActivityLink[];title?:string;subtitle?:string;readOnly?:boolean}){
-  const {organization}=useOrganization();const cache=useQueryClient()
+  const {organization}=useOrganization();const cache=useQueryClient();const toast=useToast()
   const primary=links[0]
   const [open,setOpen]=useState(false)
   const [type,setType]=useState<string>('call')
@@ -45,6 +46,7 @@ export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, an
       await cache.invalidateQueries({queryKey:['activities',organization?.id]})
       // The dashboard reads the same journal, so its feed would otherwise lag behind this one.
       await Promise.all([cache.invalidateQueries({queryKey:['dashboard',organization?.id]}),cache.invalidateQueries({queryKey:['today',organization?.id]})])},
+    onError:(error)=>toast.error(error,'The activity was not logged.'),
   })
   const submit=(event:FormEvent)=>{event.preventDefault();if(summary.trim())log.mutate()}
 

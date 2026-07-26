@@ -1,5 +1,5 @@
 import {supabase} from '../../shared/lib/supabase'
-import {AppError} from '../../shared/lib/errors'
+import {AppError,humanizeRpcError} from '../../shared/lib/errors'
 import {row,rows} from '../../shared/lib/rows'
 import {calendarConnectionSchema,candidateDetailSchema,candidateJobLinkRowSchema,candidateProfileVersionRowSchema,companyPipelineRowSchema,documentLinkRowSchema,importBatchSchema,organizationInvitationSchema,roleSchema,savedViewSchema,submissionCandidateDocumentRowSchema,teamMemberSchema} from './commercialRepositorySchemas'
 import type {CalendarConnection,CandidateDetail,CandidateDocument,CompanyPipelineRow,ImportBatch,OrganizationInvitation,PipelinePhaseKey,Role,SavedView,SavedViewResource,TeamMember} from '../../shared/types/domain'
@@ -7,7 +7,25 @@ import type {Json} from '../../generated/database.types'
 import {candidateCvExtractionSchema,type CandidateCvExtraction,type CvParseResult} from '../candidates/cvParsing'
 import {candidateProfileDraftSchema,candidateProfileTemplateConfigSchema,hasStaleProfileInputs,type CandidateProfileGeneration,type CandidateProfileJob,type CandidateProfileTemplate,type CandidateProfileVersion} from '../candidates/candidateProfile'
 
-function fail(error:{message:string;code?:string}|null,fallback:string):never{throw new AppError(error?.message||fallback,error?.code||'database_error',error)}
+function fail(error:{message:string;code?:string}|null,fallback:string):never{
+  /* Raw RPC identifiers (`invalid_nonnegative_value`, `permission_denied`, ...) used to reach the user
+   * verbatim, because this threw error.message unchanged. humanizeRpcError turns the ones the
+   * migrations actually raise into sentences and keeps the token as the AppError code, so callers can
+   * still branch on it. */
+  const humanized=error?.message?humanizeRpcError(error.message):null
+  if(humanized)throw new AppError(humanized.message,humanized.code,error)
+  /* Postgres's own constraint violations are the other half of the leak, and the worse-looking half:
+   * a unique-violation message is `duplicate key value violates unique constraint
+   * "candidate_active_email_unique"`, which is what a recruitment consultant was shown when they
+   * re-entered someone already in the database. For these SQLSTATEs the caller's fallback is the better
+   * sentence by construction -- the caller knows which write it was attempting, the constraint name
+   * does not. */
+  if(error?.code&&CONSTRAINT_CODES.has(error.code))throw new AppError(fallback,error.code,error)
+  throw new AppError(error?.message||fallback,error?.code||'database_error',error)
+}
+/* 23505 unique, 23503 foreign key, 23514 check, 23502 not-null: the four whose default text names a
+ * constraint or a column rather than describing anything a user did. */
+const CONSTRAINT_CODES=new Set(['23505','23503','23514','23502'])
 async function invoke<T>(name:string,body:Record<string,unknown>):Promise<T>{const {data,error}=await supabase.functions.invoke(name,{body});if(error)throw new AppError(error.message,'function_error',error);if((data as {error?:{message?:string;code?:string}})?.error)throw new AppError((data as {error:{message?:string}}).error.message||'Request failed.',(data as {error:{code?:string}}).error.code||'function_error',data);return data as T}
 
 export async function listTeamMembers(organizationId:string){const {data,error}=await supabase.from('organization_members').select('id,organization_id,user_id,job_title,status,is_vendor_support,profiles:user_id(full_name,email),member_roles(roles(id,name,role_key))').eq('organization_id',organizationId).order('joined_at');if(error)fail(error,'Could not load team members');return rows(data,teamMemberSchema,'Team member rows did not match the expected shape') as TeamMember[]}

@@ -43,4 +43,23 @@ describe('candidate-documents storage requires candidates.read, not just members
     expect(result.error).toBeNull()
     expect(result.data?.signedUrl).toBeTruthy()
   })
+
+  /* Every policy on this bucket used to cast the first path segment straight to uuid, on the assumption
+   * that everything here lives under an organization-id prefix. refer's signed-upload flow breaks that
+   * assumption -- referral resumes go to `referrals/{token}/...` -- and a uuid cast RAISES rather than
+   * failing to match, so one such object made every authenticated read of the whole bucket error for
+   * every user. Reproduced against the local stack before the fix; this keeps it fixed. */
+  it('still lists the bucket when an object sits outside any organization prefix',async()=>{
+    const stray=`referrals/rls-test-${Date.now()}/note.txt`
+    // Uploaded by the owner, whose insert now also goes through the cast-safe predicate -- so a
+    // non-organization prefix is refused rather than erroring, which is itself the fix working.
+    const upload=await owner.storage.from(bucket).upload(stray,'stray object',{contentType:'text/plain'})
+    expect(upload.error).not.toBeNull()
+
+    // The read path is what used to break. It must answer, not raise.
+    const listed=await consultant.storage.from(bucket).list(NORTHSTAR)
+    expect(listed.error).toBeNull()
+    const signed=await consultant.storage.from(bucket).createSignedUrl(path,60)
+    expect(signed.error).toBeNull()
+  })
 })

@@ -4838,6 +4838,18 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: boolean
       }
+      list_candidate_skill_names: {
+        Args: { p_organization_id: string }
+        Returns: {
+          name: string
+        }[]
+      }
+      list_candidate_tag_names: {
+        Args: { p_organization_id: string }
+        Returns: {
+          name: string
+        }[]
+      }
       list_company_pipeline: {
         Args: { p_organization_id: string }
         Returns: {
@@ -5130,6 +5142,7 @@ export type Database = {
         }
         Returns: string
       }
+      storage_prefix_organization: { Args: { p_name: string }; Returns: string }
       submit_internal_referral: {
         Args: { p_organization_id: string; p_payload: Json }
         Returns: string
