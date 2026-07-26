@@ -67,6 +67,57 @@ export function buildPipelineColumns(stages:PipelineStage[],detailed:boolean):Pi
 export const columnKeyForStage=(columns:PipelineColumn[],stageId:string):string|undefined=>
   columns.find((column)=>column.stages.some((stage)=>stage.id===stageId))?.key
 
+/* Illustrative per-phase SLA targets (days) -- placeholder pending the actual numbers the team signs
+ * off on (see "Open questions" in the pipeline-board redesign handoff). Centralised here so the board,
+ * the candidate detail page, and Today's job-health chip share one source instead of drifting. */
+export const slaTargetDays:Record<PipelinePhaseKey,number>={
+  sourcing:7,screening:5,shortlist:5,client_review:7,interview:5,offer:3,placed:0,other:7,
+}
+
+/* The stage-ramp hue used for column bars, card left-borders, and Today's mini stage-distribution
+ * bar -- one CSS custom property per phase so every place that draws "which phase is this" agrees. */
+export const phaseRampColor:Record<PipelinePhaseKey,string>={
+  sourcing:'var(--color-faint)',screening:'var(--color-info)',shortlist:'var(--color-accent)',
+  client_review:'var(--color-violet)',interview:'var(--color-warning)',offer:'var(--color-danger)',
+  placed:'var(--tone-good-fg)',other:'var(--color-faint)',
+}
+
+export type StageUrgency='neutral'|'warn'|'bad'
+
+/* Same threshold rule everywhere a days-in-stage badge or a "stalled" count is derived, so the board,
+ * the candidate panel, and Today's job-health chip can't disagree about what "stalled" means. */
+export function stageUrgency(days:number,targetDays:number):StageUrgency{
+  if(days<=targetDays)return 'neutral'
+  if(days<=targetDays*1.5)return 'warn'
+  return 'bad'
+}
+
+/* Same calculation CandidateDetailPage already uses for its "days in stage" column (the most recent
+ * stage_history row, falling back to updated_at for candidates added before history existed) --
+ * reused rather than duplicated so the two screens can't disagree about a candidate's own number. */
+export function daysInStage(item:{updated_at:string;stage_history?:Array<{occurred_at:string}>},now:Date):number{
+  const entered=item.stage_history?.[0]?.occurred_at||item.updated_at
+  return Math.max(0,Math.floor((now.getTime()-new Date(entered).getTime())/86_400_000))
+}
+
+export interface ColumnStageStats{avgDays:number;overTarget:number;targetDays:number;onTarget:boolean}
+
+/* Powers the column subheading ("avg 6d · 1 over target"). Detailed-mode columns are single-stage so
+ * `column.stages[0]` IS the phase; grouped columns are built from stages that all share one phase
+ * (groupPipelineStages), so the first stage's phase speaks for the whole column either way. */
+export function columnStageStats(column:PipelineColumn,items:Array<{current_stage_id:string;updated_at:string;stage_history?:Array<{occurred_at:string}>}>,now:Date):ColumnStageStats|null{
+  const firstStage=column.stages[0]
+  if(!firstStage)return null
+  const stageIds=new Set(column.stages.map((stage)=>stage.id))
+  const inColumn=items.filter((item)=>stageIds.has(item.current_stage_id))
+  if(inColumn.length===0)return null
+  const targetDays=slaTargetDays[phaseForStage(firstStage)]??7
+  const days=inColumn.map((item)=>daysInStage(item,now))
+  const avgDays=Math.round(days.reduce((sum,value)=>sum+value,0)/days.length)
+  const overTarget=days.filter((value)=>value>targetDays).length
+  return {avgDays,overTarget,targetDays,onTarget:overTarget===0}
+}
+
 /* Resolves a drop/select onto a column into the stage to actually move to, or null for "no move".
  *
  * Returning null when the candidate already sits somewhere in the target column is what stops the

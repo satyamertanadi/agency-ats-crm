@@ -24,7 +24,7 @@ npm run build
 npm run test:e2e
 ```
 
-`npm run test:rls` requires `SUPABASE_URL` and `SUPABASE_ANON_KEY` from the active local stack. CI provisions a clean database, verifies migrations and generated types, and supplies these values automatically.
+`npm run test:rls` requires `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` from the active local stack -- the last one lets the candidate-to-placement journey test stand in for the public-review Edge Function, which always calls `resolve_submission_link`/`submit_submission_feedback` as `service_role`. CI provisions a clean database, verifies migrations and generated types, and supplies these values automatically.
 
 ## Production boundary
 

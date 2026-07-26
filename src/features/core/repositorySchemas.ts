@@ -82,6 +82,7 @@ const jobCandidateCandidate=z.object({
 export const jobCandidateSchema=z.object({
   id:z.string(),job_id:z.string(),candidate_id:z.string(),current_stage_id:z.string(),updated_at:z.string(),
   candidates:jobCandidateCandidate,pipeline_stages:pipelineStageSchema.nullable().optional(),
+  stage_history:z.array(z.object({occurred_at:z.string()})).optional(),
 })
 
 // companies selects `*`, which also carries company_size/created_at/created_by/deleted_at/

@@ -7,6 +7,7 @@
 - Anonymous client review goes through `public-review`; direct tables remain unavailable. Tokens are hashed, expiring, revocable, rate limited, and only attached documents receive five-minute signed URLs.
 - Storage buckets are private and organization-prefixed. Document access is linked to an authorized record or submission.
 - Security-definer functions fix `search_path`, validate organization scope and permission, and use audited transactional operations for access, finance, merge, and workflow changes.
+- `candidate_private_details`, `candidate_consents`, `candidate_merge_history`, `job_candidates`, and `stage_history` split their write policy from their (stricter) read policy so `X.write` alone cannot read what `Y.read` was meant to gate. Postgres itself requires a row to also pass the table's SELECT policy before UPDATE/DELETE can locate it, so a role holding only the write permission (no read) can `INSERT` new rows on these tables but cannot `UPDATE` or `DELETE` an existing one -- there's no client-side RPC that needs to yet, so this is an accepted boundary, not a bug. A role needing to edit or remove these rows must also hold the paired read permission.
 - Structured logs include request IDs but scrub candidate names, emails, salaries, resumes, tokens, and submission content. Session replay remains disabled by default.
 - Production redirects and CORS must contain exact HTTPS origins only. CSP, frame denial, no-sniff, HSTS, and no-index headers are configured at the web edge.
 

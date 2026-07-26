@@ -51,96 +51,10 @@
 .kpi-alert {
   border-color: var(--tone-bad-border);
 }
-.dashboard-grid,
 .two-column {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-4);
-}
-.dashboard-hero {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-6);
-  overflow: hidden;
-  padding: 24px 26px;
-  border-radius: var(--radius-lg);
-  background:
-    radial-gradient(circle at 90% 0, color-mix(in srgb, var(--color-accent-on-dark) 22%, transparent), transparent 35%),
-    linear-gradient(135deg, var(--color-slate), var(--color-slate-deep));
-  color: var(--color-sidebar-text);
-  box-shadow: var(--shadow-md);
-}
-.dashboard-hero::after {
-  content: "";
-  position: absolute;
-  right: -70px;
-  bottom: -100px;
-  width: 260px;
-  height: 260px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-circle);
-  box-shadow: 0 0 0 38px rgba(255, 255, 255, 0.025);
-}
-.dashboard-hero h2 {
-  font-family: var(--font-editorial);
-  font-weight: var(--weight-medium);
-  font-size: var(--text-3xl);
-  line-height: 1.1;
-  margin: 5px 0;
-}
-.dashboard-hero > div > p:last-child {
-  color: var(--color-on-dark-muted);
-  font-size: var(--text-sm);
-  margin: 0;
-}
-.dashboard-hero .eyebrow {
-  color: var(--color-accent-on-dark);
-}
-.dashboard-hero-actions {
-  display: flex;
-  gap: var(--space-2);
-  position: relative;
-  z-index: 1;
-}
-.dashboard-clear {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 22px;
-}
-.dashboard-clear > span {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-circle);
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
-  font-weight: var(--weight-semibold);
-}
-.dashboard-clear p {
-  margin: 3px 0 0;
-  color: var(--color-muted);
-  font-size: var(--text-sm);
-}
-.kpi-grid-muted .kpi {
-  opacity: 0.72;
-}
-.kpi-grid-muted .kpi::after {
-  opacity: 0.2;
-}
-.kpi-grid-muted .kpi strong {
-  color: var(--color-muted);
-  font-weight: var(--weight-medium);
-}
-.kpi-grid-muted .kpi-alert {
-  opacity: 1;
-}
-.kpi-grid-muted .kpi-alert strong {
-  color: inherit;
-  font-weight: var(--weight-semibold);
 }
 .setup-checklist .panel-body {
   padding: 0;
@@ -208,11 +122,6 @@
 .setup-step-blocked .setup-step-marker {
   color: var(--color-muted);
   background: var(--color-surface-soft);
-}
-.dashboard-hero-setup {
-  background:
-    radial-gradient(circle at 90% 0, color-mix(in srgb, var(--color-accent-on-dark) 28%, transparent), transparent 38%),
-    linear-gradient(135deg, var(--color-slate-lift), var(--color-slate-deep));
 }
 .activity-form {
   padding: 16px 18px;
@@ -668,17 +577,6 @@
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
 }
-.submission-editor {
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  margin: 8px 0;
-  background: var(--color-surface);
-}
-.submission-editor.selected {
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent-soft) 35%, var(--color-surface));
-  box-shadow: var(--focus);
-}
 .file-input {
   display: block;
   border: 1px dashed var(--color-line-strong);
@@ -858,12 +756,6 @@
 .finance-row > .button {
   flex-shrink: 0;
 }
-.delivery-row > div:first-child {
-  max-width: 62%;
-}
-.delivery-row .table-actions {
-  justify-content: flex-end;
-}
 /* No longer needs !important: it was fighting the unscoped `td span{color:muted}` rule, which is
    now `td span:not([class])` and leaves classed spans alone. */
 .overdue-text {
@@ -1025,40 +917,63 @@
 .today-brief-stat{text-align:center}.today-brief-stat strong{display:block;font-size:var(--text-xl);font-weight:var(--weight-semibold)}.today-brief-stat span{display:block;font-size:var(--text-xs);color:var(--color-faint);margin-top:2px}
 @media(max-width:720px){.today-brief{flex-direction:column}.today-brief-stats{border-left:0;border-top:1px solid var(--color-line-soft);padding:var(--space-4) var(--space-6)}}
 .today-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.75fr);gap:var(--space-6)}
-/* Rows are mini-cards, not divider-separated list lines: a tone-coloured left bar (matching the
- * row's own badge) replaces the badge as the at-a-glance urgency signal, so scanning the list for
- * "what's red" doesn't require reading each pill. */
+/* ---- Today redesign: three urgency bands instead of one flat list -------------------------------
+ * Weight, not just colour, separates the bands: Do now gets a heavy 4px border and a tinted
+ * background, Today a lighter 3px border on a plain surface, Later almost no chrome at all -- so the
+ * three read as different levels of urgency even in greyscale, not just "everything is a red pill". */
+.work-queue-band+.work-queue-band{margin-top:var(--space-5)}
+.work-queue-band-label{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:.1em;font-weight:var(--weight-bold);margin:0 0 var(--space-2)}
+.work-queue-band-label-bad{color:var(--color-danger)}
+.work-queue-band-label-warn{color:var(--tone-warn-fg)}
+.work-queue-band-label-faint{color:var(--color-faint)}
 .work-queue{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-2)}
-.work-queue li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);background:var(--color-surface-soft);border-left:3px solid var(--color-line-strong);transition:background var(--motion-fast)}
-.work-queue li:hover{background:var(--color-canvas-deep)}
-.work-queue li.tone-bad{border-left-color:var(--tone-bad-fg)}
-.work-queue li.tone-warn{border-left-color:var(--tone-warn-fg)}
-.work-queue li.tone-info{border-left-color:var(--tone-info-fg)}
-.work-queue li.tone-good{border-left-color:var(--tone-good-fg)}
-.work-queue li.tone-neutral{border-left-color:var(--tone-neutral-fg)}
+.work-queue-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:13px var(--space-4);border-radius:var(--radius-md);border:1px solid transparent;transition:background var(--motion-fast)}
+.work-queue-row.kind-blocked,.work-queue-row.kind-overdue{border-color:var(--tone-bad-border);border-left:4px solid var(--color-danger);background:color-mix(in srgb,var(--color-danger) 7%,var(--color-surface))}
+.work-queue-row.kind-today{border-left:3px solid var(--color-warning);background:var(--color-surface-soft);border-color:var(--color-line-soft)}
+.work-queue-row:hover{background:var(--color-canvas-deep)}
 /* align-items:center (not flex-start) is what keeps the badge vertically centered against its sibling
  * text stack regardless of whether that stack is 2 lines (title+reason) or 3 (title+reason+time) --
- * the same effect `vertical-align:middle` gives badges inside a <td> elsewhere in the app. A fixed
- * `margin-top` nudge used to stand in for this, tuned to the 2-line case only, so it drifted out of
- * alignment on any row that also rendered a <time>. No forced badge min-width either, matching how
- * badges size everywhere else -- this list was the one place fixing it to 78px regardless of label. */
-.work-queue-main{display:flex;align-items:center;gap:var(--space-3);min-width:0}.work-queue-main strong,.work-queue-main p,.work-queue-main time{display:block}.work-queue-main p{margin:2px 0;color:var(--color-muted)}.work-queue-main time{font-size:var(--text-xs);color:var(--color-faint)}
+ * the same effect `vertical-align:middle` gives badges inside a <td> elsewhere in the app. */
+.work-queue-main{display:flex;align-items:center;gap:var(--space-3);min-width:0}.work-queue-main strong,.work-queue-main p{display:block}.work-queue-main p{margin:2px 0;color:var(--color-muted)}
+/* Weight is the signal here: solid fill for Do now (dark bg, light text -- reads as an alert, not a
+ * tag), a tinted outline for Today (present but calmer). Later gets no badge at all -- see below. */
+.work-queue-badge{display:inline-flex;align-items:center;gap:5px;border-radius:var(--radius-xs);padding:4px 8px;font-size:var(--text-2xs);line-height:1.1;font-weight:var(--weight-bold);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
+.work-queue-badge-solid{background:var(--color-danger);color:var(--color-on-accent)}
+.work-queue-badge-outline{background:var(--tone-warn-bg);color:var(--tone-warn-fg);border:1px solid var(--tone-warn-border);text-transform:none;letter-spacing:0;font-weight:var(--weight-semibold);border-radius:var(--radius-pill)}
 /* A grouped row (e.g. "Assign an owner · 6 jobs") is a <details> so it needs to lay out as a block,
- * not the flex row every other .work-queue li uses -- its own <summary> re-creates that flex row
+ * not the flex row every other .work-queue-row uses -- its own <summary> re-creates that flex row
  * internally, badge+text on the left and the expand toggle on the right. */
-.work-queue li.work-queue-group{display:block}
+.work-queue-row.work-queue-group{display:block}
 .work-queue-group summary{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);cursor:pointer;list-style:none}
 .work-queue-group summary::-webkit-details-marker{display:none}
 .work-queue-group-toggle{display:flex;align-items:center;gap:6px;color:var(--color-muted);font-size:var(--text-sm);font-weight:var(--weight-semibold);flex-shrink:0}
 .work-queue-group[open] .work-queue-group-toggle svg{transform:rotate(180deg);transition:transform .15s ease}
 .work-queue-group-list{list-style:none;margin:var(--space-3) 0 0;padding-left:var(--space-8);display:grid;gap:var(--space-2)}
-/* Resets the card treatment .work-queue li sets above -- these nested rows sit inside an
- * already-carded group row, so a second layer of background/border-left would compete with it
- * instead of reading as a sub-list. */
-.work-queue-group-list li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:0;background:transparent;border-left:0;border-radius:0;color:var(--color-muted);font-size:var(--text-sm)}
+/* Resets the card treatment .work-queue-row sets above -- these nested rows sit inside an
+ * already-carded group row, so a second layer of background/border would compete with it instead of
+ * reading as a sub-list. */
+.work-queue-group-list li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:0;background:transparent;border:0;border-radius:0;color:var(--color-muted);font-size:var(--text-sm)}
+/* Later: almost no chrome at all, on purpose -- a dot and two lines of text, so this tier all but
+ * disappears next to the two above it. */
+.work-queue-later{gap:var(--space-1)}
+.work-queue-later-row{display:flex;align-items:center;gap:var(--space-3);padding:8px var(--space-2);border-radius:var(--radius-sm)}
+.work-queue-later-row:hover{background:var(--color-surface-soft)}
+.work-queue-dot{width:7px;height:7px;border-radius:var(--radius-circle);background:var(--color-info);flex:0 0 auto}
+.work-queue-later-main{flex:1;min-width:0;display:flex;align-items:baseline;gap:var(--space-2);flex-wrap:wrap}
+.work-queue-later-main strong{font-size:var(--text-sm)}
+.work-queue-later-main span{color:var(--color-muted);font-size:var(--text-xs)}
 .today-clear{display:flex;gap:var(--space-3);align-items:flex-start;color:var(--color-accent)}.today-clear strong{color:var(--color-ink)}.today-clear p{margin:3px 0 0;color:var(--color-muted)}
-.today-job-list{display:grid;gap:var(--space-2)}.today-job-list>a{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-2);border-radius:var(--radius-md);color:inherit;text-decoration:none;transition:background var(--motion-fast)}.today-job-list>a:hover{background:var(--color-surface-soft)}.today-job-list>a>span{display:flex;gap:var(--space-3);align-items:center}.today-job-list strong,.today-job-list small{display:block}.today-job-list small{margin-top:2px;color:var(--color-muted)}
-.today-job-icon{display:grid;place-items:center;width:32px;height:32px;flex-shrink:0;border-radius:var(--radius-sm);background:var(--color-accent-soft);color:var(--color-accent)}
+/* ---- job list: mini stage bar + health chip, replacing the flat title/subtitle row -------------- */
+.today-job-list{display:grid;gap:var(--space-3)}
+.today-job-row{display:grid;gap:6px;padding:11px var(--space-3);border-radius:var(--radius-md);color:inherit;text-decoration:none;transition:background var(--motion-fast)}
+.today-job-row:hover{background:var(--color-surface-soft)}
+.today-job-row-top{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
+.today-job-row-top strong{font-size:var(--text-sm)}
+.today-job-row>small{color:var(--color-muted)}
+.today-job-chip{display:inline-flex;align-items:center;gap:4px;font-size:var(--text-2xs);font-weight:var(--weight-semibold);padding:2px 7px;border-radius:var(--radius-pill);white-space:nowrap;background:var(--tone-neutral-bg);color:var(--tone-neutral-fg);border:1px solid var(--tone-neutral-border)}
+.today-job-chip.tone-good{background:var(--tone-good-bg);color:var(--tone-good-fg);border-color:var(--tone-good-border)}
+.today-job-chip.tone-warn{background:var(--tone-warn-bg);color:var(--tone-warn-fg);border-color:var(--tone-warn-border)}
+.today-job-chip.tone-bad{background:var(--tone-bad-bg);color:var(--tone-bad-fg);border-color:var(--tone-bad-border)}
 .panel-footer-action{padding-top:var(--space-3)}
 .today-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}.today-shortcuts a{gap:var(--space-3);padding:var(--space-4);border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface);color:inherit;text-decoration:none}.today-shortcuts a:hover{border-color:var(--color-accent)}.today-shortcuts strong,.today-shortcuts small{display:block}.today-shortcuts small{color:var(--color-muted);margin-top:2px}
 
@@ -1075,6 +990,41 @@
  * .kanban already does the right thing (auto-flow column + auto-columns + overflow:auto), and
  * letting it through also un-breaks the 84vw column width in responsive.css. */
 .workflow-kanban{min-height:460px}.workflow-column{min-height:440px}.workflow-candidate-card{padding:0;touch-action:none;overflow:hidden}.workflow-candidate-card.dragging{opacity:.65;box-shadow:var(--shadow-lg);z-index:5}.candidate-card-open{display:grid;grid-template-columns:1fr auto;width:100%;text-align:left;border:0;background:transparent;padding:var(--space-3);color:inherit;cursor:pointer}.candidate-card-open strong,.candidate-card-open span,.candidate-card-open small{grid-column:1}.candidate-card-open svg{grid-column:2;grid-row:1/4;align-self:center;color:var(--color-faint)}.candidate-card-open span,.candidate-card-open small{margin-top:2px;color:var(--color-muted)}.workflow-candidate-card>label{display:block;padding:0 var(--space-3) var(--space-3)}.workflow-candidate-card select{width:100%;font-size:var(--text-xs)}
+
+/* ---- pipeline board redesign: SLA-aware cards, phase-ramp column headers, density toggle --------
+ * `.workflow-kanban` overrides the base `.kanban` auto-flow-column layout with a fixed grid sized to
+ * the actual number of rendered columns (`--kanban-columns`, set inline per job since a job's phase
+ * count varies), falling back to 6 -- the base `.kanban`'s own `overflow-x:auto` still applies as the
+ * narrow-viewport fallback, so a board that doesn't fit still scrolls instead of crushing columns. */
+.workflow-kanban{grid-auto-flow:unset;grid-template-columns:repeat(var(--kanban-columns,6),minmax(186px,1fr));align-items:start}
+/* border-left-width only -- the colour itself is set inline per card from the phase ramp
+ * (`phaseRampColor`), so this stays the one place the 3px thickness is declared. */
+.workflow-candidate-card{border-left-width:3px}
+.workflow-urgency-note{display:flex;align-items:center;gap:6px;font-size:var(--text-2xs);color:var(--color-faint);margin:0 0 var(--space-2)}
+.workflow-column-bar{height:3px;border-radius:var(--radius-pill);margin-bottom:9px}
+.workflow-column-stats{font-size:var(--text-2xs);color:var(--color-faint);margin:3px 0 var(--space-2)}
+.outcome-chip{display:inline-flex;align-items:center;gap:5px;font-size:var(--text-2xs);font-weight:var(--weight-semibold);color:var(--color-muted);background:var(--color-surface);border:1px solid var(--color-line);border-radius:var(--radius-pill);padding:3px 9px}
+.outcome-chip strong{color:var(--color-ink)}
+.outcome-chip-good{color:var(--tone-good-fg);background:var(--tone-good-bg);border-color:var(--tone-good-border)}
+.outcome-chip-good strong{color:inherit}
+/* New candidate-card anatomy: avatar + name + drag grip, role/company line, then a days-in-stage
+ * urgency badge and a consultant-initials chip pushed to the far right with margin-left:auto. */
+.workflow-card-top{display:flex;align-items:center;gap:7px;min-width:0}
+.workflow-card-top strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-base)}
+.workflow-card-avatar{display:grid;place-items:center;width:26px;height:26px;flex:0 0 auto;border-radius:var(--radius-circle);background:var(--color-accent-soft);color:var(--color-accent);font-weight:var(--weight-bold);font-size:var(--text-2xs)}
+.workflow-card-grip{color:var(--color-faint);flex:0 0 auto}
+.workflow-card-role{display:block;font-size:var(--text-xs);color:var(--color-muted);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:6px}
+.workflow-card-bottom{display:flex;align-items:center;gap:6px;margin-top:8px}
+.workflow-days-badge{display:inline-flex;align-items:center;gap:4px;font-size:var(--text-2xs);font-weight:var(--weight-semibold);padding:2px 6px;border-radius:var(--radius-pill);background:var(--tone-neutral-bg);color:var(--tone-neutral-fg);border:1px solid var(--tone-neutral-border)}
+.workflow-days-badge.tone-warn{background:var(--tone-warn-bg);color:var(--tone-warn-fg);border-color:var(--tone-warn-border)}
+.workflow-days-badge.tone-bad{background:var(--tone-bad-bg);color:var(--tone-bad-fg);border-color:var(--tone-bad-border)}
+.workflow-card-owner{margin-left:auto;display:grid;place-items:center;width:20px;height:20px;border-radius:var(--radius-circle);background:var(--color-canvas-deep);color:var(--color-muted);font-size:var(--text-2xs);font-weight:var(--weight-bold);flex:0 0 auto}
+/* Roomy trades card density for breathing room; compact (the default) keeps today's spacing. */
+.workflow-kanban-roomy .workflow-column{padding:14px}
+.workflow-kanban-roomy .candidate-card{margin-bottom:12px}
+.workflow-kanban-roomy .candidate-card-open{padding:14px}
+.workflow-kanban-roomy .workflow-card-role{margin-top:8px}
+.workflow-kanban-roomy .workflow-card-bottom{margin-top:11px}
 .record-overview-grid,.candidate-overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5)}.record-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4);margin:0}.record-summary div{min-width:0}.record-summary .full{grid-column:1/-1}.record-summary dt{font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:.04em}.record-summary dd{margin:4px 0 0;color:var(--color-ink);overflow-wrap:anywhere}.phase-progress{display:grid;gap:var(--space-1);margin:0;padding:0;list-style:none}.phase-progress li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:9px 12px;border:1px solid var(--color-line-soft);border-radius:var(--radius-sm);color:var(--color-muted);font-size:var(--text-sm)}.phase-progress li strong{color:var(--color-faint);font-variant-numeric:tabular-nums}
 /* Three states, so the card answers "where is this job" at a glance: cleared phases the pipeline has
  * moved past, live phases holding candidates now, and untouched phases ahead (the base style). */
@@ -1108,6 +1058,35 @@
 .readiness-chip.tone-bad{border-left-color:var(--tone-bad-fg)}.readiness-chip.tone-bad dd{color:var(--tone-bad-fg)}
 .readiness-chip.tone-warn{border-left-color:var(--tone-warn-fg)}.readiness-chip.tone-warn dd{color:var(--tone-warn-fg)}
 .readiness-chip.tone-info{border-left-color:var(--tone-info-fg)}.readiness-chip.tone-info dd{color:var(--tone-info-fg)}
+
+/* ---- candidate detail redesign: two-tier readiness (act now vs reference) -----------------------
+ * The action band only renders when something is genuinely actionable, so a fully-ready candidate
+ * skips straight to the deprioritized reference strip -- no empty "all clear" card. */
+.readiness-action-band{border:1px solid var(--tone-warn-border);background:var(--tone-warn-bg);border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);margin-bottom:var(--space-3);display:grid;gap:var(--space-3)}
+.readiness-action-band>header{display:flex;align-items:center;gap:var(--space-2);color:var(--tone-warn-fg)}
+.readiness-action-band>header strong{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.1em}
+.readiness-action-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--space-3)}
+.readiness-action-card{display:flex;align-items:center;gap:var(--space-3);background:var(--color-surface);border:1px solid var(--tone-warn-border);border-radius:var(--radius-md);padding:11px 13px}
+.readiness-action-card>div{flex:1;min-width:0}
+.readiness-action-card strong{display:block;font-size:var(--text-sm)}
+.readiness-action-card span{display:block;font-size:var(--text-xs);color:var(--color-muted)}
+.readiness-action-icon{display:grid;place-items:center;width:30px;height:30px;flex:0 0 auto;border-radius:var(--radius-sm);background:var(--tone-warn-bg);color:var(--tone-warn-fg)}
+/* Same facts, deliberately smaller and flatter than the action band above -- no left accent bars, a
+ * quiet status dot standing in for tone instead, so this reads as "for reference" not "check this". */
+.readiness-strip-reference{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0;border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface)}
+.readiness-strip-reference .readiness-chip{border:0;border-right:1px solid var(--color-line-soft);border-radius:0;background:transparent;padding:var(--space-3) var(--space-4)}
+.readiness-strip-reference .readiness-chip:last-child{border-right:0}
+.readiness-strip-reference .readiness-chip dd{display:flex;align-items:center;gap:6px;font-weight:var(--weight-semibold);color:var(--color-ink)}
+.readiness-strip-reference .readiness-chip.tone-good dd::before,.readiness-strip-reference .readiness-chip.tone-bad dd::before,.readiness-strip-reference .readiness-chip.tone-warn dd::before,.readiness-strip-reference .readiness-chip.tone-info dd::before{content:"";width:7px;height:7px;border-radius:var(--radius-circle);flex:0 0 auto}
+.readiness-strip-reference .readiness-chip.tone-good dd{color:var(--color-ink)}
+.readiness-strip-reference .readiness-chip.tone-good dd::before{background:var(--tone-good-fg)}
+.readiness-strip-reference .readiness-chip.tone-bad dd{color:var(--color-ink)}
+.readiness-strip-reference .readiness-chip.tone-bad dd::before{background:var(--tone-bad-fg)}
+.readiness-strip-reference .readiness-chip.tone-warn dd{color:var(--color-ink)}
+.readiness-strip-reference .readiness-chip.tone-warn dd::before{background:var(--tone-warn-fg)}
+.readiness-strip-reference .readiness-chip.tone-info dd{color:var(--color-ink)}
+.readiness-strip-reference .readiness-chip.tone-info dd::before{background:var(--tone-info-fg)}
+@media(max-width:720px){.readiness-strip-reference{grid-template-columns:repeat(2,minmax(0,1fr))}.readiness-strip-reference .readiness-chip{border-right:0;border-bottom:1px solid var(--color-line-soft)}}
 
 /* Overflow menu for the secondary/destructive header actions (Generate profile, Upload CV, Archive).
  * Controlled by React state with a focus-out close; the panel floats over the tab content. */

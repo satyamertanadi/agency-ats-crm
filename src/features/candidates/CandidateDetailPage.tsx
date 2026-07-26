@@ -2,7 +2,7 @@ import {useState,type FocusEvent} from 'react'
 import {useForm} from 'react-hook-form'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {Archive,ArrowLeft,Briefcase,FileSignature,FileText,GraduationCap,Inbox,Languages,Layers3,Mail,MessageSquare,MoreHorizontal,Plus,RotateCcw,Tag,Trash2,Upload,Wrench} from 'lucide-react'
+import {Archive,ArrowLeft,Briefcase,CalendarClock,FileSignature,FileText,GraduationCap,Inbox,Languages,Layers3,Mail,MessageSquare,MoreHorizontal,Plus,RotateCcw,Tag,TriangleAlert,Trash2,Upload,Wrench} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router-dom'
 import type {z} from 'zod'
 import {useOrganization} from '../../app/OrganizationProvider'
@@ -102,6 +102,10 @@ export function CandidateDetailPage(){
    * mid-page panel into a band under the name. Consent borrows tone from the domain status map so
    * this strip cannot drift from how consent is coloured everywhere else. */
   const consentMeta=lookup(consentStatus,privateData?.consent_status||'unknown')
+  const cvMissing=!documents.data?.length
+  const consentExpiresInDays=privateData?.consent_expires_at?Math.ceil((new Date(privateData.consent_expires_at).getTime()-renderedAt)/86_400_000):null
+  const consentNeedsAction=['unknown','withdrawn','expired'].includes(privateData?.consent_status||'unknown')
+  const consentExpiringSoon=!consentNeedsAction&&consentExpiresInDays!=null&&consentExpiresInDays>=0&&consentExpiresInDays<=30
   const readiness:{label:string;value:string;tone:Tone}[]=[
     {label:'Consent',value:consentMeta.label,tone:consentMeta.tone},
     {label:'Contactable',value:candidate.status==='do_not_contact'?'Do not contact':'Yes',tone:candidate.status==='do_not_contact'?'bad':'good'},
@@ -110,6 +114,15 @@ export function CandidateDetailPage(){
     {label:'Expected salary',value:formatSalary(privateData?.expected_salary,privateData?.salary_currency||organization?.base_currency),tone:'neutral'},
     {label:'In pipelines',value:String(pipelineCount),tone:pipelineCount?'info':'neutral'},
   ]
+  /* Only genuinely actionable facts get promoted into the action band -- everything else (including
+   * CV/consent when they're already fine) stays in the reference strip below. Built from the exact
+   * same `readiness` array rather than a second data source, per the redesign handoff. */
+  type ActionItem={key:string;title:string;description:string;cta:string;primary?:boolean;onClick:()=>void}
+  const actionItems:ActionItem[]=[]
+  if(cvMissing)actionItems.push({key:'cv',title:'CV missing',description:'This candidate cannot be submitted to a client without one.',cta:'Upload CV',primary:true,onClick:()=>setCvOpen(true)})
+  if(consentNeedsAction)actionItems.push({key:'consent-status',title:consentMeta.label,description:'Update this candidate’s consent before further outreach.',cta:'Update consent',onClick:startEditing})
+  else if(consentExpiringSoon)actionItems.push({key:'consent-expiring',title:`Consent expires in ${consentExpiresInDays} day${consentExpiresInDays===1?'':'s'}`,description:`Renew before ${formatDate(privateData!.consent_expires_at!)}.`,cta:'Renew',onClick:startEditing})
+  const referenceFacts=readiness.filter((item)=>!((item.label==='CV'&&cvMissing)||(item.label==='Consent'&&(consentNeedsAction||consentExpiringSoon))))
   const closeMenu=(event:FocusEvent<HTMLDivElement>)=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setMenuOpen(false)}
   const runFromMenu=(action:()=>void)=>{setMenuOpen(false);action()}
   /* Every overflow entry is write-gated, so a reader sees no menu button at all rather than one
@@ -141,7 +154,15 @@ export function CandidateDetailPage(){
       </div>
     </header>
     {candidate.deleted_at&&<p className="warning-box">This record is archived and excluded from normal candidate searches.</p>}
-    <dl className="readiness-strip">{readiness.map((item)=><div className={`readiness-chip tone-${item.tone}`} key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>
+    {actionItems.length>0&&<section className="readiness-action-band">
+      <header><TriangleAlert size={15}/><strong>Needs action · {actionItems.length}</strong></header>
+      <div className="readiness-action-grid">{actionItems.map((item)=><div className="readiness-action-card" key={item.key}>
+        <span className="readiness-action-icon">{item.key==='cv'?<Upload size={15}/>:<CalendarClock size={15}/>}</span>
+        <div><strong>{item.title}</strong><span>{item.description}</span></div>
+        <Button size="sm" variant={item.primary?'primary':'secondary'} onClick={item.onClick}>{item.cta}</Button>
+      </div>)}</div>
+    </section>}
+    <dl className="readiness-strip readiness-strip-reference">{referenceFacts.map((item)=><div className={`readiness-chip tone-${item.tone}`} key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>
 
     {/* While editing, the two edit panels take the place of the tab content exactly as before; the
       * tab bar is hidden because switching tabs would not change what is on screen. */}

@@ -29,7 +29,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --project=desktop
+      - run: npm run test:e2e -- --project=desktop --project=mobile
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -85,6 +85,7 @@ jobs:
         run: |
           export SUPABASE_URL=$(supabase status -o json | jq -r .API_URL)
           export SUPABASE_ANON_KEY=$(supabase status -o json | jq -r .ANON_KEY)
+          export SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o json | jq -r .SERVICE_ROLE_KEY)
           npm run test:rls
       - name: Compile and smoke Edge Functions
         shell: bash

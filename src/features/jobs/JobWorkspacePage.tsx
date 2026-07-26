@@ -1,7 +1,7 @@
 import {useRef,useState} from 'react'
 import {DndContext,PointerSensor,useDraggable,useDroppable,useSensor,useSensors,type DragEndEvent} from '@dnd-kit/core'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ArrowLeft,ChevronRight,Layers3,Plus} from 'lucide-react'
+import {ArrowLeft,Clock,GripVertical,Info,Layers3,Plus} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router-dom'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
@@ -9,39 +9,70 @@ import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {addCandidateToJob,getPipeline,listCandidatesPage,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
 import {useStageMove} from '../core/useStageMove'
 import {listTeamMembers,updateJob} from '../core/commercialRepository'
-import type {Job,JobCandidate,JobHealth} from '../../shared/types/domain'
+import type {Job,JobCandidate,JobHealth,TeamMember} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
-import {Badge,Page,Panel,StatusBadge} from '../../shared/ui/Page'
+import {Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {jobPriority,jobStatus,lookup} from '../../shared/lib/status'
 import {BoardSkeleton,ErrorState} from '../../shared/ui/States'
 import {useToast} from '../../shared/ui/Toast'
 import {ActivityFeed} from '../activities/ActivityFeed'
-import {buildPipelineColumns,isOutcomeStage,jobNeedsCandidateAction,resolveStageForColumn,type PipelineColumn} from '../workflow/workflow'
+import {buildPipelineColumns,columnStageStats,daysInStage,isOutcomeStage,jobNeedsCandidateAction,phaseForStage,phaseRampColor,pipelinePhases,resolveStageForColumn,slaTargetDays,stageUrgency,type PipelineColumn} from '../workflow/workflow'
 import {JobCandidatePanel} from './JobCandidatePanel'
 import {PhaseJump} from './PhaseJump'
 import {TaskButton} from '../activities/TaskButton'
 import {formatMoney} from '../../shared/lib/format'
 
 type WorkspaceView='pipeline'|'activity'|'details'
+type Density='compact'|'roomy'
 
-function PhaseColumn({id,label,count,children}:{id:string;label:string;count:number;children:React.ReactNode}){
+const memberInitials=(member?:Pick<TeamMember,'profiles'>|null)=>{
+  const name=member?.profiles?.full_name||member?.profiles?.email||''
+  return name.split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0]?.toUpperCase()||'').join('')||'—'
+}
+
+function PhaseColumn({id,label,count,color,stats,children}:{id:string;label:string;count:number;color:string;stats:{avgDays:number;overTarget:number}|null;children:React.ReactNode}){
   const {setNodeRef,isOver}=useDroppable({id})
-  return <section ref={setNodeRef} data-phase-key={id} className={`kanban-column workflow-column ${isOver?'kanban-over':''}`}><header><strong>{label}</strong><span>{count}</span></header>{children}</section>
+  return <section ref={setNodeRef} data-phase-key={id} className={`kanban-column workflow-column ${isOver?'kanban-over':''}`}>
+    <div className="workflow-column-bar" style={{background:color}}/>
+    <header><strong>{label}</strong><span>{count}</span></header>
+    <p className="workflow-column-stats">{stats?`avg ${stats.avgDays}d · ${stats.overTarget?`${stats.overTarget} over target`:'on target'}`:'No candidates'}</p>
+    {children}
+  </section>
 }
 
 /* `columnKey` is the key of the column this card is rendered inside, handed down rather than
  * re-derived here. That is deliberate: deriving it twice is exactly how the board came to show a
  * candidate under Interview whose dropdown read "Sourcing". */
-function CandidateCard({item,columnKey,onOpen,onMove,targets,canMove}:{item:JobCandidate;columnKey:string;onOpen:()=>void;onMove:(columnKey:string)=>void;targets:Array<{key:string;label:string}>;canMove:boolean}){
+function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,targets,canMove}:{item:JobCandidate;columnKey:string;columnColor:string;now:Date;members:TeamMember[];onOpen:()=>void;onMove:(columnKey:string)=>void;targets:Array<{key:string;label:string}>;canMove:boolean}){
   const {attributes,listeners,setNodeRef,transform,isDragging}=useDraggable({id:item.id,data:{stageId:item.current_stage_id}})
-  const style=transform?{transform:`translate3d(${transform.x}px, ${transform.y}px, 0)`}:undefined
-  return <article ref={setNodeRef} style={style} className={`candidate-card workflow-candidate-card ${isDragging?'dragging':''}`} {...(canMove?listeners:{})} {...attributes}><button className="candidate-card-open" onPointerDown={(event)=>event.stopPropagation()} onClick={onOpen}><strong>{item.candidates?.full_name}</strong><span>{item.candidates?.current_position||'Role not recorded'}</span><small>{item.candidates?.current_company||item.candidates?.location||'Profile needs review'}</small><ChevronRight size={15}/></button>{canMove&&<label onPointerDown={(event)=>event.stopPropagation()}><span className="sr-only">Move {item.candidates?.full_name}</span><Select aria-label={`Move ${item.candidates?.full_name}`} value={columnKey} onChange={(event)=>onMove(event.target.value)}>{targets.map((target)=><option value={target.key} key={target.key}>{target.label}</option>)}</Select></label>}</article>
+  const style={borderLeftColor:columnColor,...(transform?{transform:`translate3d(${transform.x}px, ${transform.y}px, 0)`}:{})}
+  const name=item.candidates?.full_name||'Candidate'
+  const initials=name.split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0]?.toUpperCase()||'').join('')||'?'
+  const days=item.pipeline_stages?daysInStage(item,now):0
+  const targetDays=item.pipeline_stages?slaTargetDays[phaseForStage(item.pipeline_stages)]??7:7
+  const urgency=stageUrgency(days,targetDays)
+  const owner=members.find((member)=>member.id===item.candidates?.owner_member_id)
+  return <article ref={setNodeRef} style={style} className={`candidate-card workflow-candidate-card ${isDragging?'dragging':''}`} {...(canMove?listeners:{})} {...attributes}>
+    <button className="candidate-card-open" onPointerDown={(event)=>event.stopPropagation()} onClick={onOpen}>
+      <span className="workflow-card-top">
+        <span className="workflow-card-avatar" aria-hidden="true">{initials}</span>
+        <strong>{name}</strong>
+        <GripVertical size={13} className="workflow-card-grip" aria-hidden="true"/>
+      </span>
+      <span className="workflow-card-role">{item.candidates?.current_position||'Role not recorded'}{item.candidates?.current_company?` · ${item.candidates.current_company}`:''}</span>
+      <span className="workflow-card-bottom">
+        <span className={`workflow-days-badge tone-${urgency}`}><Clock size={10}/>{days}d</span>
+        <span className="workflow-card-owner" aria-hidden="true">{memberInitials(owner)}</span>
+      </span>
+    </button>
+    {canMove&&<label onPointerDown={(event)=>event.stopPropagation()}><span className="sr-only">Move {name}</span><Select aria-label={`Move ${name}`} value={columnKey} onChange={(event)=>onMove(event.target.value)}>{targets.map((target)=><option value={target.key} key={target.key}>{target.label}</option>)}</Select></label>}
+  </article>
 }
 
 export function JobWorkspacePage(){
-  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [candidateId,setCandidateId]=useState('');const [detailed,setDetailed]=useState(false);const [editOpen,setEditOpen]=useState(false)
+  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [candidateId,setCandidateId]=useState('');const [detailed,setDetailed]=useState(false);const [editOpen,setEditOpen]=useState(false);const [density,setDensity]=useState<Density>('compact')
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)});const job=jobs.data?.find((item)=>item.id===jobId)
   const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const candidates=useQuery({queryKey:['job-add-candidates',organization?.id],enabled:Boolean(organization&&addOpen),queryFn:()=>listCandidatesPage(organization!.id,{},0,100)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
   const interviews=useQuery({queryKey:['interviews',organization?.id],enabled:Boolean(organization),queryFn:()=>listInterviews(organization!.id)});const offers=useQuery({queryKey:['offers',organization?.id],enabled:Boolean(organization),queryFn:()=>listOffers(organization!.id)});const placements=useQuery({queryKey:['placements',organization?.id],enabled:Boolean(organization),queryFn:()=>listPlacements(organization!.id)});const packages=useQuery({queryKey:['submissions',organization?.id],enabled:Boolean(organization),queryFn:()=>listSubmissionPackages(organization!.id)});const members=useQuery({queryKey:['members',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
@@ -56,6 +87,13 @@ export function JobWorkspacePage(){
   const view=(params.get('view') as WorkspaceView)||'pipeline';const selected=pipeline.data!.items.find((item)=>item.id===params.get('candidate'))||null;const outcomeStages=pipeline.data!.stages.filter(isOutcomeStage)
   const columns=buildPipelineColumns(pipeline.data!.stages,detailed)
   const targets=columns.map((column)=>({key:column.key,label:column.label}))
+  // Placed reads as a terminal outcome, same register as Rejected/Withdrawn/On hold, so it moves to
+  // the counter row rather than sitting as a seventh draggable column. `targets` above stays
+  // unfiltered so "Placed" remains a valid move destination in each card's stage dropdown.
+  const boardColumns=columns.filter((column)=>!column.stages.every((stage)=>stage.stage_type==='placed'))
+  const placedCount=pipeline.data!.items.filter((item)=>item.pipeline_stages?.stage_type==='placed').length
+  const now=new Date()
+  const urgencyLegend=pipelinePhases.filter((phase)=>phase.key!=='placed').map((phase)=>`${phase.label} ${slaTargetDays[phase.key]}d`).join(' · ')
   const moveToColumn=(item:JobCandidate,columnKey:string)=>{const stageId=resolveStageForColumn(columns,columnKey,item.current_stage_id);if(stageId)move.mutate({itemId:item.id,stageId,name:item.candidates?.full_name,label:columns.find((column)=>column.key===columnKey)?.label||'the next phase'})}
   // Drops resolve through the same model as the dropdown, so a drag cannot land a candidate somewhere
   // the card would then contradict -- and dropping back into the column you came from is a no-op.
@@ -66,7 +104,34 @@ export function JobWorkspacePage(){
   const jobHealth=health.data?.find((item)=>item.id===jobId)
   return <Page title={job.title} eyebrow={job.companies?.name||'Client job'} description="Pipeline, client review, interviews, offers, and placement in one workspace." metadata={<div className="record-metadata"><StatusBadge map={jobStatus} value={job.status}/><StatusBadge map={jobPriority} value={job.priority}/>{job.location&&<span>{job.location}</span>}{jobHealth&&<span>{jobHealth.days_open} days open · {formatMoney(jobHealth.expected_fee,jobHealth.currency)} fee</span>}</div>} actions={<><Link className="button button-quiet" to={`/app/${organization!.slug}/jobs`}><ArrowLeft size={14}/>Jobs</Link><TaskButton linkType="job" linkId={jobId}/>{next&&canRecruit&&<Button leadingIcon={<Plus size={14}/>} onClick={()=>setAddOpen(true)}>{next.label}</Button>}</>} tabs={<nav className="record-tabs" aria-label="Job workspace views"><button className={view==='pipeline'?'active':''} onClick={()=>setView('pipeline')}>Pipeline</button><button className={view==='activity'?'active':''} onClick={()=>setView('activity')}>Activity</button><button className={view==='details'?'active':''} onClick={()=>setView('details')}>Details</button></nav>}>
     {job.status!=='open'&&<p className="warning-box">This job is {lookup(jobStatus,job.status).label.toLowerCase()}. Recruitment actions are read-only until it is reopened.</p>}
-    {view==='pipeline'&&<><div className="workflow-toolbar"><div><strong>{pipeline.data!.items.length} candidates</strong><span>Move candidates between phases, then open a card for the next action.</span></div><div className="table-actions"><label className="detail-toggle"><input type="checkbox" checked={detailed} onChange={(event)=>setDetailed(event.target.checked)}/><Layers3 size={15}/>Detailed stages</label>{canRecruit&&<Button variant="secondary" leadingIcon={<Plus size={14}/>} onClick={()=>setAddOpen(true)}>Add candidates</Button>}</div></div>{outcomeStages.length>0&&<div className="outcome-summary">{outcomeStages.map((stage)=><Badge key={stage.id}>{stage.name}: {pipeline.data!.items.filter((item)=>item.current_stage_id===stage.id).length}</Badge>)}</div>}<Panel padding="sm"><PhaseJump containerRef={boardRef} columns={columns.map((column)=>({key:column.key,label:column.label,count:pipeline.data!.items.filter((item)=>column.stages.some((stage)=>stage.id===item.current_stage_id)).length}))}/><DndContext sensors={sensors} onDragEnd={onDragEnd}><div ref={boardRef} className={`kanban workflow-kanban ${detailed?'workflow-kanban-detailed':''}`}>{columns.map((column)=>{const stageIds=new Set(column.stages.map((stage)=>stage.id));const items=pipeline.data!.items.filter((item)=>stageIds.has(item.current_stage_id));return <PhaseColumn id={column.key} label={column.label} count={items.length} key={column.key}>{items.map((item)=><CandidateCard item={item} key={item.id} columnKey={column.key} onOpen={()=>openCandidate(item)} onMove={(columnKey)=>moveToColumn(item,columnKey)} targets={targets} canMove={canRecruit}/>)}</PhaseColumn>})}</div></DndContext></Panel></>}
+    {view==='pipeline'&&<>
+      <div className="workflow-toolbar">
+        <div><strong>{pipeline.data!.items.length} in pipeline</strong><span>Move candidates between phases, then open a card for the next action.</span></div>
+        <div className="table-actions">
+          {(outcomeStages.length>0||placedCount>0)&&<div className="outcome-summary">
+            {outcomeStages.map((stage)=><span className="outcome-chip" key={stage.id}>{stage.name} <strong>{pipeline.data!.items.filter((item)=>item.current_stage_id===stage.id).length}</strong></span>)}
+            {placedCount>0&&<span className="outcome-chip outcome-chip-good">Placed <strong>{placedCount}</strong></span>}
+          </div>}
+          <div className="segmented-control" role="group" aria-label="Card density"><button type="button" className={density==='compact'?'active':''} onClick={()=>setDensity('compact')}>Compact</button><button type="button" className={density==='roomy'?'active':''} onClick={()=>setDensity('roomy')}>Roomy</button></div>
+          <label className="detail-toggle"><input type="checkbox" checked={detailed} onChange={(event)=>setDetailed(event.target.checked)}/><Layers3 size={15}/>Detailed stages</label>
+          {canRecruit&&<Button variant="secondary" leadingIcon={<Plus size={14}/>} onClick={()=>setAddOpen(true)}>Add candidates</Button>}
+        </div>
+      </div>
+      <p className="workflow-urgency-note"><Info size={12}/>Urgency is days in the current stage against that stage's target — {urgencyLegend}.</p>
+      <Panel padding="sm">
+        <PhaseJump containerRef={boardRef} columns={boardColumns.map((column)=>({key:column.key,label:column.label,count:pipeline.data!.items.filter((item)=>column.stages.some((stage)=>stage.id===item.current_stage_id)).length}))}/>
+        <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+          <div ref={boardRef} className={`kanban workflow-kanban workflow-kanban-${density} ${detailed?'workflow-kanban-detailed':''}`} style={{'--kanban-columns':boardColumns.length} as React.CSSProperties}>
+            {boardColumns.map((column)=>{
+              const stageIds=new Set(column.stages.map((stage)=>stage.id));const items=pipeline.data!.items.filter((item)=>stageIds.has(item.current_stage_id))
+              const color=column.stages[0]?phaseRampColor[phaseForStage(column.stages[0])]:'var(--color-faint)'
+              const stats=columnStageStats(column,pipeline.data!.items,now)
+              return <PhaseColumn id={column.key} label={column.label} count={items.length} color={color} stats={stats} key={column.key}>{items.map((item)=><CandidateCard item={item} key={item.id} columnKey={column.key} columnColor={color} now={now} members={members.data||[]} onOpen={()=>openCandidate(item)} onMove={(columnKey)=>moveToColumn(item,columnKey)} targets={targets} canMove={canRecruit}/>)}</PhaseColumn>
+            })}
+          </div>
+        </DndContext>
+      </Panel>
+    </>}
     {view==='activity'&&<ActivityFeed links={[{job_id:jobId}]} title="Job activity" subtitle="Calls, client updates, submissions, feedback, and stage movement in one history." readOnly={capabilities.data?.readOnly}/>}
     {view==='details'&&<JobDetails job={job} health={jobHealth} members={members.data||[]} phases={buildPipelineColumns(pipeline.data!.stages,false)} items={pipeline.data!.items} onEdit={capabilities.data?.canWriteJobs?()=>setEditOpen(true):undefined}/>}
     <Modal title="Add candidate to job" open={addOpen} onClose={()=>setAddOpen(false)}><div className="stack"><Field label="Candidate"><Select value={candidateId} onChange={(event)=>setCandidateId(event.target.value)}><option value="">Select candidate</option>{candidates.data?.rows.filter((candidate)=>!pipeline.data!.items.some((item)=>item.candidate_id===candidate.id)).map((candidate)=><option value={candidate.id} key={candidate.id}>{candidate.full_name} · {candidate.current_position||'Profile'}</option>)}</Select></Field>{add.error&&<p className="form-error" role="alert">{add.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={()=>setAddOpen(false)}>Cancel</Button><Button disabled={!candidateId||add.isPending} onClick={()=>add.mutate()}>Add candidate</Button></div></div></Modal>
