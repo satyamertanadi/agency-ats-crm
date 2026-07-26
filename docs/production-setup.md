@@ -8,7 +8,7 @@ Use separate staging and production accounts/projects. Never copy local seed dat
 2. Apply migrations through the approved release pipeline. Do not run `supabase/seed.sql` remotely.
 3. Enable Google Auth, disable public email/password signup, and set exact HTTPS site/redirect URLs.
 4. Create private `candidate-documents` storage and verify its RLS policies.
-5. Deploy Edge Functions from `supabase/functions`; set `APP_ORIGIN`, `ENVIRONMENT`, `EMAIL_FROM`, `RESEND_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALENDAR_REDIRECT_URI`, and a randomly generated `CALENDAR_TOKEN_ENCRYPTION_KEY`.
+5. Deploy Edge Functions from `supabase/functions`; set `APP_ORIGIN`, `ENVIRONMENT`, `EMAIL_FROM`, `RESEND_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALENDAR_REDIRECT_URI`, and a randomly generated `CALENDAR_TOKEN_ENCRYPTION_KEY`. Leave the optional `CALENDAR_TOKEN_ENCRYPTION_KEY_VERSION`/`_PREVIOUS`/`_PREVIOUS_VERSION` unset until an actual key rotation -- see "Rotating the Calendar token encryption key" in `docs/runbooks.md`.
 6. Provision the first organization and owner through an audited administrative process, then invite five consultants and the named support administrator.
 
 ## Google

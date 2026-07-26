@@ -10,6 +10,17 @@ Offboarding: suspend first to remove database access immediately, transfer owned
 
 The interview remains authoritative in the ATS. Confirm `calendar_sync_status` and request ID without copying attendees or candidate data into a ticket. Ask the organizer to reconnect in Settings, then retry. If Google is unavailable, continue scheduling in the ATS and communicate invitations manually; do not repeatedly create replacement interviews. After recovery, retry the original record and confirm its deterministic event ID prevents duplicates.
 
+## Rotating the Calendar token encryption key
+
+Stored Google refresh tokens are encrypted with `CALENDAR_TOKEN_ENCRYPTION_KEY`, versioned so a rotation cannot destroy every stored token (the wire format used to carry no key identifier at all). A deployment that has never rotated needs no configuration beyond the one key; the steps below only apply when actually rotating it.
+
+1. Choose a new key and a new version label (any string, distinct from every label ever used before; must not contain a literal `.`). If this is the organization's first rotation, the existing label is implicitly `1`.
+2. Set `CALENDAR_TOKEN_ENCRYPTION_KEY_PREVIOUS` to the current (soon-to-be-old) key value, and `CALENDAR_TOKEN_ENCRYPTION_KEY_PREVIOUS_VERSION` to its current label (`1` if this is the first rotation).
+3. Set `CALENDAR_TOKEN_ENCRYPTION_KEY` to the new key value, and `CALENDAR_TOKEN_ENCRYPTION_KEY_VERSION` to the new label. Deploy all four together in one Function secrets update -- new writes take the new key immediately, and every existing row keeps decrypting via the previous key in the same deploy.
+4. Confirm in staging first: connect a test Google Calendar account before rotating, rotate, then reconnect/sync and verify the pre-rotation connection still syncs (proves the previous-key path) and a fresh connection round-trips under the new key.
+5. Existing connections re-encrypt under the new key automatically the next time their token is refreshed (every `calendar-sync` refresh calls `encryptSecret` again); nothing needs to be backfilled by hand.
+6. Once confident every stored token predates the rotation by less than a refresh cycle (or after force-disconnecting and asking affected users to reconnect), remove `CALENDAR_TOKEN_ENCRYPTION_KEY_PREVIOUS` and `CALENDAR_TOKEN_ENCRYPTION_KEY_PREVIOUS_VERSION`. Until then, leave them set -- removing them early makes any row still under the old key permanently undecryptable again.
+
 ## Email provider outage
 
 Do not expose a raw invitation or review token in chat. Confirm the ATS delivery record and provider status, pause bulk retries, and use resend after recovery. If an urgent client package must be delivered outside the system, owner approval and a secure approved channel are required; record the exception and revoke the unused ATS link.
