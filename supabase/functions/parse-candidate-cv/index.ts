@@ -126,8 +126,25 @@ async function cleanup(request:Request,requestID:string){
   const paths=(data||[]).map((row)=>row.storage_path)
   if(paths.length)await admin.storage.from(bucket).remove(paths)
   if(data?.length)await admin.from('candidate_cv_parses').update({status:'expired',extracted_data:null,field_evidence:{},uncertainties:[],error_code:null,error_message:null}).in('id',data.map((row)=>row.id))
-  log('info','candidate_cv_parse_cleanup_completed',{requestId:requestID,count:data?.length||0})
-  return json(request,{expired:data?.length||0,requestId:requestID})
+
+  // submission_link_events / referral_link_events back the public rate limiters in
+  // resolve_submission_link, submit_submission_feedback, resolve_referral_link, and submit_referral,
+  // which only ever look back one hour -- nothing reads a row past that horizon, and there is no
+  // other reaper for either table. The audit trail that actually matters (last_accessed_at on
+  // public_submission_links / referral_links) is preserved separately, so this is pure rate-limit
+  // bookkeeping, not history. Seven days is generous headroom for investigating a recent abuse spike
+  // without letting either table grow without bound. Reuses this hourly worker rather than adding a
+  // new cron, matching WORKER_SECRET's existing scope.
+  const eventCutoff=new Date(Date.now()-7*24*60*60*1000).toISOString()
+  const [submissionEvents,referralEvents]=await Promise.all([
+    admin.from('submission_link_events').delete({count:'exact'}).lt('occurred_at',eventCutoff),
+    admin.from('referral_link_events').delete({count:'exact'}).lt('occurred_at',eventCutoff),
+  ])
+  if(submissionEvents.error)throw submissionEvents.error
+  if(referralEvents.error)throw referralEvents.error
+
+  log('info','candidate_cv_parse_cleanup_completed',{requestId:requestID,count:data?.length||0,submissionEventsDeleted:submissionEvents.count||0,referralEventsDeleted:referralEvents.count||0})
+  return json(request,{expired:data?.length||0,submissionEventsDeleted:submissionEvents.count||0,referralEventsDeleted:referralEvents.count||0,requestId:requestID})
 }
 
 async function ownParse(context:Context,organizationId:string,parseId:string){

@@ -1,3 +1,7 @@
+# Despite the name, this job's single POST also reaps stale rows from submission_link_events and
+# referral_link_events (the public rate-limiter tables) -- see the cleanup() function in
+# parse-candidate-cv/index.ts. Reusing this existing hourly worker rather than adding a second cron
+# for what is a one-line addition to the same request.
 name: CV parse draft cleanup
 
 on:
