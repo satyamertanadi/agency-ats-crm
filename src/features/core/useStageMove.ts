@@ -5,7 +5,17 @@ import {useToast} from '../../shared/ui/Toast'
 type PipelineData=Awaited<ReturnType<typeof getPipeline>>
 // `name` and `label` ride along purely so the confirmation can say what moved and where, without
 // the mutation having to look either up again from a cache it may already have rewritten.
-export interface StageMoveInput {itemId:string;stageId:string;name?:string;label:string}
+export interface StageMoveInput {
+  itemId:string;stageId:string;name?:string;label:string
+  /* The reason, for the moves that have one. Reaches stage_history.note and becomes the activity-feed
+   * summary in place of the generated "Moved from X to Y". */
+  note?:string
+  source?:string
+  /* Where the card came from. Present only when the caller can name it, which is what makes Undo
+   * possible: a move is reversible by definition, so a rejection that turns out to be the wrong card
+   * should not need the outcomes drawer to walk back. */
+  undo?:{stageId:string;label:string}
+}
 
 /* Optimistic stage movement, shared by both boards.
  *
@@ -19,8 +29,8 @@ export interface StageMoveInput {itemId:string;stageId:string;name?:string;label
  */
 export function useStageMove(jobId:string,onSettled?:()=>Promise<unknown>){
   const cache=useQueryClient();const toast=useToast()
-  return useMutation({
-    mutationFn:({itemId,stageId}:StageMoveInput)=>moveCandidate(itemId,stageId),
+  const mutation=useMutation({
+    mutationFn:({itemId,stageId,note,source}:StageMoveInput)=>moveCandidate(itemId,stageId,{note,source}),
     onMutate:async({itemId,stageId})=>{
       // Stops an in-flight refetch from landing on top of the optimistic write and undoing it
       // mid-drag.
@@ -39,9 +49,15 @@ export function useStageMove(jobId:string,onSettled?:()=>Promise<unknown>){
       if(context?.previous)cache.setQueryData(['pipeline',jobId],context.previous)
       toast.error(error,'The card was returned to its previous phase.')
     },
-    onSuccess:(_data,{name,label})=>toast.success(`${name||'Candidate'} moved to ${label}.`),
+    /* Undo replays the same mutation backwards rather than calling a special "reinstate" path, so the
+     * reversal goes through the same permission check, writes its own stage_history row, and shows up
+     * in the feed as what it is -- a second move. It carries no `undo` of its own: offering to undo an
+     * undo turns one misclick into an unbounded loop of toasts. */
+    onSuccess:(_data,{itemId,name,label,undo})=>toast.success(`${name||'Candidate'} moved to ${label}.`,undefined,
+      undo?{label:'Undo',onClick:()=>mutation.mutate({itemId,stageId:undo.stageId,name,label:undo.label,source:'undo'})}:undefined),
     // Settled, not success: a rollback still has to resync against the server, because the failure
     // may have been a stage the board no longer has rather than a transient network error.
     onSettled:()=>onSettled?onSettled():cache.invalidateQueries({queryKey:['pipeline',jobId]}),
   })
+  return mutation
 }
