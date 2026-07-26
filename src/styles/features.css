@@ -51,96 +51,10 @@
 .kpi-alert {
   border-color: var(--tone-bad-border);
 }
-.dashboard-grid,
 .two-column {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-4);
-}
-.dashboard-hero {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-6);
-  overflow: hidden;
-  padding: 24px 26px;
-  border-radius: var(--radius-lg);
-  background:
-    radial-gradient(circle at 90% 0, color-mix(in srgb, var(--color-accent-on-dark) 22%, transparent), transparent 35%),
-    linear-gradient(135deg, var(--color-slate), var(--color-slate-deep));
-  color: var(--color-sidebar-text);
-  box-shadow: var(--shadow-md);
-}
-.dashboard-hero::after {
-  content: "";
-  position: absolute;
-  right: -70px;
-  bottom: -100px;
-  width: 260px;
-  height: 260px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-circle);
-  box-shadow: 0 0 0 38px rgba(255, 255, 255, 0.025);
-}
-.dashboard-hero h2 {
-  font-family: var(--font-editorial);
-  font-weight: var(--weight-medium);
-  font-size: var(--text-3xl);
-  line-height: 1.1;
-  margin: 5px 0;
-}
-.dashboard-hero > div > p:last-child {
-  color: var(--color-on-dark-muted);
-  font-size: var(--text-sm);
-  margin: 0;
-}
-.dashboard-hero .eyebrow {
-  color: var(--color-accent-on-dark);
-}
-.dashboard-hero-actions {
-  display: flex;
-  gap: var(--space-2);
-  position: relative;
-  z-index: 1;
-}
-.dashboard-clear {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 22px;
-}
-.dashboard-clear > span {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-circle);
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
-  font-weight: var(--weight-semibold);
-}
-.dashboard-clear p {
-  margin: 3px 0 0;
-  color: var(--color-muted);
-  font-size: var(--text-sm);
-}
-.kpi-grid-muted .kpi {
-  opacity: 0.72;
-}
-.kpi-grid-muted .kpi::after {
-  opacity: 0.2;
-}
-.kpi-grid-muted .kpi strong {
-  color: var(--color-muted);
-  font-weight: var(--weight-medium);
-}
-.kpi-grid-muted .kpi-alert {
-  opacity: 1;
-}
-.kpi-grid-muted .kpi-alert strong {
-  color: inherit;
-  font-weight: var(--weight-semibold);
 }
 .setup-checklist .panel-body {
   padding: 0;
@@ -208,11 +122,6 @@
 .setup-step-blocked .setup-step-marker {
   color: var(--color-muted);
   background: var(--color-surface-soft);
-}
-.dashboard-hero-setup {
-  background:
-    radial-gradient(circle at 90% 0, color-mix(in srgb, var(--color-accent-on-dark) 28%, transparent), transparent 38%),
-    linear-gradient(135deg, var(--color-slate-lift), var(--color-slate-deep));
 }
 .activity-form {
   padding: 16px 18px;
@@ -668,17 +577,6 @@
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
 }
-.submission-editor {
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  margin: 8px 0;
-  background: var(--color-surface);
-}
-.submission-editor.selected {
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent-soft) 35%, var(--color-surface));
-  box-shadow: var(--focus);
-}
 .file-input {
   display: block;
   border: 1px dashed var(--color-line-strong);
@@ -857,12 +755,6 @@
 .finance-row > .badge,
 .finance-row > .button {
   flex-shrink: 0;
-}
-.delivery-row > div:first-child {
-  max-width: 62%;
-}
-.delivery-row .table-actions {
-  justify-content: flex-end;
 }
 /* No longer needs !important: it was fighting the unscoped `td span{color:muted}` rule, which is
    now `td span:not([class])` and leaves classed spans alone. */

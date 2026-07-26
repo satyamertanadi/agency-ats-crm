@@ -17,5 +17,5 @@
  *
  * 'Recruitment workspace' over 'Consultant workspace' names the domain rather than the seat: it is
  * still true when an admin or a researcher is the one looking at it. */
-export const workspaceSubtitle=({simplified,readOnly}:{simplified:boolean;readOnly?:boolean})=>
-  readOnly?'Read-only workspace':simplified?'Recruitment workspace':'Agency operations'
+export const workspaceSubtitle=({readOnly}:{readOnly?:boolean}={})=>
+  readOnly?'Read-only workspace':'Recruitment workspace'

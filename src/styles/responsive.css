@@ -63,13 +63,8 @@
   .page-actions > .button {
     flex: 1;
   }
-  .dashboard-grid,
   .two-column {
     grid-template-columns: 1fr;
-  }
-  .dashboard-hero {
-    align-items: flex-start;
-    flex-direction: column;
   }
   .form-grid {
     grid-template-columns: 1fr;
@@ -97,15 +92,6 @@
    * static element does nothing -- it was left behind when the sticky went. */
   .toolbar {
     overflow-x: auto;
-  }
-  .delivery-row {
-    display: grid;
-  }
-  .delivery-row > div:first-child {
-    max-width: none;
-  }
-  .delivery-row .table-actions {
-    justify-content: flex-start;
   }
   .date-range {
     width: 100%;
