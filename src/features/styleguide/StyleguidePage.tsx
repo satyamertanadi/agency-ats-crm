@@ -1,10 +1,17 @@
-import {useState} from 'react'
-import {BriefcaseBusiness,Plus,Search,Trash2} from 'lucide-react'
+import {useEffect,useState} from 'react'
+import {ChevronDown,Plus,Search,Trash2} from 'lucide-react'
 import {Avatar} from '../../shared/ui/Avatar'
 import {Button} from '../../shared/ui/Button'
-import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
+import {Callout} from '../../shared/ui/Callout'
+import {Checkbox,Field,Input,Radio,Select,Textarea} from '../../shared/ui/Field'
+import {Combobox} from '../../shared/ui/Combobox'
+import {KpiGrid,KpiTile} from '../../shared/ui/KpiTile'
+import {Menu} from '../../shared/ui/Menu'
 import {Badge,Page,Panel} from '../../shared/ui/Page'
+import {Pagination} from '../../shared/ui/Pagination'
+import {SegmentedControl} from '../../shared/ui/SegmentedControl'
 import {Table} from '../../shared/ui/Table'
+import {TabPanel,Tabs,useTabsId} from '../../shared/ui/Tabs'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
 import {ReviewCandidate,ReviewHeader} from '../submissions/PublicReviewPage'
 import type {PublicReview,PublicSubmission} from '../../shared/types/domain'
@@ -67,13 +74,30 @@ function Section({id,title,note,children}:{id:string;title:string;note?:string;c
   </section>
 }
 
+const SG_TABS=[{id:'overview',label:'Overview'},{id:'profile',label:'Profile'},{id:'activity',label:'Activity'}] as const
+const SG_SKILLS=[{id:'1',label:'React',detail:'12 candidates'},{id:'2',label:'React Native',detail:'3 candidates'},{id:'3',label:'Rust',detail:'1 candidate'},{id:'4',label:'Go',detail:'6 candidates'}]
+
 export function StyleguidePage(){
-  const [tab,setTab]=useState('all')
+  const [tab,setTab]=useState<typeof SG_TABS[number]['id']>('overview')
+  const [scope,setScope]=useState<'all'|'mine'>('all')
+  const [view,setView]=useState<'list'|'board'>('list')
+  const [density,setDensity]=useState<'compact'|'roomy'>('compact')
+  const [skill,setSkill]=useState('')
+  const [page,setPage]=useState(0)
+  const sgTabsId=useTabsId()
+  /* The theme with the most token surface area (~40 overrides under [data-theme='dark']) had no
+   * specimen at all -- you had to set the attribute by hand to see any of it. This toggles the same
+   * attribute the product's own theme switch writes, so what renders here is what ships. */
+  const [theme,setTheme]=useState<'light'|'dark'>(()=>document.documentElement.dataset.theme==='dark'?'dark':'light')
+  useEffect(()=>{document.documentElement.dataset.theme=theme},[theme])
   return <div className="sg">
     <header className="sg-masthead">
       <p className="eyebrow">Design system</p>
       <h1>Agency ATS specimen</h1>
       <p>Every primitive, rendered from the real components. Dev-only — never shipped.</p>
+      <div className="sg-row" style={{marginTop:'var(--space-4)'}}>
+        <SegmentedControl options={[{id:'light',label:'Light'},{id:'dark',label:'Dark'}]} value={theme} onChange={setTheme} label="Specimen theme"/>
+      </div>
     </header>
 
     <Section id="type-scale" title="Type scale" note="Bottom rungs step 1px linearly; top rungs step modularly. Serif is display-only — nothing at --text-md or below uses it.">
@@ -181,20 +205,78 @@ export function StyleguidePage(){
     </Section>
 
     <Section id="page-header" title="Page header" note="The eyebrow -> h1 -> description ramp. This is the ratio being fixed.">
+      {/* Page's tabs slot now takes a real Tabs strip. No TabPanel: this scope switch filters the
+          content below it rather than swapping panels, which is the navigation-only case Tabs supports
+          by omitting the id. */}
       <div className="sg-inset">
         <Page title="Candidates" eyebrow="Talent database" description="Search, own, document, detect duplicates, and manage candidate relationships before or after a vacancy exists."
           metadata={<><Badge tone="neutral">40 candidates</Badge><Badge tone="info">2 duplicates</Badge></>}
           actions={<><Button variant="secondary">Import</Button><Button leadingIcon={<Plus size={14}/>}>Add candidate</Button></>}
-          tabs={<><button className={tab==='all'?'active':''} onClick={()=>setTab('all')}>All</button><button className={tab==='mine'?'active':''} onClick={()=>setTab('mine')}>Mine</button></>}>
+          tabs={<Tabs items={[{id:'all',label:'All'},{id:'mine',label:'Mine'}]} value={scope} onChange={setScope} label="Candidate scope"/>}>
           <Panel><div className="sg-pad">Page content sits here.</div></Panel>
         </Page>
       </div>
     </Section>
 
-    <Section id="kpi" title="KPI grid" note="Six-up. Watch the label width at --tracking-caps.">
-      <div className="kpi-grid">
-        {[['Active vacancies','12'],['Candidates','40'],['Overdue actions','3'],['Interviews / 7d','5'],['Offers in progress','2'],['Placement fees / YTD','IDR 512.5M']].map(([label,value],i)=>
-          <div className={`kpi ${i===2?'kpi-alert':''}`} key={label}><span><BriefcaseBusiness/></span><div><p>{label}</p><strong>{value}</strong></div></div>)}
+    {/* Five, not six, and without the icon slot: the grid is auto-fit so any count fills the row, and
+        the previous six-up-with-icons specimen showed a treatment no product page used -- which is
+        how a specimen stops being evidence. */}
+    <Section id="kpi" title="KPI tiles" note="KpiGrid is auto-fit: five tiles fill the row, and a sixth or seventh reflows rather than overflowing. 'alert' tone is for a number that is a problem when non-zero.">
+      <KpiGrid>
+        <KpiTile label="Active vacancies" value="12"/>
+        <KpiTile label="Candidates" value="40"/>
+        <KpiTile label="Overdue actions" value="3" tone="alert" definition="Tasks past their due date, owned by you."/>
+        <KpiTile label="Interviews / 7d" value="5"/>
+        <KpiTile label="Placement fees / YTD" value="IDR 512.5M"/>
+      </KpiGrid>
+    </Section>
+
+    <Section id="tabs" title="Tabs" note="One tab stop for the strip, arrows to move, Home/End to the ends, and a panel wired by aria-controls. Replaces three hand-rolled strips that had none of it.">
+      <Tabs items={SG_TABS} value={tab} onChange={setTab} label="Specimen sections" id={sgTabsId}/>
+      <TabPanel tabsId={sgTabsId} id={tab}><p className="muted" style={{margin:'var(--space-4) 0 0'}}>Panel body for “{SG_TABS.find((item)=>item.id===tab)?.label}”.</p></TabPanel>
+    </Section>
+
+    <Section id="segmented" title="Segmented control" note="A radiogroup, not a row of buttons: the options are mutually exclusive views of one setting.">
+      <div className="sg-row">
+        <SegmentedControl options={[{id:'list',label:'List'},{id:'board',label:'Board'}]} value={view} onChange={setView} label="Client view"/>
+        <SegmentedControl options={[{id:'compact',label:'Compact'},{id:'roomy',label:'Roomy'}]} value={density} onChange={setDensity} label="Board density"/>
+      </div>
+    </Section>
+
+    <Section id="callout" title="Callouts" note="One component over four tones, each drawn entirely from its own tone triplet. Replaces .warning-box / .success-box / .callout-info, and fixes the success surface that mixed a blue background with a green border.">
+      <div className="sg-stack">
+        <Callout tone="info">Internal pipeline work is allowed while consent is pending.</Callout>
+        <Callout tone="success" title="Placement recorded">The fee was taken from the account agreement.</Callout>
+        <Callout tone="warning" title="Consent is not granted">Client submission stays blocked until consent is granted.</Callout>
+        <Callout tone="danger" title="Candidate already exists" action={<Button size="sm" variant="secondary">Open existing record</Button>}>This CV can fill blanks on the existing profile, but a duplicate cannot be created.</Callout>
+      </div>
+    </Section>
+
+    <Section id="menu" title="Menu" note="Roving focus, first-letter typeahead, Escape returning focus to the trigger. The three popovers it replaces declared role=menu and implemented none of it.">
+      <Menu label="Candidate actions" items={[
+        {id:'open',label:'Open candidate'},
+        {id:'submit',label:'Submit to client'},
+        {id:'interview',label:'Schedule interview'},
+        {id:'reject',label:'Reject…',separatorBefore:true,tone:'danger'},
+      ]} trigger={(props)=><Button {...props} variant="secondary" size="sm" trailingIcon={<ChevronDown size={13}/>}>More actions</Button>}/>
+    </Section>
+
+    <Section id="combobox" title="Combobox" note="Autocomplete against a known list, for the filters that ask a consultant to type a normalized value blind today (searching “reactjs” finds nothing when the tag is “React”).">
+      <div style={{maxWidth:320}}>
+        <Field label="Skill"><Combobox value={skill} onChange={setSkill} label="Skill" placeholder="Start typing a skill" options={SG_SKILLS.filter((option)=>option.label.toLowerCase().includes(skill.toLowerCase()))}/></Field>
+      </div>
+    </Section>
+
+    <Section id="pagination" title="Pagination" note="Page numbers beside prev/next. The prev/next-only strip it replaces made page 26 of 30 a 25-click journey.">
+      <Pagination page={page} pages={30} onPage={setPage}/>
+    </Section>
+
+    <Section id="checkable" title="Checkbox & radio" note="Each wraps its own label, so the text is a click target and a description line is tied in with aria-describedby rather than floating beside it.">
+      <div className="sg-stack">
+        <Checkbox label="Create a Google Meet link" description="Synchronises with the calendar connected to your account." defaultChecked/>
+        <Checkbox label="Anonymise by default" />
+        <Radio name="sg-fee" label="Account agreement" description="20% of annual salary, approved 12 Mar." defaultChecked/>
+        <Radio name="sg-fee" label="Manual fee"/>
       </div>
     </Section>
 

@@ -189,6 +189,12 @@
 .sg-row > code {
   min-width: 84px;
 }
+/* Vertical counterpart to .sg-row, for specimens whose variants are meant to be read down a column
+   (the four callout tones, the checkable rows) rather than compared across one. */
+.sg-stack {
+  display: grid;
+  gap: 10px;
+}
 .sg-pad {
   padding: 18px;
 }
