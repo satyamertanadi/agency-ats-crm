@@ -29,7 +29,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --project=desktop
+      - run: npm run test:e2e -- --project=desktop --project=mobile
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
