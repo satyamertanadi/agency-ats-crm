@@ -11,6 +11,7 @@ const CANDIDATE='70000000-0000-0000-0000-000000000001' // seeded 'Aisha Rahman',
 const owner=createClient(url,anon,{auth:{persistSession:false}})
 const bd=createClient(url,anon,{auth:{persistSession:false}})
 let bdRoleId=''
+let ownerId=''
 
 // The regression this guards against (F5 in the audit): candidate_private_write was a FOR ALL
 // policy gated on candidates.write, and a FOR ALL policy's USING clause satisfies SELECT too, since
@@ -21,6 +22,12 @@ let bdRoleId=''
 // hypothetical. The seeded 'bd' (Business Development) role has neither candidates.write nor
 // candidates_private.read; granting it only the former reproduces the exact shape the finding
 // describes.
+//
+// One consequence of the fix worth asserting explicitly: Postgres requires a row to pass a table's
+// SELECT policy, not just its UPDATE/DELETE policy, before UPDATE/DELETE can locate that row (it has
+// to find the row via a SELECT-shaped scan first). So splitting the write policy off the read one
+// means candidates.write alone can INSERT a new private-details row but cannot UPDATE or DELETE an
+// existing one -- only candidates_private.read unlocks that. See docs/security-and-rls.md.
 beforeAll(async()=>{
   const results=await Promise.all([
     owner.auth.signInWithPassword({email:'owner@northstar.local',password:'LocalTest!123'}),
@@ -28,6 +35,8 @@ beforeAll(async()=>{
   ])
   const failure=results.find((result)=>result.error)
   if(failure?.error)throw failure.error
+  ownerId=results[0].data.user?.id||''
+  if(!ownerId)throw new Error('Owner user id is required')
   const role=await owner.from('roles').select('id').eq('organization_id',NORTHSTAR).eq('role_key','bd').single()
   expect(role.error).toBeNull()
   bdRoleId=role.data?.id||''
@@ -44,9 +53,26 @@ describe('candidates.write does not imply candidates_private.read',()=>{
     expect(result.error).toBeNull()
     expect(result.data).toEqual([])
   })
-  it('can still write candidate_private_details with candidates.write',async()=>{
-    const update=await bd.from('candidate_private_details').update({work_authorization:'RLS split-policy check'}).eq('candidate_id',CANDIDATE).select('candidate_id')
-    expect(update.error).toBeNull()
-    expect(update.data?.length).toBe(1)
+  it('can insert a new candidate_private_details row with candidates.write alone',async()=>{
+    const candidate=await owner.from('candidates').insert({organization_id:NORTHSTAR,full_name:'Private Details Insert Probe',status:'active',created_by:ownerId}).select('id').single()
+    expect(candidate.error).toBeNull()
+    const newCandidateId=candidate.data?.id as string
+    const insert=await bd.from('candidate_private_details').insert({candidate_id:newCandidateId,organization_id:NORTHSTAR,work_authorization:'RLS split-policy insert check'})
+    expect(insert.error).toBeNull()
+    const confirmed=await owner.from('candidate_private_details').select('work_authorization').eq('candidate_id',newCandidateId).single()
+    expect(confirmed.data?.work_authorization).toBe('RLS split-policy insert check')
+    await owner.from('candidates').delete().eq('id',newCandidateId)
+  })
+
+  it('cannot update or delete an existing candidate_private_details row with candidates.write alone',async()=>{
+    const update=await bd.from('candidate_private_details').update({work_authorization:'RLS split-policy update check'}).eq('candidate_id',CANDIDATE)
+    expect(update.error).toBeNull() // RLS silently excludes the row rather than erroring
+    const unchanged=await owner.from('candidate_private_details').select('work_authorization').eq('candidate_id',CANDIDATE).single()
+    expect(unchanged.data?.work_authorization).not.toBe('RLS split-policy update check')
+
+    const remove=await bd.from('candidate_private_details').delete().eq('candidate_id',CANDIDATE)
+    expect(remove.error).toBeNull()
+    const stillThere=await owner.from('candidate_private_details').select('candidate_id').eq('candidate_id',CANDIDATE).single()
+    expect(stillThere.error).toBeNull()
   })
 })
