@@ -7,12 +7,16 @@
 -- table with no upper bound. There was also no reaper: cv-parse-cleanup.yml expires CV drafts hourly,
 -- but nothing ever expired a link event.
 --
--- CREATE INDEX CONCURRENTLY cannot run inside a transaction block, so this migration deliberately has
--- no begin/commit wrapper (every other migration in this repo has one) -- building the index
--- concurrently avoids taking a lock that would block writes from the functions above while it builds.
--- Checked staging before writing this: both tables are currently empty, so there is no real data at
--- risk either way, but CONCURRENTLY is the correct choice regardless of current size.
-create index concurrently if not exists submission_link_events_lookup
+-- This was originally written as `create index concurrently` to avoid locking the table during the
+-- build, but `supabase db push` runs every migration statement over a pipelined connection that
+-- CONCURRENTLY cannot execute under regardless of an explicit transaction block (confirmed: it broke
+-- both the CI ephemeral database and staging with "CREATE INDEX CONCURRENTLY cannot be executed within
+-- a pipeline"). Checked both staging and production before switching to a plain CREATE INDEX: staging
+-- is empty, production has 0 and 2 rows respectively, so a regular index build takes its lock for a
+-- negligible fraction of a second either way -- there is no real tradeoff being given up here.
+begin;
+create index if not exists submission_link_events_lookup
   on public.submission_link_events(link_id, event_type, ip_hash, occurred_at desc);
-create index concurrently if not exists referral_link_events_lookup
+create index if not exists referral_link_events_lookup
   on public.referral_link_events(link_id, event_type, ip_hash, occurred_at desc);
+commit;
