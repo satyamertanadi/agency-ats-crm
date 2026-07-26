@@ -22,7 +22,8 @@ create or replace function public.audit_function_grants()
 returns table(function_name text, granted_roles text[])
 language sql stable security definer set search_path=public as $$
   select p.proname::text,
-    array_agg(distinct case when a.grantee=0 then 'public' else r.rolname end order by 1)
+    array_agg(distinct case when a.grantee=0 then 'public' else r.rolname end
+      order by case when a.grantee=0 then 'public' else r.rolname end)
   from pg_proc p
   join pg_namespace n on n.oid=p.pronamespace and n.nspname='public'
   cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
