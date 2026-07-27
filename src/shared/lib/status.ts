@@ -1,6 +1,6 @@
 import type {
   AccountStatus, BusinessDevelopmentStage, CalendarConnectionStatus, CalendarSyncStatus,
-  CandidateStatus, ConsentStatus, ContactStatus, DeliveryStatus, ImportStatus, InterviewStatus,
+  CandidateStatus, ConsentStatus, ContactStatus, DeliveryStatus, FeedbackDecision, ImportStatus, InterviewStatus,
   InvoiceStatus, JobPriority, JobStatus, MemberStatus, OfferStatus, PilotStatus, PlacementStatus,
   ProfileStatus, ReferralStatus, TaskPriority, TaskStatus, TodayWorkKind,
 } from '../types/domain'
@@ -166,6 +166,17 @@ export const taskPriority=map<TaskPriority>({
   normal:{tone:'neutral',label:'Normal'},
   high:{tone:'warn',label:'High'},
   urgent:{tone:'bad',label:'Urgent'},
+})
+
+/* The client's verdict on a submitted candidate. 'interview' is the best outcome the review page can
+ * produce and so reads as good, not merely informational -- a client asking to meet someone is the
+ * point of the submission. 'hold' warns because it is the one answer that decays: it needs chasing,
+ * and left alone it becomes a candidate quietly stuck in client review. */
+export const feedbackDecision=map<FeedbackDecision>({
+  interview:{tone:'good',label:'Wants to interview'},
+  approve:{tone:'good',label:'Approved'},
+  hold:{tone:'warn',label:'On hold'},
+  reject:{tone:'bad',label:'Not progressing'},
 })
 
 export const importStatus=map<ImportStatus>({

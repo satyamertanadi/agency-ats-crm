@@ -160,7 +160,9 @@ const jobCandidateLinkPick=z.object({
 export const interviewSchema=z.object({
   id:z.string(),job_candidate_id:z.string(),interview_type:z.string().nullable(),stage_label:z.string().nullable(),
   starts_at:z.string(),ends_at:z.string(),timezone:z.string(),location:z.string().nullable(),
-  meeting_url:z.string().nullable(),status:z.enum(['scheduled','completed','cancelled','no_show']),
+  // `notes` is where completeInterview records the outcome, so it has to be read back -- a note the
+  // product writes and never shows is the same as not having captured it.
+  meeting_url:z.string().nullable(),notes:z.string().nullable().optional(),status:z.enum(['scheduled','completed','cancelled','no_show']),
   organizer_member_id:z.string().nullable(),attendee_emails:z.array(z.string()),create_google_meet:z.boolean(),
   calendar_event_id:z.string().nullable(),calendar_event_url:z.string().nullable(),
   calendar_sync_status:z.enum(['not_requested','pending','synced','failed','cancelled']),
@@ -224,3 +226,27 @@ export const candidatePipelineAssignmentSchema=z.object({
   pipeline_stages:pipelineStageSchema.nullable(),
   stage_history:z.array(z.object({occurred_at:z.string(),to_stage_id:z.string()})),
 })
+
+/* stage_history has been written on every stage move since the initial schema and displayed nowhere,
+ * so "why is this candidate in Rejected?" had no answer in the product even though the answer was
+ * stored. The stage names are embedded twice under aliases because a row is only readable as
+ * "from X to Y" -- resolving them client-side against the stages list breaks the moment a stage is
+ * renamed or removed, which is exactly when the history matters most. */
+export const stageHistoryEntrySchema=z.object({
+  id:z.string(),occurred_at:z.string(),note:z.string().nullable(),source:z.string(),
+  from_stage:z.object({name:z.string(),stage_type:z.string()}).nullable(),
+  to_stage:z.object({name:z.string(),stage_type:z.string()}).nullable(),
+})
+
+/* The client's actual answer. `check_feedback` rendered a static sentence telling the consultant to
+ * "review recent activity" while these rows sat unread in the table the public review page writes. */
+export const submissionFeedbackSchema=z.object({
+  id:z.string(),decision:z.enum(['approve','reject','interview','hold']),comments:z.string().nullable(),
+  reviewer_name:z.string().nullable(),created_at:z.string(),
+})
+
+/* Inferred rather than restated in domain.ts: both shapes exist only as the result of one query each,
+ * so a hand-written type would be a second declaration that can drift from the parser that validates
+ * it. */
+export type StageHistoryEntry=z.infer<typeof stageHistoryEntrySchema>
+export type SubmissionFeedback=z.infer<typeof submissionFeedbackSchema>
