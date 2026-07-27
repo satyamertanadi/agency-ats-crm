@@ -9,13 +9,17 @@ interface ToastRecord extends Required<Pick<ToastInput,'tone'|'message'>>{id:str
 /* Errors stay put roughly twice as long as confirmations: a success line only has to be noticed,
  * an error has to be read and often acted on. Both remain dismissible, and an error carrying a
  * recovery action never auto-dismisses -- retracting the only route back out of a failure while
- * the user is still reading it is how a mutation failure turns into silent data loss. */
-const defaultDuration=(tone:ToastTone,action?:ToastAction)=>tone==='error'?(action?0:8000):4000
+ * the user is still reading it is how a mutation failure turns into silent data loss.
+ *
+ * A success toast can carry an action too, and when it does it is almost always Undo -- so it gets
+ * the error timing rather than the confirmation timing. Four seconds is enough to notice that a card
+ * moved; it is not enough to notice, realise it was the wrong card, and reach the button. */
+const defaultDuration=(tone:ToastTone,action?:ToastAction)=>action?(tone==='error'?0:8000):(tone==='error'?8000:4000)
 const MAX_VISIBLE=4
 
 interface ToastContextValue {
   push:(input:ToastInput)=>string
-  success:(message:string,detail?:string)=>string
+  success:(message:string,detail?:string,action?:ToastAction)=>string
   error:(error:unknown,detail?:string,action?:ToastAction)=>string
   info:(message:string,detail?:string)=>string
   dismiss:(id:string)=>void
@@ -59,7 +63,7 @@ export function ToastProvider({children}:{children:ReactNode}){
 
   const value=useMemo<ToastContextValue>(()=>({
     push,
-    success:(message,detail)=>push({tone:'success',message,detail}),
+    success:(message,detail,action)=>push({tone:'success',message,detail,action}),
     error:(error,detail,action)=>push({tone:'error',message:toastMessage(error),detail,action}),
     info:(message,detail)=>push({tone:'info',message,detail}),
     dismiss,

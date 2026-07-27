@@ -5,7 +5,7 @@ import {Link} from 'react-router-dom'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {convertOfferToPlacement,createInterview,createOffer,listContacts,listJobHealth,moveCandidate,type PlacementFeeSource} from '../core/repository'
+import {convertOfferToPlacement,createInterview,createOffer,listContacts,listJobHealth,type PlacementFeeSource} from '../core/repository'
 import {getCandidateDetail,listCalendarConnections,listSubmissionCandidateDocuments,sendClientSubmission,syncInterviewCalendar} from '../core/commercialRepository'
 import type {Interview,Job,JobCandidate,Offer,PipelineStage,Placement} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
@@ -13,18 +13,20 @@ import {Drawer} from '../../shared/ui/Drawer'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Badge,StatusBadge} from '../../shared/ui/Page'
 import {useToast} from '../../shared/ui/Toast'
-import {consentStatus,offerStatus} from '../../shared/lib/status'
+import {consentStatus} from '../../shared/lib/status'
 import {formatMoney} from '../../shared/lib/format'
-import {recommendedCandidateAction} from '../workflow/workflow'
+import {groupPipelineStages,isOutcomeStage,recommendedCandidateAction} from '../workflow/workflow'
+import type {StageMoveInput} from '../core/useStageMove'
+import {JobCandidateLifecycle} from './JobCandidateLifecycle'
 import {recordWorkflowEvent} from '../../shared/lib/productAnalytics'
 
 type ActionName='submit'|'check_feedback'|'interview'|'offer'|'placement'|'move'
 
-export interface JobCandidatePanelProps {job:Job;item:JobCandidate;stage:PipelineStage;stages:PipelineStage[];currentMemberId?:string;interviews:Interview[];offers:Offer[];placement:Placement|null;hasSubmission:boolean;action:string|null;readOnly:boolean;onAction:(action:string|null)=>void;onClose:()=>void;onUpdated:()=>Promise<unknown>}
+export interface JobCandidatePanelProps {job:Job;item:JobCandidate;stage:PipelineStage;stages:PipelineStage[];currentMemberId?:string;interviews:Interview[];offers:Offer[];placement:Placement|null;hasSubmission:boolean;action:string|null;readOnly:boolean;onAction:(action:string|null)=>void;onClose:()=>void;onUpdated:()=>Promise<unknown>;onMove:(input:StageMoveInput)=>void;moving:boolean}
 
 const localValue=(date:Date)=>{const offset=date.getTimezoneOffset()*60_000;return new Date(date.valueOf()-offset).toISOString().slice(0,16)}
 
-export function JobCandidatePanel({job,item,stage,stages,currentMemberId,interviews,offers,placement,hasSubmission,action:requestedAction,readOnly,onAction,onClose,onUpdated}:JobCandidatePanelProps){
+export function JobCandidatePanel({job,item,stage,stages,currentMemberId,interviews,offers,placement,hasSubmission,action:requestedAction,readOnly,onAction,onClose,onUpdated,onMove,moving}:JobCandidatePanelProps){
   const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast()
   const details=useQuery({queryKey:['candidate-detail',organization?.id,item.candidate_id],queryFn:()=>getCandidateDetail(organization!.id,item.candidate_id)})
   const submissionRows=useQuery({queryKey:['submission-candidates',organization?.id,job.id],queryFn:()=>listSubmissionCandidateDocuments(organization!.id,job.id)})
@@ -33,7 +35,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
   const [recipientName,setRecipientName]=useState('');const [recipientEmail,setRecipientEmail]=useState('');const [message,setMessage]=useState('Please review this candidate for the role.');const [selectedDocuments,setSelectedDocuments]=useState<string[]>([])
   const startDefault=useMemo(()=>{const start=new Date();start.setDate(start.getDate()+1);start.setHours(9,0,0,0);return start},[])
   const [startsAt,setStartsAt]=useState(localValue(startDefault));const [endsAt,setEndsAt]=useState(localValue(new Date(startDefault.valueOf()+60*60*1000)));const [location,setLocation]=useState('');const [attendeeEmails,setAttendeeEmails]=useState('');const [createMeet,setCreateMeet]=useState(true)
-  const [salary,setSalary]=useState('');const [startDate,setStartDate]=useState('');const [fee,setFee]=useState('');const [moveStage,setMoveStage]=useState(item.current_stage_id)
+  const [salary,setSalary]=useState('');const [startDate,setStartDate]=useState('');const [fee,setFee]=useState('');const [moveStage,setMoveStage]=useState(item.current_stage_id);const [moveNote,setMoveNote]=useState('')
   /* Which source set the fee is recorded, not inferred. Accepting the suggested figure states the
    * agreement that produced it; typing anything else is a manual price, and saying so is what keeps
    * a later fee-agreement change from making this placement look mispriced. */
@@ -62,7 +64,19 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
   const interview=useMutation({mutationFn:async()=>{const id=await createInterview(organization!.id,user!.id,{job_candidate_id:item.id,starts_at:new Date(startsAt).toISOString(),ends_at:new Date(endsAt).toISOString(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,location,attendee_emails:attendeeEmails.split(',').map((email)=>email.trim()).filter(Boolean),create_google_meet:createMeet&&calendarConnected,organizer_member_id:calendarConnected?currentMemberId:undefined,interview_type:'client_interview'});if(calendarConnected)await syncInterviewCalendar(organization!.id,id);return id},onSuccess:async()=>{trackAction('action_completed','interview');toast.success(`Interview scheduled for ${candidateName}.`,calendarConnected?'Added to your Google Calendar.':'Saved in the ATS only — your calendar is not connected.');onAction(null);await refresh()},onError:(error)=>toast.error(error,'The interview was not scheduled.')})
   const offer=useMutation({mutationFn:()=>createOffer(organization!.id,user!.id,{job_candidate_id:item.id,salary:Number(salary),currency:job.currency||organization!.base_currency,start_date:startDate||undefined}),onSuccess:async()=>{trackAction('action_completed','offer');toast.success(`Offer recorded for ${candidateName}.`);onAction(null);await refresh()},onError:(error)=>toast.error(error,'The offer was not recorded.')})
   const place=useMutation({mutationFn:()=>convertOfferToPlacement(acceptedOffer!.id,Number(fee),90,feeSource),onSuccess:async()=>{trackAction('action_completed','placement');toast.success(`${candidateName} is placed.`,`Fee recorded as ${feeSource==='manual'?'manually priced':feeSource==='job_override'?'a job override':'the account agreement'}.`);onAction(null);await refresh()},onError:(error)=>toast.error(error,'The placement was not recorded.')})
-  const move=useMutation({mutationFn:()=>moveCandidate(item.id,moveStage),onSuccess:async()=>{trackAction('action_completed','move');toast.success(`${candidateName} moved to ${stages.find((entry)=>entry.id===moveStage)?.name||'a new stage'}.`);onAction(null);await refresh()},onError:(error)=>toast.error(error,'The candidate stayed in their current stage.')})
+  /* Was its own bare mutation, so a move made here got no optimistic patch, no rollback and no Undo,
+   * and the board and the panel wrote the same row through two different code paths -- the exact
+   * duplication useStageMove exists to prevent.
+   *
+   * The mutation is the board's and is passed down, rather than being created again here: it writes
+   * the board's ['pipeline', jobId] cache, so the surface that owns that cache should own the write.
+   * One instance also means one optimistic patch and one rollback for a row both surfaces render. */
+  const submitMove=()=>{
+    const target=stages.find((entry)=>entry.id===moveStage)
+    onMove({itemId:item.id,stageId:moveStage,name:candidateName,label:target?.name||'a new stage',
+      note:moveNote,source:'panel',undo:{stageId:item.current_stage_id,label:stage.name}})
+    trackAction('action_completed','move');onAction(null)
+  }
   const chooseAction=(value:ActionName)=>{trackAction('action_started',value);onAction(value)};const action=readOnly?null:requestedAction
   const closePanel=()=>{if(action)trackAction('action_abandoned',action);onClose()}
   return <Drawer title={item.candidates?.full_name||'Candidate'} description={`${stage.name} · ${job.title}`} eyebrow="Candidate action" open onClose={closePanel}>
@@ -70,14 +84,35 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
     <section className="next-action-card"><span><MoveRight size={18}/></span><div><p className="eyebrow">Recommended next action</p><strong>{readOnly?'Waiting':recommendation.label}</strong><p>{readOnly?'This job is closed to recruitment actions. Its history remains available.':recommendation.reason}</p></div>{!readOnly&&<>{recommendation.key==='submit'&&capabilities.data?.canSubmit&&<Button disabled={!compliant} onClick={()=>chooseAction('submit')}>Submit to client</Button>}{recommendation.key==='schedule_interview'&&capabilities.data?.canManagePlacements&&<Button onClick={()=>chooseAction('interview')}>Schedule interview</Button>}{['record_outcome','record_offer'].includes(recommendation.key)&&capabilities.data?.canManagePlacements&&<Button onClick={()=>chooseAction('offer')}>Record offer</Button>}{recommendation.key==='create_placement'&&capabilities.data?.canManagePlacements&&<Button onClick={()=>chooseAction('placement')}>Create placement</Button>}{recommendation.key==='check_feedback'&&<Button onClick={()=>chooseAction('check_feedback')}>Check feedback</Button>}</>}</section>
     {!compliant&&<p className="warning-box">Submission is unavailable because consent is not granted or the candidate is marked do not contact. Update the candidate record before sharing information.</p>}
     {action==='submit'&&<section className="context-action-form"><h3>Submit to client</h3>{clientContacts.length>0&&<Field label="Client contact"><Select defaultValue="" onChange={(event)=>selectContact(event.target.value)}><option value="">Select a suggested contact</option>{clientContacts.map((contact)=><option key={contact.id} value={contact.id}>{contact.full_name}{contact.position?` · ${contact.position}`:''}</option>)}</Select></Field>}<Field label="Recipient name"><Input value={recipientName} onChange={(event)=>setRecipientName(event.target.value)}/></Field><Field label="Recipient email"><Input type="email" value={recipientEmail} onChange={(event)=>setRecipientEmail(event.target.value)}/></Field><Field label="Message"><Textarea value={message} onChange={(event)=>setMessage(event.target.value)}/></Field><fieldset><legend>Documents to share</legend><div className="checkbox-list">{documents.map((document)=><label key={document.id}><input type="checkbox" checked={selectedDocuments.includes(document.id)} onChange={(event)=>setSelectedDocuments((current)=>event.target.checked?[...current,document.id]:current.filter((id)=>id!==document.id))}/><span><FileText size={14}/>{document.original_filename||document.file_name}</span></label>)}{documents.length===0&&<p className="muted">No candidate documents are available. You can still send the written summary.</p>}</div></fieldset>{submit.error&&<p className="form-error" role="alert">{submit.error.message}</p>}<ActionButtons onCancel={()=>onAction(null)} label="Send secure submission" loading={submit.isPending} disabled={!recipientEmail||!compliant} onSave={()=>submit.mutate()}/></section>}
-    {action==='check_feedback'&&<section className="context-action-form"><h3>Client review</h3><p>{hasSubmission?'The submission is active. Review recent activity or follow up with the client contact.':'No submission is recorded for this candidate.'}</p><Button variant="secondary" onClick={()=>onAction(null)}>Back to candidate</Button></section>}
+    {/* 'check_feedback' no longer needs a step of its own -- the feedback is on the lifecycle cards
+      * below, so choosing it just returns to them rather than opening a screen that restated the
+      * question instead of answering it. */}
     {action==='interview'&&<section className="context-action-form"><h3>Schedule interview</h3><div className="form-grid"><Field label="Starts"><Input type="datetime-local" value={startsAt} onChange={(event)=>setStartsAt(event.target.value)}/></Field><Field label="Ends"><Input type="datetime-local" value={endsAt} onChange={(event)=>setEndsAt(event.target.value)}/></Field></div><Field label="Location or call details"><Input value={location} onChange={(event)=>setLocation(event.target.value)}/></Field><Field label="Attendee emails"><Input value={attendeeEmails} onChange={(event)=>setAttendeeEmails(event.target.value)}/></Field><label className="check-row"><input type="checkbox" checked={createMeet} disabled={!calendarConnected} onChange={(event)=>setCreateMeet(event.target.checked)}/><span>Create a Google Meet link and synchronize my Calendar</span></label>{!calendarConnected&&<p className="muted">Calendar is not connected. The interview will still be saved in the ATS.</p>}{interview.error&&<p className="form-error" role="alert">{interview.error.message}</p>}<ActionButtons onCancel={()=>onAction(null)} label="Schedule interview" loading={interview.isPending} disabled={!startsAt||!endsAt} onSave={()=>interview.mutate()}/></section>}
     {action==='offer'&&<section className="context-action-form"><h3>Record offer</h3><Field label="Salary"><Input type="number" min="0" value={salary} onChange={(event)=>setSalary(event.target.value)}/></Field><Field label="Currency"><Input value={job.currency||organization!.base_currency} disabled/></Field><Field label="Proposed start"><Input type="date" value={startDate} onChange={(event)=>setStartDate(event.target.value)}/></Field>{offer.error&&<p className="form-error" role="alert">{offer.error.message}</p>}<ActionButtons onCancel={()=>onAction(null)} label="Record offer" loading={offer.isPending} disabled={!salary} onSave={()=>offer.mutate()}/></section>}
     {action==='placement'&&<section className="context-action-form"><h3>Create placement</h3>{acceptedOffer?<><p className="success-box"><CheckCircle2 size={15}/>Accepted offer · {formatMoney(acceptedOffer.salary,acceptedOffer.currency)}</p>{expectedFee!=null&&expectedSource
       ?<p className="fee-suggestion"><span>Expected fee <strong>{formatMoney(expectedFee,jobHealth?.currency||job.currency||undefined)}</strong> · {jobHealth?.fee_source}</span><Button size="sm" variant="secondary" type="button" onClick={()=>{setFee(String(expectedFee));setFeeSource(expectedSource)}}>Use this fee</Button></p>
       :<p className="warning-box"><TriangleAlert size={15}/>This job has no agreed fee terms, so the placement fee will be recorded as manually priced.</p>}<Field label="Placement fee"><Input type="number" min="0" value={fee} onChange={(event)=>{setFee(event.target.value);setFeeSource('manual')}}/></Field><p className="muted">Recorded as <strong>{feeSource==='manual'?'manually priced':feeSource==='job_override'?'the job fee override':'the account fee agreement'}</strong>. The 90-day guarantee default will be applied.</p>{place.error&&<p className="form-error" role="alert">{place.error.message}</p>}<ActionButtons onCancel={()=>onAction(null)} label="Create placement" loading={place.isPending} disabled={!fee} onSave={()=>place.mutate()}/></>:<p className="warning-box">An accepted offer is required before creating a placement.</p>}</section>}
-    {action==='move'&&<section className="context-action-form"><h3>Move candidate</h3><Field label="Detailed stage"><Select value={moveStage} onChange={(event)=>setMoveStage(event.target.value)}>{stages.map((option)=><option value={option.id} key={option.id}>{option.name}</option>)}</Select></Field><ActionButtons onCancel={()=>onAction(null)} label="Move candidate" loading={move.isPending} disabled={moveStage===item.current_stage_id} onSave={()=>move.mutate()}/></section>}
-    {!action&&<section className="context-history"><h3>Recruitment milestones</h3><div className="milestone-list"><article><Mail size={15}/><span><strong>Client submission</strong><small>{hasSubmission?'Sent to client':'Not yet sent'}</small></span></article><article><CalendarPlus size={15}/><span><strong>Interview</strong><small>{interviews.find((entry)=>entry.status==='scheduled')?'Scheduled':interviews.length?'Recorded':'Not scheduled'}</small></span></article><article><BriefcaseBusiness size={15}/><span><strong>Latest offer</strong><small>{offers[0]?<StatusBadge map={offerStatus} value={offers[0].status}/>: 'Not recorded'}</small></span></article><article><Handshake size={15}/><span><strong>Placement</strong><small>{placement?'Recorded':'Not recorded'}</small></span></article></div>{!readOnly&&<div className="context-secondary-actions">{capabilities.data?.canManagePlacements&&<><Button variant="secondary" leadingIcon={<CalendarPlus size={14}/>} onClick={()=>chooseAction('interview')}>Interview</Button><Button variant="secondary" leadingIcon={<BriefcaseBusiness size={14}/>} onClick={()=>chooseAction('offer')}>Offer</Button></>}{capabilities.data?.canMovePipeline&&<Button variant="quiet" onClick={()=>chooseAction('move')}>Move stage</Button>}</div>}</section>}
+    {/* The flat 17-item list became phase-grouped: a consultant thinks "move them to Interview", not
+      * "move them to the ninth stage". Outcome stages are grouped last and apart, because rejecting
+      * someone and advancing them are different intentions that sat adjacent in one alphabetical run. */}
+    {action==='move'&&<section className="context-action-form"><h3>Move candidate</h3>
+      <Field label="Stage"><Select value={moveStage} onChange={(event)=>setMoveStage(event.target.value)}>
+        {groupPipelineStages(stages.filter((option)=>!isOutcomeStage(option))).map((phase)=><optgroup key={phase.key} label={phase.label}>{phase.stages.map((option)=><option value={option.id} key={option.id}>{option.name}</option>)}</optgroup>)}
+        {stages.some(isOutcomeStage)&&<optgroup label="Outcomes">{stages.filter(isOutcomeStage).map((option)=><option value={option.id} key={option.id}>{option.name}</option>)}</optgroup>}
+      </Select></Field>
+      <Field label="Reason (optional)"><Textarea value={moveNote} onChange={(event)=>setMoveNote(event.target.value)} placeholder="Why are they moving?"/></Field>
+      <ActionButtons onCancel={()=>onAction(null)} label="Move candidate" loading={moving} disabled={moveStage===item.current_stage_id} onSave={submitMove}/></section>}
+    {/* Replaces a four-line milestone list that could only say "Recorded" or "Not recorded" -- true
+      * statements with no way to act on any of them. Submission and placement stay as one-line facts
+      * because both already have their own affordances above; the other four each ended a loop that
+      * had no ending. */}
+    {!action&&<section className="context-history">
+      <div className="milestone-list"><article><Mail size={15}/><span><strong>Client submission</strong><small>{hasSubmission?'Sent to client':'Not yet sent'}</small></span></article><article><Handshake size={15}/><span><strong>Placement</strong><small>{placement?'Recorded':'Not recorded'}</small></span></article></div>
+      <JobCandidateLifecycle organizationId={organization!.id} jobCandidateId={item.id} candidateName={candidateName}
+        interviews={interviews} offers={offers} canManage={Boolean(capabilities.data?.canManagePlacements)} readOnly={readOnly}
+        onUpdated={refresh} onReschedule={()=>chooseAction('interview')}/>
+      {!readOnly&&<div className="context-secondary-actions">{capabilities.data?.canManagePlacements&&<><Button variant="secondary" leadingIcon={<CalendarPlus size={14}/>} onClick={()=>chooseAction('interview')}>Interview</Button><Button variant="secondary" leadingIcon={<BriefcaseBusiness size={14}/>} onClick={()=>chooseAction('offer')}>Offer</Button></>}{capabilities.data?.canMovePipeline&&<Button variant="quiet" onClick={()=>chooseAction('move')}>Move stage</Button>}</div>}
+    </section>}
   </Drawer>
 }
 

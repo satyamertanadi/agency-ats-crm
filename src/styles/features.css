@@ -1227,3 +1227,99 @@
 .add-candidate > .segmented-control {
   align-self: start;
 }
+
+/* Candidate lifecycle cards (src/features/jobs/JobCandidateLifecycle.tsx). Replaces the flat
+   "Recruitment milestones" row, which was four icons that could only say Recorded or Not recorded.
+   Each card now ends a workflow, so each needs room for a status, a note and its own actions. */
+.lifecycle-cards {
+  display: grid;
+  gap: var(--space-3);
+}
+.lifecycle-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.lifecycle-card > h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--color-muted);
+}
+.lifecycle-headline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+.lifecycle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.lifecycle-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lifecycle-list > li {
+  display: grid;
+  gap: var(--space-2);
+}
+.lifecycle-list > li > span {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.lifecycle-list p {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+/* The rule runs behind the markers rather than between rows, so a single entry still reads as a
+   timeline rather than as a stray bullet. */
+.stage-timeline {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  list-style: none;
+  border-left: 2px solid var(--color-line);
+}
+.stage-timeline > li {
+  position: relative;
+  display: grid;
+  gap: var(--space-1);
+}
+.stage-timeline > li::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--space-4) * -1 - 5px);
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-line-strong);
+}
+.stage-timeline > li > span {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.stage-timeline p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}

@@ -1,7 +1,7 @@
 import { supabase } from '../../shared/lib/supabase'
 import { AppError, DUPLICATE_CANDIDATE, humanizeRpcError } from '../../shared/lib/errors'
 import { row, rows } from '../../shared/lib/rows'
-import { acceptReferralResultSchema, activitySchema, candidatePipelineAssignmentSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, referralLinkCreationSchema, referralLinkSchema, referralSchema, taskSchema } from './repositorySchemas'
+import { acceptReferralResultSchema, activitySchema, candidatePipelineAssignmentSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, referralLinkCreationSchema, referralLinkSchema, referralSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
 import type { Activity, CandidateStatus, ConsentStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReferral, PublicReview, Referral, ReferralLink, ReferralStatus, Task } from '../../shared/types/domain'
 import type {Json,TablesInsert} from '../../generated/database.types'
 
@@ -105,7 +105,19 @@ export async function addCandidateToJob(organizationId:string,userId:string,job:
 export async function addCandidatesToJob(organizationId:string,jobId:string,candidateIds:string[],stageId?:string){const {data,error}=await supabase.rpc('add_candidates_to_job',{p_organization_id:organizationId,p_job_id:jobId,p_candidate_ids:candidateIds,p_stage_id:stageId||undefined});if(error)fail(error,error.message.includes('candidate_already_in_job')?'A selected candidate is already in this job.':error.message.includes('candidate_unavailable')?'A selected candidate is archived or marked Do not contact.':'Could not add candidates to this job');return data??[]}
 export async function listPipelineStagesForJob(organizationId:string,jobId:string){const job=await supabase.from('jobs').select('pipeline_id').eq('organization_id',organizationId).eq('id',jobId).single();if(job.error)fail(job.error,'Could not load job pipeline');if(!job.data.pipeline_id)throw new AppError('This job has no pipeline.','pipeline_missing');const {data,error}=await supabase.from('pipeline_stages').select('id,pipeline_id,name,stage_key,stage_type,phase_key,position,color').eq('pipeline_id',job.data.pipeline_id).eq('stage_type','active').order('position');if(error)fail(error,'Could not load pipeline stages');return rows(data,pipelineStageSchema,'Pipeline stage rows did not match the expected shape') as PipelineStage[]}
 export async function listCandidatePipelineAssignments(organizationId:string,candidateId:string){const {data,error}=await supabase.from('job_candidates').select('id,job_id,candidate_id,current_stage_id,added_at,updated_at,jobs(id,title,companies(name),organization_members:owner_member_id(profiles:user_id(full_name,email))),pipeline_stages(id,pipeline_id,name,stage_key,stage_type,phase_key,position,color),stage_history(occurred_at,to_stage_id)').eq('organization_id',organizationId).eq('candidate_id',candidateId).order('updated_at',{ascending:false}).order('occurred_at',{referencedTable:'stage_history',ascending:false});if(error)fail(error,'Could not load candidate pipelines');return rows(data,candidatePipelineAssignmentSchema,'Candidate pipeline rows did not match the expected shape') as CandidatePipelineAssignment[]}
-export async function moveCandidate(jobCandidateId:string,stageId:string){const {error}=await supabase.rpc('move_job_candidate_stage',{p_job_candidate_id:jobCandidateId,p_stage_id:stageId,p_source:'kanban'});if(error)fail(error,'Could not move candidate')}
+/* `p_note` has been in this RPC's signature from the start, has always been written to
+ * stage_history.note, and has always been used as the activity-feed summary when present -- and no
+ * caller has ever passed it. So every stage move logged the generated "Moved from X to Y", and the one
+ * move where the reason is the whole point (a rejection) recorded no reason at all.
+ *
+ * `source` is a parameter now because the outcome tray and the card menu are not drags: attributing a
+ * menu-driven rejection to 'kanban' would make the audit trail describe an interaction that did not
+ * happen. */
+export async function moveCandidate(jobCandidateId:string,stageId:string,options:{note?:string;source?:string}={}){
+  const {error}=await supabase.rpc('move_job_candidate_stage',{p_job_candidate_id:jobCandidateId,p_stage_id:stageId,
+    p_note:options.note?.trim()||undefined,p_source:options.source||'kanban'})
+  if(error)fail(error,'Could not move candidate')
+}
 
 export async function listTasks(organizationId:string){const {data,error}=await supabase.from('tasks').select('*,organization_members:owner_member_id(profiles:user_id(full_name,email)),task_links(candidate_id,company_id,contact_id,job_id,candidates(full_name),companies(name),contacts(full_name),jobs(title))').eq('organization_id',organizationId).is('deleted_at',null).order('due_at',{ascending:true,nullsFirst:false});if(error)fail(error,'Could not load tasks');return rows(data,taskSchema,'Task rows did not match the expected shape') as Task[]}
 export async function createTask(organizationId:string,userId:string,input:{title:string;description?:string;priority:string;due_at?:string;owner_member_id?:string;link?:{type:'candidate'|'company'|'contact'|'job';id:string}}){const {link,...task}=input;const {data,error}=await supabase.from('tasks').insert({...task,owner_member_id:task.owner_member_id||null,due_at:task.due_at||null,organization_id:organizationId,created_by:userId}).select('id').single();if(error)fail(error,'Could not create task');if(link){const linkRow:TablesInsert<'task_links'>={organization_id:organizationId,task_id:data.id,candidate_id:null,company_id:null,contact_id:null,job_id:null};linkRow[`${link.type}_id`]=link.id;const {error:linkError}=await supabase.from('task_links').insert(linkRow);if(linkError){await supabase.from('tasks').delete().eq('id',data.id);fail(linkError,'Could not link task')}}return data.id as string}
@@ -137,13 +149,74 @@ export async function createActivity(organizationId:string,input:{activity_type:
 
 export async function listPlacements(organizationId:string){const {data,error}=await supabase.from('placements').select('id,job_candidate_id,candidate_id,job_id,company_id,start_date,salary,placement_fee,currency,guarantee_ends_on,status,candidates(full_name),jobs(title),companies(name),placement_revenue_splits(id,member_id,split_percentage,split_amount,organization_members:member_id(profiles:user_id(full_name,email))),placement_invoices(id,invoice_reference,amount,currency,issued_on,due_on,status,paid_on)').eq('organization_id',organizationId).order('start_date',{ascending:false});if(error)fail(error,'Could not load placements');return rows(data,placementSchema,'Placement rows did not match the expected shape') as Placement[]}
 export async function createPlacement(organizationId:string,userId:string,input:{job_candidate_id:string;candidate_id:string;job_id:string;company_id:string;start_date:string;salary:number;placement_fee:number;currency:string;guarantee_days:number}){const {error}=await supabase.from('placements').insert({...input,organization_id:organizationId,created_by:userId});if(error)fail(error,error.code==='23505'?'This candidate already has a placement for the job.':'Could not create placement')}
-export async function listInterviews(organizationId:string){const {data,error}=await supabase.from('interviews').select('id,job_candidate_id,interview_type,stage_label,starts_at,ends_at,timezone,location,meeting_url,status,organizer_member_id,attendee_emails,create_google_meet,calendar_event_id,calendar_event_url,calendar_sync_status,calendar_last_error,calendar_last_synced_at,calendar_retry_count,calendar_sync_version,calendar_synced_version,job_candidates(candidate_id,candidates(id,full_name),jobs(id,title,owner_member_id))').eq('organization_id',organizationId).order('starts_at',{ascending:true});if(error)fail(error,'Could not load interviews');return rows(data,interviewSchema,'Interview rows did not match the expected shape') as Interview[]}
+export async function listInterviews(organizationId:string){const {data,error}=await supabase.from('interviews').select('id,job_candidate_id,interview_type,stage_label,starts_at,ends_at,timezone,location,meeting_url,notes,status,organizer_member_id,attendee_emails,create_google_meet,calendar_event_id,calendar_event_url,calendar_sync_status,calendar_last_error,calendar_last_synced_at,calendar_retry_count,calendar_sync_version,calendar_synced_version,job_candidates(candidate_id,candidates(id,full_name),jobs(id,title,owner_member_id))').eq('organization_id',organizationId).order('starts_at',{ascending:true});if(error)fail(error,'Could not load interviews');return rows(data,interviewSchema,'Interview rows did not match the expected shape') as Interview[]}
 export async function createInterview(organizationId:string,userId:string,input:{job_candidate_id:string;starts_at:string;ends_at:string;timezone:string;interview_type?:string;location?:string;meeting_url?:string;organizer_member_id?:string;attendee_emails?:string[];create_google_meet?:boolean}){const {data,error}=await supabase.from('interviews').insert({...input,organizer_member_id:input.organizer_member_id||null,attendee_emails:input.attendee_emails||[],calendar_sync_status:input.organizer_member_id?'pending':'not_requested',organization_id:organizationId,created_by:userId}).select('id').single();if(error)fail(error,'Could not schedule interview');return data.id as string}
 export async function updateInterview(organizationId:string,interviewId:string,input:{starts_at:string;ends_at:string;timezone:string;location?:string;meeting_url?:string;attendee_emails?:string[];create_google_meet?:boolean}){const {error}=await supabase.from('interviews').update({...input,attendee_emails:input.attendee_emails||[],updated_at:new Date().toISOString()}).eq('organization_id',organizationId).eq('id',interviewId);if(error)fail(error,'Could not update interview')}
 export async function cancelInterview(organizationId:string,interviewId:string){const {error}=await supabase.from('interviews').update({status:'cancelled',cancelled_at:new Date().toISOString(),calendar_sync_status:'pending',updated_at:new Date().toISOString()}).eq('organization_id',organizationId).eq('id',interviewId);if(error)fail(error,'Could not cancel interview')}
+/* Reads the client's actual answers for one candidate. The panel's "Client review" step told the
+ * consultant to go "review recent activity" while these rows sat unread in the table the public
+ * review page writes to -- so the single most valuable thing a submission produces was invisible on
+ * the surface built to chase it.
+ *
+ * Filtered through candidate_submissions because feedback hangs off the submission, not the job
+ * candidate; the !inner join is what makes the filter a join condition rather than a post-filter that
+ * would return every row in the org. */
+export async function listSubmissionFeedback(organizationId:string,jobCandidateId:string){
+  const {data,error}=await supabase.from('submission_feedback')
+    .select('id,decision,comments,reviewer_name,created_at,candidate_submissions!inner(job_candidate_id)')
+    .eq('organization_id',organizationId).eq('candidate_submissions.job_candidate_id',jobCandidateId)
+    .order('created_at',{ascending:false})
+  if(error)fail(error,'Could not load client feedback')
+  return rows(data,submissionFeedbackSchema,'Submission feedback rows did not match the expected shape') as SubmissionFeedback[]
+}
+
+/* Every stage change this candidate has been through, in the words that were recorded at the time.
+ * Written on every move since the initial schema and never once displayed.
+ *
+ * No actor name. stage_history.changed_by references auth.users, and PostgREST cannot traverse from
+ * there to profiles -- verified against the running database rather than assumed, because this
+ * typechecks and then returns "Could not find a relationship" at runtime. Adding a FK purely to label
+ * a timeline row is not worth a migration; from/to/when/why is what the timeline is for. */
+export async function listStageHistory(organizationId:string,jobCandidateId:string){
+  const {data,error}=await supabase.from('stage_history')
+    .select('id,occurred_at,note,source,from_stage:from_stage_id(name,stage_type),to_stage:to_stage_id(name,stage_type)')
+    .eq('organization_id',organizationId).eq('job_candidate_id',jobCandidateId)
+    .order('occurred_at',{ascending:false})
+  if(error)fail(error,'Could not load stage history')
+  return rows(data,stageHistoryEntrySchema,'Stage history rows did not match the expected shape') as StageHistoryEntry[]
+}
+
 export async function listOffers(organizationId:string){const {data,error}=await supabase.from('offers').select('id,job_candidate_id,salary,currency,offered_at,start_date,status,notes,job_candidates(candidate_id,candidates(id,full_name),jobs(id,title,owner_member_id))').eq('organization_id',organizationId).order('offered_at',{ascending:false});if(error)fail(error,'Could not load offers');return rows(data,offerSchema,'Offer rows did not match the expected shape') as Offer[]}
 export async function createOffer(organizationId:string,userId:string,input:{job_candidate_id:string;salary:number;currency:string;start_date?:string}){const {error}=await supabase.from('offers').insert({...input,organization_id:organizationId,created_by:userId,status:'presented'});if(error)fail(error,'Could not create offer')}
-export async function updateOfferStatus(id:string,status:'accepted'|'declined'|'withdrawn'){const {error}=await supabase.from('offers').update({status}).eq('id',id);if(error)fail(error,'Could not update offer')}
+/* Was exported and called from nowhere, which is why an offer reached 'presented' and stayed there
+ * forever: no UI could accept or decline one, so the placement flow behind it was unreachable and
+ * Today kept a permanent "chase this offer" row for an offer that had in fact been accepted weeks ago.
+ *
+ * Org-scoped while being wired up. The old filter was `.eq('id',id)` alone -- RLS still stopped a
+ * cross-tenant write, but relying on the policy as the only tenancy check is not the pattern the rest
+ * of this file follows, and a mistyped id silently updating nothing reads the same as success. */
+export async function updateOfferStatus(organizationId:string,id:string,status:'accepted'|'declined'|'withdrawn',notes?:string){
+  const patch:{status:string;notes?:string}={status}
+  if(notes?.trim())patch.notes=notes.trim()
+  const {error}=await supabase.from('offers').update(patch).eq('organization_id',organizationId).eq('id',id)
+  if(error)fail(error,'The offer status was not changed.')
+}
+
+/* The other half of the interview lifecycle: an interview could be scheduled and then never resolved,
+ * so "did that actually happen, and how did it go?" lived in someone's head rather than the record.
+ *
+ * No new columns. `interviews.status` has allowed 'no_show' since the initial schema and
+ * InterviewStatus/interviewStatus already carry it with a tone -- the whole vocabulary was built and
+ * then never reachable, because nothing could move an interview off 'scheduled'. `notes` is likewise
+ * an existing column that nothing in the app has ever written, so the outcome note has a home without
+ * inventing one. Captured at completion because that is the only moment anyone knows the answer. */
+export async function completeInterview(organizationId:string,interviewId:string,input:{outcome:'completed'|'no_show';notes?:string}){
+  const patch:{status:string;updated_at:string;notes?:string}={status:input.outcome,updated_at:new Date().toISOString()}
+  // Left alone when blank rather than nulled, so recording an outcome never erases an existing note.
+  if(input.notes?.trim())patch.notes=input.notes.trim()
+  const {error}=await supabase.from('interviews').update(patch).eq('organization_id',organizationId).eq('id',interviewId)
+  if(error)fail(error,'The interview outcome was not recorded.')
+}
 // `feeSource` is stated by the caller rather than inferred from the number: two sources agreeing on
 // a value would make an inference unresolvable, and provenance that is guessed is not provenance.
 export type PlacementFeeSource='account_agreement'|'job_override'|'manual'
