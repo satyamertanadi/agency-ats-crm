@@ -9,7 +9,7 @@ import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {addCandidateToJob,getPipeline,listCandidatesPage,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
 import {useStageMove} from '../core/useStageMove'
 import {listTeamMembers,updateJob} from '../core/commercialRepository'
-import type {Job,JobCandidate,JobHealth,TeamMember} from '../../shared/types/domain'
+import type {Job,JobCandidate,JobHealth,PipelineStage,TeamMember} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
@@ -20,6 +20,9 @@ import {useToast} from '../../shared/ui/Toast'
 import {ActivityFeed} from '../activities/ActivityFeed'
 import {buildPipelineColumns,columnStageStats,daysInStage,isOutcomeStage,jobNeedsCandidateAction,phaseForStage,phaseRampColor,pipelinePhases,resolveStageForColumn,slaTargetDays,stageUrgency,type PipelineColumn} from '../workflow/workflow'
 import {JobCandidatePanel} from './JobCandidatePanel'
+import {CandidateCardMenu} from './CandidateCardMenu'
+import {OutcomePrompt} from './OutcomePrompt'
+import {OutcomesDrawer} from './OutcomesDrawer'
 import {PhaseJump} from './PhaseJump'
 import {TaskButton} from '../activities/TaskButton'
 import {formatMoney} from '../../shared/lib/format'
@@ -45,7 +48,7 @@ function PhaseColumn({id,label,count,color,stats,children}:{id:string;label:stri
 /* `columnKey` is the key of the column this card is rendered inside, handed down rather than
  * re-derived here. That is deliberate: deriving it twice is exactly how the board came to show a
  * candidate under Interview whose dropdown read "Sourcing". */
-function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,targets,canMove}:{item:JobCandidate;columnKey:string;columnColor:string;now:Date;members:TeamMember[];onOpen:()=>void;onMove:(columnKey:string)=>void;targets:Array<{key:string;label:string}>;canMove:boolean}){
+function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onOutcome,outcomeStages,targets,canMove}:{item:JobCandidate;columnKey:string;columnColor:string;now:Date;members:TeamMember[];onOpen:()=>void;onMove:(columnKey:string)=>void;onOutcome:(stage:PipelineStage)=>void;outcomeStages:PipelineStage[];targets:Array<{key:string;label:string}>;canMove:boolean}){
   const {attributes,listeners,setNodeRef,transform,isDragging}=useDraggable({id:item.id,data:{stageId:item.current_stage_id}})
   const style={borderLeftColor:columnColor,...(transform?{transform:`translate3d(${transform.x}px, ${transform.y}px, 0)`}:{})}
   const name=item.candidates?.full_name||'Candidate'
@@ -68,11 +71,14 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,tar
       </span>
     </button>
     {canMove&&<label onPointerDown={(event)=>event.stopPropagation()}><span className="sr-only">Move {name}</span><Select aria-label={`Move ${name}`} value={columnKey} onChange={(event)=>onMove(event.target.value)}>{targets.map((target)=><option value={target.key} key={target.key}>{target.label}</option>)}</Select></label>}
+    {/* The keyboard-reachable route to an outcome. The stage dropdown beside it only offers active
+      * columns, so before this the only way to reject someone was the drawer's move form. */}
+    {canMove&&outcomeStages.length>0&&<CandidateCardMenu candidateName={name} outcomeStages={outcomeStages} onOpen={onOpen} onOutcome={onOutcome}/>}
   </article>
 }
 
 export function JobWorkspacePage(){
-  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [candidateId,setCandidateId]=useState('');const [detailed,setDetailed]=useState(false);const [editOpen,setEditOpen]=useState(false);const [density,setDensity]=useState<Density>('compact')
+  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [candidateId,setCandidateId]=useState('');const [detailed,setDetailed]=useState(false);const [editOpen,setEditOpen]=useState(false);const [density,setDensity]=useState<Density>('compact');const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null)
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)});const job=jobs.data?.find((item)=>item.id===jobId)
   const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const candidates=useQuery({queryKey:['job-add-candidates',organization?.id],enabled:Boolean(organization&&addOpen),queryFn:()=>listCandidatesPage(organization!.id,{},0,100)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
   const interviews=useQuery({queryKey:['interviews',organization?.id],enabled:Boolean(organization),queryFn:()=>listInterviews(organization!.id)});const offers=useQuery({queryKey:['offers',organization?.id],enabled:Boolean(organization),queryFn:()=>listOffers(organization!.id)});const placements=useQuery({queryKey:['placements',organization?.id],enabled:Boolean(organization),queryFn:()=>listPlacements(organization!.id)});const packages=useQuery({queryKey:['submissions',organization?.id],enabled:Boolean(organization),queryFn:()=>listSubmissionPackages(organization!.id)});const members=useQuery({queryKey:['members',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
@@ -95,6 +101,17 @@ export function JobWorkspacePage(){
   const now=new Date()
   const urgencyLegend=pipelinePhases.filter((phase)=>phase.key!=='placed').map((phase)=>`${phase.label} ${slaTargetDays[phase.key]}d`).join(' · ')
   const moveToColumn=(item:JobCandidate,columnKey:string)=>{const stageId=resolveStageForColumn(columns,columnKey,item.current_stage_id);if(stageId)move.mutate({itemId:item.id,stageId,name:item.candidates?.full_name,label:columns.find((column)=>column.key===columnKey)?.label||'the next phase'})}
+  /* Reinstating lands on the first active stage of the board rather than the stage they were closed
+   * from: that stage is often deep in the pipeline and putting someone straight back into, say,
+   * Offer because that is where they were rejected would assert progress nobody has re-made. */
+  const reinstateStage=columns.find((column)=>column.stages.some((stage)=>stage.stage_type==='active'))?.stages[0]??null
+  const confirmOutcome=(note:string)=>{
+    if(!outcome)return
+    move.mutate({itemId:outcome.item.id,stageId:outcome.stage.id,name:outcome.item.candidates?.full_name,
+      label:outcome.stage.name,note,source:'outcome',
+      undo:{stageId:outcome.item.current_stage_id,label:pipeline.data!.stages.find((stage)=>stage.id===outcome.item.current_stage_id)?.name||'their previous stage'}})
+    setOutcome(null)
+  }
   // Drops resolve through the same model as the dropdown, so a drag cannot land a candidate somewhere
   // the card would then contradict -- and dropping back into the column you came from is a no-op.
   const onDragEnd=({active,over}:DragEndEvent)=>{if(!canRecruit||!over)return;const item=pipeline.data!.items.find((candidate)=>candidate.id===String(active.id));if(item)moveToColumn(item,String(over.id))}
@@ -108,8 +125,13 @@ export function JobWorkspacePage(){
       <div className="workflow-toolbar">
         <div><strong>{pipeline.data!.items.length} in pipeline</strong><span>Move candidates between phases, then open a card for the next action.</span></div>
         <div className="table-actions">
+          {/* The counts were the only trace a closed candidate left -- a number with nothing behind
+            * it. They are buttons now, because "3 rejected" invites exactly one question and the
+            * drawer is the answer to it. Placed stays inert: a placement is reached through the
+            * candidate's own card, not reinstated from here. */}
           {(outcomeStages.length>0||placedCount>0)&&<div className="outcome-summary">
-            {outcomeStages.map((stage)=><span className="outcome-chip" key={stage.id}>{stage.name} <strong>{pipeline.data!.items.filter((item)=>item.current_stage_id===stage.id).length}</strong></span>)}
+            {outcomeStages.map((stage)=>{const count=pipeline.data!.items.filter((item)=>item.current_stage_id===stage.id).length
+              return <button type="button" className="outcome-chip" key={stage.id} disabled={count===0} onClick={()=>setOutcomesOpen(true)}>{stage.name} <strong>{count}</strong></button>})}
             {placedCount>0&&<span className="outcome-chip outcome-chip-good">Placed <strong>{placedCount}</strong></span>}
           </div>}
           <div className="segmented-control" role="group" aria-label="Card density"><button type="button" className={density==='compact'?'active':''} onClick={()=>setDensity('compact')}>Compact</button><button type="button" className={density==='roomy'?'active':''} onClick={()=>setDensity('roomy')}>Roomy</button></div>
@@ -126,7 +148,7 @@ export function JobWorkspacePage(){
               const stageIds=new Set(column.stages.map((stage)=>stage.id));const items=pipeline.data!.items.filter((item)=>stageIds.has(item.current_stage_id))
               const color=column.stages[0]?phaseRampColor[phaseForStage(column.stages[0])]:'var(--color-faint)'
               const stats=columnStageStats(column,pipeline.data!.items,now)
-              return <PhaseColumn id={column.key} label={column.label} count={items.length} color={color} stats={stats} key={column.key}>{items.map((item)=><CandidateCard item={item} key={item.id} columnKey={column.key} columnColor={color} now={now} members={members.data||[]} onOpen={()=>openCandidate(item)} onMove={(columnKey)=>moveToColumn(item,columnKey)} targets={targets} canMove={canRecruit}/>)}</PhaseColumn>
+              return <PhaseColumn id={column.key} label={column.label} count={items.length} color={color} stats={stats} key={column.key}>{items.map((item)=><CandidateCard item={item} key={item.id} columnKey={column.key} columnColor={color} now={now} members={members.data||[]} onOpen={()=>openCandidate(item)} onMove={(columnKey)=>moveToColumn(item,columnKey)} onOutcome={(stage)=>setOutcome({item,stage})} outcomeStages={outcomeStages} targets={targets} canMove={canRecruit}/>)}</PhaseColumn>
             })}
           </div>
         </DndContext>
@@ -137,6 +159,11 @@ export function JobWorkspacePage(){
     <Modal title="Add candidate to job" open={addOpen} onClose={()=>setAddOpen(false)}><div className="stack"><Field label="Candidate"><Select value={candidateId} onChange={(event)=>setCandidateId(event.target.value)}><option value="">Select candidate</option>{candidates.data?.rows.filter((candidate)=>!pipeline.data!.items.some((item)=>item.candidate_id===candidate.id)).map((candidate)=><option value={candidate.id} key={candidate.id}>{candidate.full_name} · {candidate.current_position||'Profile'}</option>)}</Select></Field>{add.error&&<p className="form-error" role="alert">{add.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={()=>setAddOpen(false)}>Cancel</Button><Button loading={add.isPending} disabled={!candidateId} onClick={()=>add.mutate()}>Add candidate</Button></div></div></Modal>
     {capabilities.data?.canWriteJobs&&<JobEditModal job={job} members={members.data||[]} open={editOpen} onClose={()=>setEditOpen(false)} onSaved={async()=>{setEditOpen(false);await refresh()}}/>}
     {selected&&<JobCandidatePanel job={job} item={selected} stage={pipeline.data!.stages.find((stage)=>stage.id===selected.current_stage_id)!} stages={pipeline.data!.stages} currentMemberId={currentMember?.id} interviews={interviews.data!.filter((item)=>item.job_candidate_id===selected.id)} offers={offers.data!.filter((item)=>item.job_candidate_id===selected.id)} placement={placements.data!.find((item)=>item.job_id===job.id&&item.candidate_id===selected.candidate_id)||null} hasSubmission={(packages.data||[]).some((pack)=>Array.isArray(pack.candidate_submissions)&&pack.candidate_submissions.some((submission)=>submission.job_candidate_id===selected.id))} action={params.get('action')} readOnly={job.status!=='open'} onAction={(action)=>{const nextParams=new URLSearchParams(params);if(action)nextParams.set('action',action);else nextParams.delete('action');setParams(nextParams)}} onClose={()=>{const nextParams=new URLSearchParams(params);nextParams.delete('candidate');nextParams.delete('action');setParams(nextParams)}} onUpdated={refresh} onMove={move.mutate} moving={move.isPending}/>}
+    <OutcomePrompt open={Boolean(outcome)} stage={outcome?.stage??null} candidateName={outcome?.item.candidates?.full_name||'this candidate'}
+      loading={move.isPending} onClose={()=>setOutcome(null)} onConfirm={confirmOutcome}/>
+    <OutcomesDrawer open={outcomesOpen} onClose={()=>setOutcomesOpen(false)} items={pipeline.data!.items}
+      outcomeStages={outcomeStages} reinstateStage={reinstateStage} organizationSlug={organization!.slug}
+      canMove={canRecruit} onMove={move.mutate}/>
   </Page>
 }
 
