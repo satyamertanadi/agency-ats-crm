@@ -1323,3 +1323,93 @@
   font-size: var(--text-sm);
   color: var(--color-muted);
 }
+
+/* ---- outcome flow (card menu, outcome prompt, outcomes drawer) ----
+   The outcome chips became buttons, so they need the affordances a button implies. They were already
+   styled as chips; this only adds interactivity, keeping the resting appearance identical so the
+   toolbar does not suddenly read as a row of controls. */
+button.outcome-chip {
+  cursor: pointer;
+  font-family: inherit;
+}
+button.outcome-chip:hover:not(:disabled) {
+  border-color: var(--color-line-strong);
+  color: var(--color-ink);
+}
+button.outcome-chip:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Sits in the card's top-right, over the drag surface. Revealed on hover/focus-within rather than
+   always visible: a permanent button on every card competes with the candidate's name for attention,
+   and the card is already dense. focus-within (not just :focus) keeps it visible while the menu it
+   opened is the thing holding focus. */
+.candidate-card-menu {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.workflow-candidate-card:hover .candidate-card-menu,
+.workflow-candidate-card:focus-within .candidate-card-menu {
+  opacity: 1;
+}
+/* Always visible to keyboard users the moment it is focused, regardless of the hover rules above. */
+.candidate-card-menu :focus-visible {
+  opacity: 1;
+}
+.candidate-card-menu .icon-button-sm {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.outcome-group > h3 {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+}
+.outcome-rows {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.outcome-rows > li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.outcome-rows > li small {
+  display: block;
+  margin-top: 2px;
+}
+.outcome-reason {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+
+/* The card is the positioning context for its own menu button, and clips its children so the
+   coloured left border and rounded corners stay clean while dragging. Both are still wanted -- but
+   .ui-menu-panel is absolutely positioned INSIDE the card rather than portalled, so a plain
+   overflow:hidden would clip the open dropdown to the width of the card. :has() lifts the clip only
+   while a panel is actually open, which keeps the drag appearance unchanged the rest of the time. */
+.workflow-candidate-card {
+  position: relative;
+}
+.workflow-candidate-card:has(.ui-menu-panel) {
+  overflow: visible;
+  /* Raise the open card above its neighbours so the panel is not painted under the next card. */
+  z-index: 6;
+}

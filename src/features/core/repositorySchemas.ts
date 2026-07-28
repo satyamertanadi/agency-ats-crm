@@ -82,7 +82,9 @@ const jobCandidateCandidate=z.object({
 export const jobCandidateSchema=z.object({
   id:z.string(),job_id:z.string(),candidate_id:z.string(),current_stage_id:z.string(),updated_at:z.string(),
   candidates:jobCandidateCandidate,pipeline_stages:pipelineStageSchema.nullable().optional(),
-  stage_history:z.array(z.object({occurred_at:z.string()})).optional(),
+  // note/to_stage_id ride along so the outcomes drawer can say WHY a candidate closed without a
+  // second query per row -- the embed is already ordered occurred_at desc, so [0] is the latest move.
+  stage_history:z.array(z.object({occurred_at:z.string(),note:z.string().nullable().optional(),to_stage_id:z.string().optional()})).optional(),
 })
 
 // companies selects `*`, which also carries company_size/created_at/created_by/deleted_at/
