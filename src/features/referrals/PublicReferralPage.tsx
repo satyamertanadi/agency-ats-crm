@@ -1,6 +1,6 @@
 import { useState,type CSSProperties } from 'react'
 import { useMutation,useQuery } from '@tanstack/react-query'
-import { useParams } from 'react-router-dom'
+import { useParams } from 'react-router'
 import { supabase } from '../../shared/lib/supabase'
 import { requestReferralUpload,resolveReferralLink,submitReferral } from '../core/repository'
 import type { PublicReferral } from '../../shared/types/domain'

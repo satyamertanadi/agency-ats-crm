@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {useSearchParams} from 'react-router-dom'
+import {useSearchParams} from 'react-router'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {Button} from '../../shared/ui/Button'

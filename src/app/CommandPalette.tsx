@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BriefcaseBusiness, Building2, CheckSquare, LayoutDashboard, Plus, Search, Settings, UserRoundSearch, X } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { searchWorkspace } from '../features/core/repository'
 import { Input } from '../shared/ui/Field'
 

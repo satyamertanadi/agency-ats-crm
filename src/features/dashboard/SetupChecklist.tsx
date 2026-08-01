@@ -1,5 +1,5 @@
 import {Check,Lock} from 'lucide-react'
-import {Link} from 'react-router-dom'
+import {Link} from 'react-router'
 import {Button} from '../../shared/ui/Button'
 import {Panel} from '../../shared/ui/Page'
 

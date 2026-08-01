@@ -1,6 +1,6 @@
 import {Component,type ErrorInfo,type ReactNode} from 'react'
 import {AlertTriangle,RefreshCw} from 'lucide-react'
-import {useLocation} from 'react-router-dom'
+import {useLocation} from 'react-router'
 import {useAuth} from './AuthProvider'
 import {useOrganization} from './OrganizationProvider'
 import {captureError} from '../shared/lib/observability'

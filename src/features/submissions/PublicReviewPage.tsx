@@ -1,6 +1,6 @@
 import { useState,type CSSProperties } from 'react'
 import { useMutation,useQuery,useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'react-router-dom'
+import { useParams } from 'react-router'
 import { supabase } from '../../shared/lib/supabase'
 import { resolveReview,sendReviewFeedback } from '../core/repository'
 import type { PublicReview,PublicSubmission } from '../../shared/types/domain'

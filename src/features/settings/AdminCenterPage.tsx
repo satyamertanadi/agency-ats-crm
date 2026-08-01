@@ -1,5 +1,5 @@
 import {BarChart3,FileSignature,FileUp,Landmark,Settings,SlidersHorizontal,UsersRound} from 'lucide-react'
-import {Link,Navigate} from 'react-router-dom'
+import {Link,Navigate} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {LoadingState} from '../../shared/ui/States'
