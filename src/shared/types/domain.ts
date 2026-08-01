@@ -47,6 +47,13 @@ export type PilotStatus='preparing'|'uat'|'pilot'|'active'|'suspended'|'closed'
  * (20260716050000_evidence_candidate_profiles.sql:40). Declared here because shared/lib/status.ts
  * must not import from features/. */
 export type ProfileStatus='draft'|'finalized'|'failed'
+/* Declared here for the same reason as ProfileStatus: shared/lib/status.ts owns the wording for each
+ * of these and must not import from features/. The runtime shapes live in
+ * features/jobs/interviewIntelligence.ts, which re-exports these unions rather than restating them.
+ * All three mirror check constraints in 20260731000000_interview_intelligence.sql. */
+export type TranscriptStatus='pending'|'fetching'|'ready'|'unavailable'|'failed'
+export type InterviewNotesStatus='draft'|'accepted'
+export type RubricRating='strong'|'adequate'|'needs_work'|'not_observed'
 export type PipelinePhaseKey='sourcing'|'screening'|'shortlist'|'client_review'|'interview'|'offer'|'placed'|'other'
 /* Re-exported by features/workflow/workflow.ts, which is where it is produced. Declared here for the
  * same reason as ProfileStatus: shared/lib/status.ts owns its wording and must not import features/. */
@@ -93,7 +100,7 @@ export type Placement = { id: string; job_candidate_id:string; candidate_id: str
 export type Interview = {id:string;job_candidate_id:string;interview_type:string|null;stage_label:string|null;starts_at:string;ends_at:string;timezone:string;location:string|null;meeting_url:string|null;notes?:string|null;status:InterviewStatus;organizer_member_id:string|null;attendee_emails:string[];create_google_meet:boolean;calendar_event_id:string|null;calendar_event_url:string|null;calendar_sync_status:CalendarSyncStatus;calendar_last_error:string|null;calendar_last_synced_at:string|null;calendar_retry_count:number;calendar_sync_version:number;calendar_synced_version:number;job_candidates?:{candidate_id?:string;candidates?:Pick<Candidate,'id'|'full_name'>|null;jobs?:Pick<Job,'id'|'title'|'owner_member_id'>|null}|null}
 export type Offer = {id:string;job_candidate_id:string;salary:number;currency:string;offered_at:string;start_date:string|null;status:OfferStatus;notes:string|null;job_candidates?:{candidate_id?:string;candidates?:Pick<Candidate,'id'|'full_name'>|null;jobs?:Pick<Job,'id'|'title'|'owner_member_id'>|null}|null}
 
-export interface WorkspaceCapabilities {roleKeys:string[];canWriteCandidates:boolean;canWriteClients:boolean;canWriteJobs:boolean;canMovePipeline:boolean;canSubmit:boolean;canManagePlacements:boolean;canManageCommercialTerms:boolean;canViewTeamReports:boolean;canManageFinance:boolean;canImport:boolean;canManageWorkspace:boolean;canManageTemplates:boolean;canViewAdmin:boolean;readOnly:boolean}
+export interface WorkspaceCapabilities {roleKeys:string[];canWriteCandidates:boolean;canWriteClients:boolean;canWriteJobs:boolean;canMovePipeline:boolean;canSubmit:boolean;canManagePlacements:boolean;canManageCommercialTerms:boolean;canViewTeamReports:boolean;canViewInterviewCoaching:boolean;canManageFinance:boolean;canImport:boolean;canManageWorkspace:boolean;canManageTemplates:boolean;canViewAdmin:boolean;readOnly:boolean}
 export type PublicReview = { package: { id:string; title:string; message:string|null; job_title:string; company_name:string; recipient_name:string|null; expires_at:string }; branding?:{organization_name:string;primary_color:string|null;logo_path:string|null;salary_period?:'annual'|'monthly'|null}|null; candidates: PublicSubmission[];documents?:Array<{id:string;filename:string;mimeType:string;url:string}> }
 export type PublicSubmission = { submission_id:string; candidate_name:string; current_company:string|null; current_position:string|null; location:string|null; linkedin_url:string|null; portfolio_url:string|null; candidate_summary:string; recruiter_comments:string|null; suitability_assessment:string|null; relevant_experience:string|null; expected_salary:number|null; currency:string|null; notice_period:string|null; availability:string|null; motivation:string|null; relocation_willingness:string|null; interview_availability:string|null; feedback:{decision:string;comments:string|null;reviewer_name:string|null;updated_at:string}|null }
 

@@ -6,6 +6,7 @@ import type {CalendarConnection,CandidateDetail,CandidateDocument,CompanyPipelin
 import type {Json} from '../../generated/database.types'
 import {candidateCvExtractionSchema,type CandidateCvExtraction,type CvParseResult} from '../candidates/cvParsing'
 import {candidateProfileDraftSchema,candidateProfileTemplateConfigSchema,hasStaleProfileInputs,type CandidateProfileGeneration,type CandidateProfileJob,type CandidateProfileTemplate,type CandidateProfileVersion} from '../candidates/candidateProfile'
+import {interviewAiNotesSchema,interviewCoachingReviewSchema,interviewTranscriptSchema,type InterviewAiNotes,type InterviewCoachingReview,type InterviewNotesDraft,type InterviewTranscript} from '../jobs/interviewIntelligence'
 
 function fail(error:{message:string;code?:string}|null,fallback:string):never{
   /* Raw RPC identifiers (`invalid_nonnegative_value`, `permission_denied`, ...) used to reach the user
@@ -59,6 +60,53 @@ export async function listCalendarConnections(organizationId:string){const {data
 export function startCalendarConnection(organizationId:string,returnPath:string){return invoke<{authorizationUrl:string}>('calendar-auth-start',{organizationId,returnPath})}
 export function disconnectCalendar(organizationId:string){return invoke<{status:string}>('calendar-disconnect',{organizationId})}
 export function syncInterviewCalendar(organizationId:string,interviewId:string,action:'sync'|'cancel'='sync'){return invoke<{status:string;eventId?:string}>('calendar-sync',{organizationId,interviewId,action})}
+
+/* Interview intelligence: the Meet transcript and the AI reading of it.
+ *
+ * Only the two side-effecting steps go through an Edge Function -- retrieving the transcript from
+ * Google, and paying for a model call. Everything read afterwards is a plain PostgREST select against
+ * the same RLS policies the rest of this file relies on, which is also what lets a realtime change on
+ * interview_transcripts invalidate the poll instead of the poll being the only way to notice. */
+export function startInterviewTranscript(organizationId:string,interviewId:string){
+  return invoke<{status:string;transcriptId:string}>('interview-transcript',{action:'fetch',organizationId,interviewId})
+}
+export async function getInterviewTranscript(organizationId:string,interviewId:string){
+  const {data,error}=await supabase.from('interview_transcripts')
+    .select('id,interview_id,status,language,talk_time,duration_seconds,entry_count,attempts,next_attempt_at,failure_code,failure_message,fetched_at')
+    .eq('organization_id',organizationId).eq('interview_id',interviewId).maybeSingle()
+  if(error)fail(error,'Could not load the interview transcript')
+  return data?row(data,interviewTranscriptSchema,'Interview transcript did not match the expected shape') as InterviewTranscript:null
+}
+export function analyzeInterview(organizationId:string,interviewId:string,force=false){
+  return invoke<{notesId:string;version:number;status:string;degraded?:{reason:string}|null}>('analyze-interview',{organizationId,interviewId,force})
+}
+/* Latest version only. Regenerating writes a new row rather than overwriting, so history survives an
+ * edit to the vacancy requirements -- but the card is about this interview now, not its drafts. */
+export async function getInterviewNotes(organizationId:string,interviewId:string){
+  const {data,error}=await supabase.from('interview_ai_notes')
+    .select('id,interview_id,version,status,score,language,degraded_reason,generated_content,reviewed_content,accepted_at,created_at')
+    .eq('organization_id',organizationId).eq('interview_id',interviewId)
+    .order('version',{ascending:false}).limit(1).maybeSingle()
+  if(error)fail(error,'Could not load the interview notes')
+  return data?row(data,interviewAiNotesSchema,'Interview notes did not match the expected shape') as InterviewAiNotes:null
+}
+/* Returns null for a member without interview_coaching.read -- RLS filters the row out rather than
+ * erroring, which is the behaviour the card wants: no section, no explanation of what is hidden. */
+export async function getInterviewCoachingReview(organizationId:string,interviewNotesId:string){
+  const {data,error}=await supabase.from('interview_coaching_reviews')
+    .select('id,interview_id,interview_ai_notes_id,subject_member_id,rubric,rating_summary,missed_topics,created_at')
+    .eq('organization_id',organizationId).eq('interview_ai_notes_id',interviewNotesId).maybeSingle()
+  if(error)fail(error,'Could not load the interview coaching review')
+  return data?row(data,interviewCoachingReviewSchema,'Interview coaching review did not match the expected shape') as InterviewCoachingReview:null
+}
+/* Through the RPC, not a direct update: accept_interview_notes re-pins the evidence from the
+ * generated draft, so an edited summary cannot rewrite what the model actually found, and mirrors the
+ * headline onto interviews.notes where every existing surface already reads it. */
+export async function acceptInterviewNotes(organizationId:string,interviewNotesId:string,reviewedContent:InterviewNotesDraft){
+  const {data,error}=await supabase.rpc('accept_interview_notes',{p_organization_id:organizationId,p_interview_notes_id:interviewNotesId,p_reviewed_content:reviewedContent as unknown as Json})
+  if(error)fail(error,'The interview notes were not accepted')
+  return data as string
+}
 export async function listSubmissionCandidateDocuments(organizationId:string,jobId:string){const {data,error}=await supabase.from('job_candidates').select('id,candidate_id,candidates(id,full_name,current_company,current_position,document_links(documents(id,file_name,original_filename,mime_type,storage_path,size_bytes,created_at,deleted_at)))').eq('organization_id',organizationId).eq('job_id',jobId);if(error)fail(error,'Could not load submission candidates');return rows(data,submissionCandidateDocumentRowSchema,'Submission candidate document rows did not match the expected shape')}
 export function sendClientSubmission(input:{organizationId:string;jobId:string;contactId?:string;title:string;message?:string;recipientName?:string;recipientEmail:string;expiryDays:number;items:Array<Record<string,unknown>>}){return invoke<{packageId:string;expiresAt:string;deliveryStatus:string;previewUrl?:string}>('send-submission',input)}
 export async function revokeSubmissionLink(linkId:string){const {error}=await supabase.rpc('revoke_submission_link',{p_link_id:linkId});if(error)fail(error,'Could not revoke submission link')}

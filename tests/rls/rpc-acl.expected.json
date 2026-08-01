@@ -2,6 +2,7 @@
   "_comment": "Manifest of intent for tests/rls/rpc-acl.test.ts. Every public.* function that should be directly EXECUTE-able by the authenticated role is listed here by name. Nothing should ever be EXECUTE-able by anon or by PUBLIC -- the entire public/unauthenticated surface (public-review, refer, invite acceptance) is reached only through service_role, via the rate-limited Edge Functions in supabase/functions/. Keyed by function name rather than full signature: this schema has no name overloading (verified against every migration when this manifest was built), and Postgres's identity-argument type rendering (e.g. char -> character, timestamptz -> timestamp with time zone) is fragile to reproduce by hand outside a live database. Update this file only as a deliberate, reviewed change alongside the migration that adds or removes a function's client-facing grant.",
   "authenticated": [
     "accept_candidate_cv_parse",
+    "accept_interview_notes",
     "accept_organization_invitation",
     "accept_referral",
     "add_candidates_to_job",

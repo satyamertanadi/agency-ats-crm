@@ -2289,6 +2289,101 @@ export type Database = {
           },
         ]
       }
+      interview_ai_notes: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          ai_evaluation_id: string
+          created_at: string
+          created_by: string | null
+          degraded_reason: string | null
+          generated_content: Json
+          id: string
+          input_hash: string
+          interview_id: string
+          interview_transcript_id: string
+          language: string | null
+          organization_id: string
+          prompt_version: string
+          reviewed_content: Json | null
+          score: number | null
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          ai_evaluation_id: string
+          created_at?: string
+          created_by?: string | null
+          degraded_reason?: string | null
+          generated_content: Json
+          id?: string
+          input_hash: string
+          interview_id: string
+          interview_transcript_id: string
+          language?: string | null
+          organization_id: string
+          prompt_version: string
+          reviewed_content?: Json | null
+          score?: number | null
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          ai_evaluation_id?: string
+          created_at?: string
+          created_by?: string | null
+          degraded_reason?: string | null
+          generated_content?: Json
+          id?: string
+          input_hash?: string
+          interview_id?: string
+          interview_transcript_id?: string
+          language?: string | null
+          organization_id?: string
+          prompt_version?: string
+          reviewed_content?: Json | null
+          score?: number | null
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_ai_notes_ai_evaluation_id_fkey"
+            columns: ["ai_evaluation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_evaluations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_ai_notes_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_ai_notes_interview_transcript_id_fkey"
+            columns: ["interview_transcript_id"]
+            isOneToOne: false
+            referencedRelation: "interview_transcripts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_ai_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interview_attendees: {
         Row: {
           contact_id: string | null
@@ -2341,6 +2436,158 @@ export type Database = {
           },
           {
             foreignKeyName: "interview_attendees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_coaching_reviews: {
+        Row: {
+          created_at: string
+          id: string
+          interview_ai_notes_id: string
+          interview_id: string
+          missed_topics: Json
+          organization_id: string
+          rating_summary: Json
+          rubric: Json
+          subject_member_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          interview_ai_notes_id: string
+          interview_id: string
+          missed_topics?: Json
+          organization_id: string
+          rating_summary?: Json
+          rubric?: Json
+          subject_member_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          interview_ai_notes_id?: string
+          interview_id?: string
+          missed_topics?: Json
+          organization_id?: string
+          rating_summary?: Json
+          rubric?: Json
+          subject_member_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_coaching_reviews_interview_ai_notes_id_fkey"
+            columns: ["interview_ai_notes_id"]
+            isOneToOne: true
+            referencedRelation: "interview_ai_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_coaching_reviews_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_coaching_reviews_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_coaching_reviews_subject_member_id_fkey"
+            columns: ["subject_member_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_transcripts: {
+        Row: {
+          attempts: number
+          created_at: string
+          created_by: string | null
+          duration_seconds: number
+          entries: Json
+          entry_count: number
+          failure_code: string | null
+          failure_message: string | null
+          fetched_at: string | null
+          google_conference_record: string | null
+          google_transcript_name: string | null
+          id: string
+          interview_id: string
+          language: string | null
+          next_attempt_at: string
+          organization_id: string
+          plain_text: string
+          source: string
+          status: string
+          talk_time: Json
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number
+          entries?: Json
+          entry_count?: number
+          failure_code?: string | null
+          failure_message?: string | null
+          fetched_at?: string | null
+          google_conference_record?: string | null
+          google_transcript_name?: string | null
+          id?: string
+          interview_id: string
+          language?: string | null
+          next_attempt_at?: string
+          organization_id: string
+          plain_text?: string
+          source?: string
+          status?: string
+          talk_time?: Json
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number
+          entries?: Json
+          entry_count?: number
+          failure_code?: string | null
+          failure_message?: string | null
+          fetched_at?: string | null
+          google_conference_record?: string | null
+          google_transcript_name?: string | null
+          id?: string
+          interview_id?: string
+          language?: string | null
+          next_attempt_at?: string
+          organization_id?: string
+          plain_text?: string
+          source?: string
+          status?: string
+          talk_time?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_transcripts_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: true
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_transcripts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -4673,6 +4920,14 @@ export type Database = {
         }
         Returns: string
       }
+      accept_interview_notes: {
+        Args: {
+          p_interview_notes_id: string
+          p_organization_id: string
+          p_reviewed_content: Json
+        }
+        Returns: string
+      }
       accept_organization_invitation: {
         Args: { p_token: string }
         Returns: Json
@@ -4833,6 +5088,10 @@ export type Database = {
       has_permission: {
         Args: { p_organization_id: string; p_permission: string }
         Returns: boolean
+      }
+      interview_notes_token_spend_this_month: {
+        Args: { p_organization_id: string }
+        Returns: number
       }
       is_organization_member: {
         Args: { p_organization_id: string }

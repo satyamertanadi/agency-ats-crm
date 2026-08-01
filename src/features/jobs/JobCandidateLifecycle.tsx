@@ -2,11 +2,13 @@ import {useState} from 'react'
 import {useMutation,useQuery} from '@tanstack/react-query'
 import {BriefcaseBusiness,CalendarPlus,History,MessageSquare} from 'lucide-react'
 import {cancelInterview,completeInterview,listStageHistory,listSubmissionFeedback,updateOfferStatus} from '../core/repository'
+import {startInterviewTranscript} from '../core/commercialRepository'
+import {InterviewIntelligenceCard} from './InterviewIntelligenceCard'
 import type {Interview,Offer} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
 import {Callout} from '../../shared/ui/Callout'
 import {ConfirmDialog} from '../../shared/ui/ConfirmDialog'
-import {Field,Select,Textarea} from '../../shared/ui/Field'
+import {Checkbox,Field,Select,Textarea} from '../../shared/ui/Field'
 import {StatusBadge} from '../../shared/ui/Page'
 import {useToast} from '../../shared/ui/Toast'
 import {feedbackDecision,interviewStatus,offerStatus} from '../../shared/lib/status'
@@ -28,6 +30,9 @@ export interface JobCandidateLifecycleProps {
   offers:Offer[]
   canManage:boolean
   readOnly:boolean
+  /* interview_coaching.read. Owner/admin only by grant, so this is not derivable from canManage --
+   * a consultant manages their own interviews and must not read the review of how they ran them. */
+  canViewCoaching:boolean
   onUpdated:()=>Promise<unknown>
   /* Reschedule reuses the panel's existing interview form rather than growing a second one that can
    * drift from it -- the panel owns that form, so it owns reopening it. */
@@ -39,7 +44,7 @@ const offerDecisions:Array<{value:OfferDecision;label:string}>=[
   {value:'accepted',label:'Accepted'},{value:'declined',label:'Declined'},{value:'withdrawn',label:'Withdrawn'},
 ]
 
-export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateName,interviews,offers,canManage,readOnly,onUpdated,onReschedule}:JobCandidateLifecycleProps){
+export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateName,interviews,offers,canManage,canViewCoaching,readOnly,onUpdated,onReschedule}:JobCandidateLifecycleProps){
   const toast=useToast()
   const [offerDecision,setOfferDecision]=useState<{offer:Offer;decision:OfferDecision}|null>(null)
   const [offerNote,setOfferNote]=useState('')
@@ -47,6 +52,7 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
   const [completing,setCompleting]=useState<Interview|null>(null)
   const [outcome,setOutcome]=useState<'completed'|'no_show'>('completed')
   const [outcomeNotes,setOutcomeNotes]=useState('')
+  const [fetchTranscript,setFetchTranscript]=useState(true)
 
   const feedback=useQuery({queryKey:['submission-feedback',organizationId,jobCandidateId],queryFn:()=>listSubmissionFeedback(organizationId,jobCandidateId)})
   const history=useQuery({queryKey:['stage-history',organizationId,jobCandidateId],queryFn:()=>listStageHistory(organizationId,jobCandidateId)})
@@ -63,8 +69,18 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
     onError:(error)=>toast.error(error,'The offer status was not changed.'),
   })
   const finishInterview=useMutation({
-    mutationFn:(interview:Interview)=>completeInterview(organizationId,interview.id,{outcome,notes:outcomeNotes}),
-    onSuccess:async()=>{setCompleting(null);setOutcomeNotes('');setOutcome('completed');toast.success(`Interview outcome recorded for ${candidateName}.`);await onUpdated()},
+    mutationFn:async(interview:Interview)=>{
+      await completeInterview(organizationId,interview.id,{outcome,notes:outcomeNotes})
+      /* Recording the outcome is the moment the transcript exists to be fetched, so it is the moment
+       * to ask for it. Deliberately not fatal to the mutation: the outcome is recorded either way,
+       * and the intelligence card carries its own retry -- failing the whole thing here would make a
+       * Google problem look like the outcome not saving. */
+      if(outcome==='completed'&&fetchTranscript&&interview.meeting_url){
+        try{await startInterviewTranscript(organizationId,interview.id)}
+        catch{toast.error(new Error('The outcome was recorded, but the Meet transcript could not be requested.'),'')}
+      }
+    },
+    onSuccess:async()=>{setCompleting(null);setOutcomeNotes('');setOutcome('completed');setFetchTranscript(true);toast.success(`Interview outcome recorded for ${candidateName}.`);await onUpdated()},
     onError:(error)=>toast.error(error,'The interview outcome was not recorded.'),
   })
   const dropInterview=useMutation({
@@ -75,6 +91,13 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
 
   const latestOffer=offers[0]
   const active=canManage&&!readOnly
+
+  /* One intelligence card, for the interview most likely to have something to read: the most recent
+   * one that actually went ahead on a Meet link. A card per interview would repeat a large, polling
+   * block for every round in the process; when a candidate has several, the latest is the one being
+   * worked. Earlier rounds keep their accepted summary on the interview row above. */
+  const transcribable=[...interviews].filter((entry)=>entry.meeting_url).sort((a,b)=>Date.parse(b.starts_at)-Date.parse(a.starts_at))
+  const intelligenceInterview=transcribable.find((entry)=>entry.status==='completed')||transcribable[0]
 
   return <div className="lifecycle-cards">
     <section className="lifecycle-card">
@@ -106,6 +129,9 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
         </li>)}
       </ul>}
     </section>
+
+    {intelligenceInterview&&<InterviewIntelligenceCard organizationId={organizationId} interview={intelligenceInterview}
+      candidateName={candidateName} canManage={active} canViewCoaching={canViewCoaching} onUpdated={onUpdated}/>}
 
     <section className="lifecycle-card">
       <h3><MessageSquare size={15}/>Client review</h3>
@@ -148,6 +174,10 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
           <option value="completed">The interview went ahead</option><option value="no_show">The candidate did not attend</option>
         </Select></Field>
         <Field label="Notes (optional)"><Textarea value={outcomeNotes} onChange={(event)=>setOutcomeNotes(event.target.value)} placeholder="How did it go?"/></Field>
+        {outcome==='completed'&&Boolean(completing?.meeting_url)&&<Checkbox
+          label="Retrieve the Meet transcript and write notes"
+          description="Reads the transcript Google Meet produced for this call. Nothing is recorded, and the notes are a draft until you accept them."
+          checked={fetchTranscript} onChange={(event)=>setFetchTranscript(event.target.checked)}/>}
       </div>}/>
 
     <ConfirmDialog open={Boolean(cancelling)} title="Cancel this interview?" confirmLabel="Cancel interview"

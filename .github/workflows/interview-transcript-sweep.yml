@@ -1,0 +1,46 @@
+# Google Meet publishes a transcript minutes after a call ends, not when it ends, and a consultant
+# who closed the drawer is not there to ask again. This retries the ones still waiting.
+#
+# The primary trigger is still the consultant recording the interview outcome -- this is the backstop
+# for transcripts that were not ready at that moment. GitHub's scheduler drifts under load, which is
+# fine here: interview_transcripts.next_attempt_at carries the real backoff, so a late run picks up
+# everything that has come due rather than skipping a slot.
+name: Interview transcript sweep
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    # Same reason as cv-parse-cleanup.yml: SUPABASE_URL is a production environment secret, not a
+    # repository-level one, so the job has to declare the environment to see it.
+    environment: production
+    steps:
+      - name: Retrieve pending Meet transcripts
+        env:
+          SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
+          INTERVIEW_TRANSCRIPT_WORKER_SECRET: ${{ secrets.CV_PARSE_WORKER_SECRET }}
+        run: |
+          # A silent misconfiguration here means interviews quietly never get notes, which looks like
+          # the feature not working rather than the workflow not running. Fail loudly instead.
+          missing=()
+          [ -n "$SUPABASE_URL" ] || missing+=("PRODUCTION_SUPABASE_URL (production environment secret)")
+          [ -n "$INTERVIEW_TRANSCRIPT_WORKER_SECRET" ] || missing+=("CV_PARSE_WORKER_SECRET (must match the WORKER_SECRET env var set on the production Supabase project's interview-transcript function)")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Interview transcript sweep is not configured. Missing:"
+            printf '::error::  - %s\n' "${missing[@]}"
+            echo "::error::Meet transcripts that were not ready at the end of a call are NOT being retried until these are set."
+            exit 1
+          fi
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "content-type: application/json" \
+            --header "x-worker-secret: $INTERVIEW_TRANSCRIPT_WORKER_SECRET" \
+            --data '{"action":"sweep"}' \
+            "$SUPABASE_URL/functions/v1/interview-transcript"

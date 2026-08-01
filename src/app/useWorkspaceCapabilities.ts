@@ -7,10 +7,10 @@ import {useOrganization} from './OrganizationProvider'
 const permissionKeys=[
   'candidates.write','companies.write','jobs.write','pipeline.move','submissions.write','placements.write',
   'reports.read','reports.team','finance.write','imports.manage','organization.manage','roles.manage',
-  'commercial_terms.write',
+  'commercial_terms.write','interview_coaching.read',
 ] as const
 
-const empty:WorkspaceCapabilities={roleKeys:[],canWriteCandidates:false,canWriteClients:false,canWriteJobs:false,canMovePipeline:false,canSubmit:false,canManagePlacements:false,canManageCommercialTerms:false,canViewTeamReports:false,canManageFinance:false,canImport:false,canManageWorkspace:false,canManageTemplates:false,canViewAdmin:false,readOnly:true}
+const empty:WorkspaceCapabilities={roleKeys:[],canWriteCandidates:false,canWriteClients:false,canWriteJobs:false,canMovePipeline:false,canSubmit:false,canManagePlacements:false,canManageCommercialTerms:false,canViewTeamReports:false,canViewInterviewCoaching:false,canManageFinance:false,canImport:false,canManageWorkspace:false,canManageTemplates:false,canViewAdmin:false,readOnly:true}
 
 export function useWorkspaceCapabilities(){
   const {organization}=useOrganization();const {user}=useAuth()
@@ -30,7 +30,10 @@ export function useWorkspaceCapabilities(){
       const canManageTemplates=canManageWorkspace
       const canViewAdmin=canViewTeamReports||permissions['finance.write']||permissions['imports.manage']||canManageWorkspace||canManageTemplates
       const canWriteCandidates=permissions['candidates.write'];const canWriteClients=permissions['companies.write'];const canWriteJobs=permissions['jobs.write']
-      return {roleKeys,canWriteCandidates,canWriteClients,canWriteJobs,canMovePipeline:permissions['pipeline.move'],canSubmit:permissions['submissions.write'],canManagePlacements:permissions['placements.write'],canManageCommercialTerms:permissions['commercial_terms.write'],canViewTeamReports,canManageFinance:permissions['finance.write'],canImport:permissions['imports.manage'],canManageWorkspace,canManageTemplates,canViewAdmin,readOnly:![canWriteCandidates,canWriteClients,canWriteJobs,permissions['pipeline.move'],permissions['submissions.write'],permissions['placements.write']].some(Boolean)}
+      // Not folded into any management-role shortcut: an AI review of how a named consultant ran an
+      // interview is owner/admin-only by grant, and inferring it from a role here would show a
+      // section the database will not return rows for.
+      return {roleKeys,canWriteCandidates,canWriteClients,canWriteJobs,canMovePipeline:permissions['pipeline.move'],canSubmit:permissions['submissions.write'],canManagePlacements:permissions['placements.write'],canManageCommercialTerms:permissions['commercial_terms.write'],canViewTeamReports,canViewInterviewCoaching:permissions['interview_coaching.read'],canManageFinance:permissions['finance.write'],canImport:permissions['imports.manage'],canManageWorkspace,canManageTemplates,canViewAdmin,readOnly:![canWriteCandidates,canWriteClients,canWriteJobs,permissions['pipeline.move'],permissions['submissions.write'],permissions['placements.write']].some(Boolean)}
     },
     placeholderData:empty,
   })

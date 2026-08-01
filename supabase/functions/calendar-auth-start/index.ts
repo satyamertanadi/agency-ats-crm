@@ -16,7 +16,12 @@ Deno.serve(async(request)=>{
     const state=randomToken();const safeReturn=returnPath.startsWith('/')&&!returnPath.startsWith('//')?returnPath:'/app'
     const {error:stateError}=await admin.from('google_oauth_states').insert({state_hash:await sha256(state),organization_id:organizationId,member_id:member.id,user_id:user.id,return_path:safeReturn,expires_at:new Date(Date.now()+10*60_000).toISOString()})
     if(stateError)throw stateError
-    const params=new URLSearchParams({client_id:clientId,redirect_uri:redirectUri,response_type:'code',scope:'openid email https://www.googleapis.com/auth/calendar.events',access_type:'offline',prompt:'consent',include_granted_scopes:'true',state})
+    // meetings.space.readonly is what interview-transcript reads Meet transcripts with. It is
+    // requested here rather than in a second consent flow because the two are the same grant to the
+    // same account, and splitting them would mean a member who scheduled an interview still could
+    // not get its notes. Members connected before this scope existed keep working for calendar sync
+    // and are marked reauthorization_required the first time a transcript is requested.
+    const params=new URLSearchParams({client_id:clientId,redirect_uri:redirectUri,response_type:'code',scope:'openid email https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/meetings.space.readonly',access_type:'offline',prompt:'consent',include_granted_scopes:'true',state})
     log('info','calendar.authorization_started',{requestId:id,organizationId,memberId:member.id})
     return json(request,{authorizationUrl:`https://accounts.google.com/o/oauth2/v2/auth?${params}`})
   }catch(error){const known=error instanceof FunctionError;log('error','calendar.authorization_failed',{requestId:id,code:known?error.code:'unexpected_error'});return json(request,{error:{code:known?error.code:'unexpected_error',message:known?error.message:'Could not start Calendar authorization.',requestId:id}},known?error.status:500)}

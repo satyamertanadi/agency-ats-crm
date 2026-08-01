@@ -3,7 +3,7 @@ import {queriesForTable,realtimeQueryMap,realtimeTables} from './realtimeSync'
 
 describe('realtime query mapping',()=>{
   it('subscribes to exactly the tables it can act on',()=>{
-    expect(realtimeTables).toEqual(['job_candidates','jobs','tasks','interviews','offers','placements'])
+    expect(realtimeTables).toEqual(['job_candidates','jobs','tasks','interviews','interview_transcripts','offers','placements'])
   })
 
   /* A table in the publication with no mapping is a subscription that costs bandwidth on every write
@@ -19,9 +19,15 @@ describe('realtime query mapping',()=>{
 
   /* The Today queue is built from tasks, interviews, offers, placements, and pipeline state, so a
    * change to any of them can make one of its items stale. Missing one here is how the queue comes
-   * to show work a colleague already finished -- the exact failure Phase 1 existed to fix. */
+   * to show work a colleague already finished -- the exact failure Phase 1 existed to fix.
+   *
+   * Enumerated rather than derived from realtimeTables: a subscribed table is not automatically a
+   * Today input. interview_transcripts is subscribed so an open drawer sees a transcript land, and
+   * nothing on Today reads it -- invalidating the queue for it would be a refetch that changes
+   * nothing on screen. */
+  const todayInputs=['job_candidates','jobs','tasks','interviews','offers','placements'] as const
   it('refreshes the Today queue for every record type it is built from',()=>{
-    for(const table of realtimeTables)expect(queriesForTable(table),`${table} leaves Today stale`).toContain('today')
+    for(const table of todayInputs)expect(queriesForTable(table),`${table} leaves Today stale`).toContain('today')
   })
 
   it('refreshes the board and the job-health aggregate together on a stage move',()=>{

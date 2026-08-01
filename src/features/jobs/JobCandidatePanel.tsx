@@ -110,6 +110,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
       <div className="milestone-list"><article><Mail size={15}/><span><strong>Client submission</strong><small>{hasSubmission?'Sent to client':'Not yet sent'}</small></span></article><article><Handshake size={15}/><span><strong>Placement</strong><small>{placement?'Recorded':'Not recorded'}</small></span></article></div>
       <JobCandidateLifecycle organizationId={organization!.id} jobCandidateId={item.id} candidateName={candidateName}
         interviews={interviews} offers={offers} canManage={Boolean(capabilities.data?.canManagePlacements)} readOnly={readOnly}
+        canViewCoaching={Boolean(capabilities.data?.canViewInterviewCoaching)}
         onUpdated={refresh} onReschedule={()=>chooseAction('interview')}/>
       {!readOnly&&<div className="context-secondary-actions">{capabilities.data?.canManagePlacements&&<><Button variant="secondary" leadingIcon={<CalendarPlus size={14}/>} onClick={()=>chooseAction('interview')}>Interview</Button><Button variant="secondary" leadingIcon={<BriefcaseBusiness size={14}/>} onClick={()=>chooseAction('offer')}>Offer</Button></>}{capabilities.data?.canMovePipeline&&<Button variant="quiet" onClick={()=>chooseAction('move')}>Move stage</Button>}</div>}
     </section>}
