@@ -1,4 +1,4 @@
-import {Link} from 'react-router-dom'
+import {Link} from 'react-router'
 import {Undo2} from 'lucide-react'
 import {Button} from '../../shared/ui/Button'
 import {Drawer} from '../../shared/ui/Drawer'

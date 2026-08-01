@@ -1,5 +1,5 @@
 import {useState,type FormEvent} from 'react'
-import {Link,Navigate,useNavigate,useSearchParams} from 'react-router-dom'
+import {Link,Navigate,useNavigate,useSearchParams} from 'react-router'
 import {LogIn} from 'lucide-react'
 import {supabase} from '../../shared/lib/supabase'
 import {env} from '../../shared/lib/env'

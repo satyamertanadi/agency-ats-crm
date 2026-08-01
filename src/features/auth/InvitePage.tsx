@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate,useNavigate,useParams } from 'react-router-dom'
+import { Navigate,useNavigate,useParams } from 'react-router'
 import { useAuth } from '../../app/AuthProvider'
 import { acceptInvitation } from '../core/repository'
 import { Button } from '../../shared/ui/Button'

@@ -1,7 +1,7 @@
 import {useState,type FormEvent} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {Archive,ArrowLeft,RotateCcw} from 'lucide-react'
-import {Link,useParams} from 'react-router-dom'
+import {Link,useParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {getCompanyDetail,getContactDetail,listTeamMembers,setRecordArchived,updateCompany,updateContact} from './commercialRepository'

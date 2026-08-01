@@ -1,5 +1,5 @@
 import { ArrowLeft } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import type { ReactNode } from 'react'
 
 /* One back affordance. The same markup was duplicated as a local helper in RecordDetailPages, inlined

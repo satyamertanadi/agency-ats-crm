@@ -1,5 +1,5 @@
 import {useEffect} from 'react'
-import {useSearchParams} from 'react-router-dom'
+import {useSearchParams} from 'react-router'
 
 /**
  * Opens a page's create form when it is reached with `?new=1`, letting the topbar's quick add and

@@ -1,5 +1,5 @@
 import {CheckSquare} from 'lucide-react'
-import {useSearchParams} from 'react-router-dom'
+import {useSearchParams} from 'react-router'
 import {Button} from '../../shared/ui/Button'
 
 type LinkType='candidate'|'company'|'contact'|'job'

@@ -1,6 +1,6 @@
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {CalendarCheck,CalendarX,RefreshCw} from 'lucide-react'
-import {useSearchParams} from 'react-router-dom'
+import {useSearchParams} from 'react-router'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {disconnectCalendar,listCalendarConnections,startCalendarConnection} from '../core/commercialRepository'
