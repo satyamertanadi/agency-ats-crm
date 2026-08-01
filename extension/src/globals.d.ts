@@ -2,6 +2,7 @@
 declare const __SUPABASE_URL__: string
 declare const __SUPABASE_ANON_KEY__: string
 declare const __APP_ORIGIN__: string
+declare const __DEBUG__: boolean
 
 // Minimal ambient typings for the subset of the chrome.* extension APIs this extension uses, so the
 // optional `tsc --noEmit` passes without pulling in @types/chrome as a dependency. esbuild does the
