@@ -43,10 +43,12 @@ if(!extEnv.EXT_SUPABASE_URL&&!process.env.EXT_SUPABASE_URL){
 const supabaseOrigin=new URL(SUPABASE_URL).origin
 
 mkdirSync(dist,{recursive:true})
+const DEBUG=/^(1|true)$/i.test(pick('EXT_DEBUG'))
 const define={
   __SUPABASE_URL__:JSON.stringify(SUPABASE_URL),
   __SUPABASE_ANON_KEY__:JSON.stringify(SUPABASE_ANON_KEY),
   __APP_ORIGIN__:JSON.stringify(APP_ORIGIN),
+  __DEBUG__:JSON.stringify(DEBUG),
 }
 
 // Service worker: ESM (MV3 allows "type":"module"), bundles @supabase/supabase-js.
@@ -66,9 +68,13 @@ const manifest={
   permissions:['storage','tabs'],
   host_permissions:['https://*.linkedin.com/*',`${APP_ORIGIN}/*`,`${supabaseOrigin}/*`],
   background:{service_worker:'background.js',type:'module'},
+  // Both LinkedIn scripts match the whole site, not just their own routes. Chrome injects content
+  // scripts on full page loads ONLY, so a narrow match pattern means a client-side nav from /feed into
+  // /in/<slug> leaves the page with no panel at all. Each script gates itself on location.pathname
+  // (isProfilePage / isListPage in src/dom.ts) and re-evaluates on every route change.
   content_scripts:[
-    {matches:['https://*.linkedin.com/in/*'],js:['linkedin.js'],css:['panel.css'],run_at:'document_idle'},
-    {matches:['https://*.linkedin.com/search/results/people/*','https://*.linkedin.com/company/*/people/*','https://*.linkedin.com/feed/*','https://*.linkedin.com/posts/*'],js:['list-people.js'],css:['panel.css'],run_at:'document_idle'},
+    {matches:['https://*.linkedin.com/*'],js:['linkedin.js'],css:['panel.css'],run_at:'document_idle'},
+    {matches:['https://*.linkedin.com/*'],js:['list-people.js'],css:['panel.css'],run_at:'document_idle'},
     {matches:[`${APP_ORIGIN}/*`],js:['handoff.js'],run_at:'document_idle'},
   ],
   action:{default_title:'Agency ATS Sourcing'},

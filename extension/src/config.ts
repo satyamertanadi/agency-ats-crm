@@ -2,3 +2,5 @@
 export const SUPABASE_URL=__SUPABASE_URL__
 export const SUPABASE_ANON_KEY=__SUPABASE_ANON_KEY__
 export const APP_ORIGIN=__APP_ORIGIN__
+// Off unless built with EXT_DEBUG=1. Keeps session/tab/org tracing out of end users' consoles.
+export const DEBUG=__DEBUG__

@@ -7,6 +7,12 @@
   box-shadow:0 6px 20px rgba(0,0,0,.25);
 }
 #ats-launcher:hover{background:#1f5f59}
+/* Filled dot when this profile is already in the ATS -- answers "do we know them?" without opening
+   the panel, using the lookup that is prefetched as soon as the launcher mounts. */
+#ats-launcher.ats-launcher-in::after{
+  content:'';position:absolute;top:2px;right:2px;width:13px;height:13px;border-radius:50%;
+  background:#3ecf8e;border:2px solid #fff;
+}
 .ats-panel{
   position:fixed;right:20px;bottom:84px;z-index:2147483647;width:340px;max-height:78vh;overflow:auto;
   background:#fff;color:#1a1a1a;border:1px solid #e2e2e2;border-radius:12px;
@@ -39,6 +45,9 @@
 .ats-radar-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap}
 .ats-radar-in{background:#e7f4ef;color:#1f6b56}
 .ats-radar-out{background:#f2f2f2;color:#888}
+/* A failed lookup must not look like a clean miss -- that misread is what made saved contacts appear
+   to be new people. */
+.ats-radar-err{background:#fdf1f0;color:#b42318}
 textarea.ats-input{resize:vertical;min-height:38px;font-family:inherit}
 
 /* Bulk-capture bar on list surfaces + per-row controls injected next to each person. */
