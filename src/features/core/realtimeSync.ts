@@ -16,6 +16,9 @@ export const realtimeQueryMap={
   jobs:['jobs','job-health','today','company-pipeline'],
   tasks:['tasks','today'],
   interviews:['interviews','today'],
+  // Meet publishes a transcript minutes after the call, and the sweep can land it while the drawer is
+  // already open -- this is what turns "still waiting" into the draft without the consultant reloading.
+  interview_transcripts:['interview-transcript'],
   offers:['offers','today'],
   // A placement clears the accepted-offer recommendation and moves reporting numbers.
   placements:['placements','today','job-health','company-pipeline'],

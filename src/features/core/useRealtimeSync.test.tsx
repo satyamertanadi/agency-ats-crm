@@ -90,7 +90,7 @@ describe('useRealtimeSync',()=>{
     render(<Harness organizationId="org-1"/>,{wrapper})
     invalidated=[]
     act(()=>subscribeCallback?.('SUBSCRIBED'))
-    expect(new Set(invalidated)).toEqual(new Set(['pipeline','job-health','today','candidate-pipelines','jobs','company-pipeline','tasks','interviews','offers','placements']))
+    expect(new Set(invalidated)).toEqual(new Set(['pipeline','job-health','today','candidate-pipelines','jobs','company-pipeline','tasks','interviews','interview-transcript','offers','placements']))
   })
 
   it('reports a channel error without refetching or throwing',()=>{

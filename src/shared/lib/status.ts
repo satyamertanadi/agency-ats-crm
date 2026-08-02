@@ -1,8 +1,9 @@
 import type {
   AccountStatus, BusinessDevelopmentStage, CalendarConnectionStatus, CalendarSyncStatus,
-  CandidateStatus, ConsentStatus, ContactStatus, DeliveryStatus, FeedbackDecision, ImportStatus, InterviewStatus,
+  CandidateStatus, ConsentStatus, ContactStatus, DeliveryStatus, FeedbackDecision, ImportStatus,
+  InterviewNotesStatus, InterviewStatus,
   InvoiceStatus, JobPriority, JobStatus, MemberStatus, OfferStatus, PilotStatus, PlacementStatus,
-  ProfileStatus, ReferralStatus, TaskPriority, TaskStatus, TodayWorkKind,
+  ProfileStatus, ReferralStatus, RubricRating, TaskPriority, TaskStatus, TodayWorkKind, TranscriptStatus,
 } from '../types/domain'
 
 /* The vocabulary layer: every domain status decides its colour and its wording HERE, once.
@@ -133,6 +134,31 @@ export const interviewStatus=map<InterviewStatus>({
   completed:{tone:'good',label:'Completed'},
   cancelled:{tone:'neutral',label:'Cancelled'},
   no_show:{tone:'bad',label:'No show'},
+})
+
+/* 'unavailable' is deliberately neutral, not bad: Google Meet produced no transcript for the call,
+ * which most often means the host never started transcription. Nothing failed, and colouring it red
+ * would send consultants chasing a defect that is not there. 'failed' is the one that wants a look. */
+export const transcriptStatus=map<TranscriptStatus>({
+  pending:{tone:'info',label:'Waiting for Meet'},
+  fetching:{tone:'info',label:'Retrieving'},
+  ready:{tone:'good',label:'Transcript ready'},
+  unavailable:{tone:'neutral',label:'No transcript'},
+  failed:{tone:'bad',label:'Retrieval failed'},
+})
+
+export const interviewNotesStatus=map<InterviewNotesStatus>({
+  draft:{tone:'warn',label:'Needs review'},
+  accepted:{tone:'good',label:'Accepted'},
+})
+
+/* 'not_observed' is neutral for the same reason: a screening call that never reaches salary has not
+ * been conducted badly, and the rubric index excludes these rather than scoring them zero. */
+export const rubricRating=map<RubricRating>({
+  strong:{tone:'good',label:'Strong'},
+  adequate:{tone:'info',label:'Adequate'},
+  needs_work:{tone:'warn',label:'Needs work'},
+  not_observed:{tone:'neutral',label:'Not observed'},
 })
 
 /* 'failed_guarantee' is bad and 'cancelled' is a loss -- both rendered green before this map

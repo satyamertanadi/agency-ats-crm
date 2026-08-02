@@ -105,3 +105,11 @@ verify_jwt = false
 [functions.generate-candidate-profile]
 enabled = true
 verify_jwt = false
+
+[functions.interview-transcript]
+enabled = true
+verify_jwt = false
+
+[functions.analyze-interview]
+enabled = true
+verify_jwt = false

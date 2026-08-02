@@ -1,5 +1,5 @@
 const baseUrl=(process.env.SUPABASE_URL||'http://127.0.0.1:55321').replace(/\/$/,'')
-const functions=['ai-evaluate','calendar-auth-callback','calendar-auth-start','calendar-disconnect','calendar-sync','execute-import','generate-candidate-profile','parse-candidate-cv','parse-linkedin-profile','public-review','refer','send-invitation','send-submission']
+const functions=['ai-evaluate','analyze-interview','calendar-auth-callback','calendar-auth-start','calendar-disconnect','calendar-sync','execute-import','generate-candidate-profile','interview-transcript','parse-candidate-cv','parse-linkedin-profile','public-review','refer','send-invitation','send-submission']
 
 // The local functions-serve gateway boots each function's isolate on first request rather than
 // eagerly at startup, and under CI's constrained runner a request that lands mid-boot can get an

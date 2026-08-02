@@ -43,6 +43,7 @@ const rpcMessages:Record<string,string>={
   link_not_found:'That link is no longer valid.',
   parse_not_found:'That CV upload could not be found.',
   profile_version_not_found:'That profile version could not be found.',
+  interview_notes_not_found:'Those interview notes could not be found.',
   // Workflow state
   job_not_open:'This job is not open, so recruitment actions are read-only.',
   candidate_already_in_job:'This candidate is already in that job.',
@@ -87,6 +88,8 @@ const rpcMessages:Record<string,string>={
   invalid_template_configuration:'That template layout is not valid.',
   invalid_profile_content:'That profile content is not valid.',
   invalid_profile_scope:'That profile does not match this candidate and job.',
+  invalid_interview_notes_content:'These interview notes need a summary before they can be accepted.',
+  invalid_interview_scope:'Those interview notes do not belong to this interview.',
   invalid_docx_document:'That Word document is not valid.',
   invalid_pdf_document:'That PDF is not valid.',
   occurred_at_in_future:'An activity cannot be logged in the future.',
