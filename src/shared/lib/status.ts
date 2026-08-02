@@ -2,7 +2,7 @@ import type {
   AccountStatus, BusinessDevelopmentStage, CalendarConnectionStatus, CalendarSyncStatus,
   CandidateStatus, ConsentStatus, ContactStatus, DeliveryStatus, FeedbackDecision, ImportStatus, InterviewStatus,
   InvoiceStatus, JobPriority, JobStatus, MemberStatus, OfferStatus, PilotStatus, PlacementStatus,
-  ProfileStatus, ReferralStatus, TaskPriority, TaskStatus, TodayWorkKind,
+  ProfileStatus, ReferralStatus, SubmissionPackageStatus, TaskPriority, TaskStatus, TodayWorkKind,
 } from '../types/domain'
 
 /* The vocabulary layer: every domain status decides its colour and its wording HERE, once.
@@ -177,6 +177,15 @@ export const feedbackDecision=map<FeedbackDecision>({
   approve:{tone:'good',label:'Approved'},
   hold:{tone:'warn',label:'On hold'},
   reject:{tone:'bad',label:'Not progressing'},
+})
+
+/* A shortlist package's own life. 'shared' is in flight and going well, so it is info rather than
+ * good -- the good outcome is the client answering, which is what 'reviewed' records. */
+export const submissionPackageStatus=map<SubmissionPackageStatus>({
+  draft:{tone:'neutral',label:'Draft'},
+  shared:{tone:'info',label:'With the client'},
+  reviewed:{tone:'good',label:'Client responded'},
+  closed:{tone:'neutral',label:'Closed'},
 })
 
 export const importStatus=map<ImportStatus>({

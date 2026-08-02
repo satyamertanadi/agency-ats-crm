@@ -9,6 +9,7 @@ import {convertOfferToPlacement,createInterview,createOffer,listContacts,listJob
 import {getCandidateDetail,listCalendarConnections,listSubmissionCandidateDocuments,sendClientSubmission,syncInterviewCalendar} from '../core/commercialRepository'
 import type {Interview,Job,JobCandidate,Offer,PipelineStage,Placement} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
+import {Callout} from '../../shared/ui/Callout'
 import {Drawer} from '../../shared/ui/Drawer'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Badge,StatusBadge} from '../../shared/ui/Page'
@@ -22,11 +23,14 @@ import {recordWorkflowEvent} from '../../shared/lib/productAnalytics'
 
 type ActionName='submit'|'check_feedback'|'interview'|'offer'|'placement'|'move'
 
-export interface JobCandidatePanelProps {job:Job;item:JobCandidate;stage:PipelineStage;stages:PipelineStage[];currentMemberId?:string;interviews:Interview[];offers:Offer[];placement:Placement|null;hasSubmission:boolean;action:string|null;readOnly:boolean;onAction:(action:string|null)=>void;onClose:()=>void;onUpdated:()=>Promise<unknown>;onMove:(input:StageMoveInput)=>void;moving:boolean}
+export interface JobCandidatePanelProps {job:Job;item:JobCandidate;stage:PipelineStage;stages:PipelineStage[];currentMemberId?:string;interviews:Interview[];offers:Offer[];placement:Placement|null;hasSubmission:boolean;action:string|null;readOnly:boolean;onAction:(action:string|null)=>void;onClose:()=>void;onUpdated:()=>Promise<unknown>;onMove:(input:StageMoveInput)=>void;moving:boolean;
+  /* The org-wide lists no longer gate the board, so this panel can open before they land -- or after
+   * they failed. Empty and not-yet-known are different claims and the panel must not confuse them. */
+  detailLoading?:boolean;detailError?:unknown}
 
 const localValue=(date:Date)=>{const offset=date.getTimezoneOffset()*60_000;return new Date(date.valueOf()-offset).toISOString().slice(0,16)}
 
-export function JobCandidatePanel({job,item,stage,stages,currentMemberId,interviews,offers,placement,hasSubmission,action:requestedAction,readOnly,onAction,onClose,onUpdated,onMove,moving}:JobCandidatePanelProps){
+export function JobCandidatePanel({job,item,stage,stages,currentMemberId,interviews,offers,placement,hasSubmission,action:requestedAction,readOnly,onAction,onClose,onUpdated,onMove,moving,detailLoading=false,detailError}:JobCandidatePanelProps){
   const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast()
   const details=useQuery({queryKey:['candidate-detail',organization?.id,item.candidate_id],queryFn:()=>getCandidateDetail(organization!.id,item.candidate_id)})
   const submissionRows=useQuery({queryKey:['submission-candidates',organization?.id,job.id],queryFn:()=>listSubmissionCandidateDocuments(organization!.id,job.id)})
@@ -108,6 +112,11 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
       * had no ending. */}
     {!action&&<section className="context-history">
       <div className="milestone-list"><article><Mail size={15}/><span><strong>Client submission</strong><small>{hasSubmission?'Sent to client':'Not yet sent'}</small></span></article><article><Handshake size={15}/><span><strong>Placement</strong><small>{placement?'Recorded':'Not recorded'}</small></span></article></div>
+      {/* Says which it is. "No offer recorded" while the offers query is still in flight, or after it
+        * failed, is the panel asserting something it does not know. */}
+      {detailError
+        ?<Callout tone="warning" title="Some details could not be loaded">Offers, interviews and placements for this candidate are unavailable right now. The pipeline itself is unaffected.</Callout>
+        :detailLoading&&<p className="muted">Loading offers, interviews and placements…</p>}
       <JobCandidateLifecycle organizationId={organization!.id} jobCandidateId={item.id} candidateName={candidateName}
         interviews={interviews} offers={offers} canManage={Boolean(capabilities.data?.canManagePlacements)} readOnly={readOnly}
         onUpdated={refresh} onReschedule={()=>chooseAction('interview')}/>
