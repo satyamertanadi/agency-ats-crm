@@ -16,7 +16,10 @@ export function buildSetupSteps(data:{companies:number;contacts:number;activeJob
     {key:'job',title:'Open your first job',description:'Each job gets a pipeline automatically.',done:data.activeJobs>0,href:`${base}/jobs?new=1`,cta:'Create job'},
     {key:'candidate',title:'Add a candidate',description:'Upload a CV to fill the profile automatically, or enter one by hand.',done:data.candidates>0,href:`${base}/candidates?new=1`,cta:'Add candidate'},
     {key:'pipeline',title:'Move a candidate into a pipeline',description:'This is where day-to-day delivery happens.',done:data.pipelineEntries>0,href:`${base}/jobs`,cta:'Open pipelines'},
-    {key:'team',title:'Invite your team',description:'Consultants get their own logins and permissions.',done:data.members>1,href:`${base}/admin/workspace`,cta:'Invite team'},
+    // Labelled optional because it is the one step a solo consultant will never do, and an
+    // unfinishable checklist is a checklist that stops meaning anything. It still shows as outstanding;
+    // it just stops reading like a failure.
+    {key:'team',title:'Invite your team (optional)',description:'Consultants get their own logins and permissions. Skip this if you work alone.',done:data.members>1,href:`${base}/admin/workspace`,cta:'Invite team'},
   ]
   // A step is blocked while any earlier step is outstanding — the same dependency the pages
   // already enforce by disabling their own create buttons, surfaced up front instead of on arrival.

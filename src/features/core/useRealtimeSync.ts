@@ -1,4 +1,4 @@
-import {useEffect,useRef} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import {useIsMutating,useQueryClient} from '@tanstack/react-query'
 import type {RealtimeChannel} from '@supabase/supabase-js'
 import {supabase} from '../../shared/lib/supabase'
@@ -23,9 +23,16 @@ import {queriesForTable,realtimeTables} from './realtimeSync'
  *    to exactly the pre-realtime behaviour (data refreshes on navigation and refetch), which is why
  *    there is no error state in the UI for this.
  */
+/* 'live' once subscribed, 'connecting' before the first SUBSCRIBED and after a drop, 'off' when there
+ * is no workspace to subscribe for. Deliberately three states and not four: the hook does not retry by
+ * hand, so "errored" and "reconnecting" are the same thing from the consultant's side -- supabase-js is
+ * already trying, and the only honest thing to say is that the data is not live right now. */
+export type RealtimeStatus='off'|'connecting'|'live'
+
 export function useRealtimeSync(organizationId:string|undefined){
   const cache=useQueryClient()
   const mutating=useIsMutating()
+  const [status,setStatus]=useState<RealtimeStatus>('off')
   // Tables whose events arrived while a mutation was in flight, held until it settles.
   const deferred=useRef(new Set<string>())
   // Mirrored into a ref so the long-lived channel callback reads the current value instead of the
@@ -36,7 +43,8 @@ export function useRealtimeSync(organizationId:string|undefined){
   useEffect(()=>{mutatingRef.current=mutating},[mutating])
 
   useEffect(()=>{
-    if(!organizationId)return
+    if(!organizationId){setStatus('off');return}
+    setStatus('connecting')
     const flush=(table:string)=>{
       for(const key of queriesForTable(table))void cache.invalidateQueries({queryKey:[key]})
     }
@@ -55,12 +63,15 @@ export function useRealtimeSync(organizationId:string|undefined){
         // A resubscribe means the socket dropped and came back, so anything that changed while it
         // was down was never delivered. Refetch everything this channel covers rather than sit on
         // a cache that is quietly behind.
-        if(status==='SUBSCRIBED')for(const table of realtimeTables)flush(table)
+        if(status==='SUBSCRIBED'){setStatus('live');for(const table of realtimeTables)flush(table)}
+        // Every non-subscribed status is reported the same way, for the reason given on RealtimeStatus.
+        if(status!=='SUBSCRIBED')setStatus('connecting')
         if(status==='CHANNEL_ERROR')captureError(new Error('Realtime channel error'),{area:'realtime',organizationId})
       })
     }catch(error){
       // Realtime is an enhancement; losing it must never take the workspace down with it.
       captureError(error,{area:'realtime_subscribe',organizationId})
+      setStatus('connecting')
     }
     return()=>{if(channel)void supabase.removeChannel(channel)}
   },[organizationId,cache])
@@ -72,4 +83,6 @@ export function useRealtimeSync(organizationId:string|undefined){
     deferred.current.clear()
     for(const table of pending)for(const key of queriesForTable(table))void cache.invalidateQueries({queryKey:[key]})
   },[mutating,cache])
+
+  return status
 }

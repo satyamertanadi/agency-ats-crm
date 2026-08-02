@@ -189,6 +189,61 @@
     display: flex;
   }
 }
+/* Connection state, sized to how much it matters. Connected is a 6px dot with its label read only by
+   screen readers -- the workspace works, and a permanent "Live" badge would spend attention on the
+   normal case forever. Losing the socket is the state that gets words, because it is the only one
+   where what is on screen might not be what a colleague just did. */
+.realtime-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-15);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-muted);
+}
+.realtime-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-faint);
+}
+.realtime-indicator-live .realtime-dot {
+  background: var(--tone-good-fg);
+}
+.realtime-indicator-waiting {
+  color: var(--tone-warn-fg);
+}
+.realtime-indicator-waiting .realtime-dot {
+  background: var(--tone-warn-fg);
+  animation: realtime-pulse 1.6s ease-in-out infinite;
+}
+@keyframes realtime-pulse {
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .realtime-indicator-waiting .realtime-dot { animation: none; }
+}
+/* Keys column sized to the widest key rather than the content, so every description starts on the
+   same x -- the list is scanned down the right-hand side, not read row by row. */
+.shortcut-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+}
+.shortcut-list > div {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.shortcut-list dt,
+.shortcut-list dd {
+  margin: 0;
+}
+.shortcut-list dd {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
 .topbar strong {
   font-size: var(--text-base);
 }

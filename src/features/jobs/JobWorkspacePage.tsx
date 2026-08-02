@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react'
-import {DndContext,PointerSensor,useDraggable,useDroppable,useSensor,useSensors,type DragEndEvent} from '@dnd-kit/core'
+import {DndContext,KeyboardSensor,PointerSensor,useDraggable,useDroppable,useSensor,useSensors,type DragEndEvent,type KeyboardCoordinateGetter} from '@dnd-kit/core'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ArrowLeft,Clock,GripVertical,Info,Layers3,Plus,Send} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router'
@@ -31,6 +31,7 @@ import {PhaseJump} from './PhaseJump'
 import {AddCandidateToJobModal} from '../candidates/AddCandidateToJobModal'
 import {TaskButton} from '../activities/TaskButton'
 import {formatMoney,formatSalary} from '../../shared/lib/format'
+import {useShortcut} from '../../shared/lib/useShortcut'
 
 type WorkspaceView='pipeline'|'activity'|'details'
 type Density='compact'|'roomy'
@@ -38,6 +39,28 @@ type Density='compact'|'roomy'
 const memberInitials=(member?:Pick<TeamMember,'profiles'>|null)=>{
   const name=member?.profiles?.full_name||member?.profiles?.email||''
   return name.split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0]?.toUpperCase()||'').join('')||'—'
+}
+
+/* Arrow keys move a picked-up card a whole column at a time.
+ *
+ * dnd-kit's default keyboard getter translates by 25px per press, which on a ~280px column means
+ * eleven presses to move one phase and no way to tell when you have crossed a boundary. Snapping to
+ * the next column's centre makes one press mean one phase -- the same unit the mouse gesture has.
+ *
+ * Vertical keys are left unhandled: the columns are not ordered lists, so up/down within one has no
+ * meaning to preserve. */
+const boardKeyboardCoordinates:KeyboardCoordinateGetter=(event,{context:{droppableContainers,collisionRect}})=>{
+  const step=event.code==='ArrowRight'?1:event.code==='ArrowLeft'?-1:0
+  if(!step||!collisionRect)return undefined
+  const columns=[...droppableContainers.values()].filter((container)=>container.rect.current)
+    .sort((a,b)=>a.rect.current!.left-b.rect.current!.left)
+  if(columns.length===0)return undefined
+  const centre=collisionRect.left+collisionRect.width/2
+  const current=columns.findIndex((container)=>{const rect=container.rect.current!;return centre>=rect.left&&centre<rect.left+rect.width})
+  const target=columns[Math.min(columns.length-1,Math.max(0,(current<0?0:current)+step))]
+  if(!target)return undefined
+  const rect=target.rect.current!
+  return {x:rect.left+rect.width/2-collisionRect.width/2,y:collisionRect.top}
 }
 
 function PhaseColumn({id,label,count,color,stats,children}:{id:string;label:string;count:number;color:string;stats:{avgDays:number;overTarget:number}|null;children:React.ReactNode}){
@@ -99,7 +122,16 @@ export function JobWorkspacePage(){
     const next=new URLSearchParams(params);next.delete('open');setParams(next,{replace:true})
   },[params,setParams])
   const move=useStageMove(jobId,refresh)
-  const sensors=useSensors(useSensor(PointerSensor,{activationConstraint:{distance:8}}));const canRecruit=job?.status==='open'&&Boolean(capabilities.data?.canMovePipeline)
+  /* Two shortcuts for the two things a consultant does repeatedly on this screen. Both are guarded by
+   * useShortcut against firing while typing or behind a dialog, and both are listed in the `?` sheet
+   * -- an undiscoverable shortcut is a bug someone reports as one. */
+  useShortcut('a',()=>setAddOpen(true),Boolean(job&&job.status==='open'&&capabilities.data?.canMovePipeline))
+  useShortcut('d',()=>setDetailed((value)=>!value))
+  // The board was mouse-only: without a KeyboardSensor the drag gesture had no keyboard equivalent at
+  // all, and the per-card stage select was the only way through. Both stay -- the select is still the
+  // faster route for a screen-reader user, and this makes the visible affordance work for everyone.
+  const sensors=useSensors(useSensor(PointerSensor,{activationConstraint:{distance:8}}),useSensor(KeyboardSensor,{coordinateGetter:boardKeyboardCoordinates}))
+  const canRecruit=job?.status==='open'&&Boolean(capabilities.data?.canMovePipeline)
   // The board is the thing worth holding space for: it is the tallest, slowest part of this screen
   // and the one whose arrival used to shove the whole page down.
   /* Only the two queries the board cannot be drawn without gate it. The other five are org-wide

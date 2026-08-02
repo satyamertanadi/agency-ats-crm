@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {describe,expect,it} from 'vitest'
-import {buildPipelineColumns,buildTodayWorkItems,columnKeyForStage,groupPipelineStages,phaseForStage,recommendedCandidateAction,resolveStageForColumn} from './workflow'
+import {buildPipelineColumns,buildTodayWorkItems,columnKeyForStage,groupPipelineStages,phaseForStage,recommendedCandidateAction,resolveStageForColumn,type TodayConsent,type TodayFeedback} from './workflow'
 import type {Job,Offer,Task} from '../../shared/types/domain'
 
 const stage=(stage_key:string,stage_type='active')=>({id:stage_key,pipeline_id:'p1',name:stage_key,stage_key,stage_type,position:0,color:null,phase_key:null})
@@ -227,5 +227,58 @@ describe('consultant workflow model',()=>{
     expect(items).toHaveLength(1)
     expect(items[0]!.group).toBeUndefined()
     expect(items[0]!.title).toBe('Assign an owner · Engineering Manager')
+  })
+})
+
+describe('today work items · client feedback',()=>{
+  const empty={base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],tasks:[],interviews:[],offers:[]}
+  const feedback=(overrides:Partial<TodayFeedback>={}):TodayFeedback=>({
+    id:'f1',decision:'interview',createdAt:'2026-07-16T08:00:00Z',jobCandidateId:'jc1',
+    jobId:'j1',jobTitle:'Engineering Manager',jobOwnerMemberId:null,candidateName:'Aditya Nugroho',...overrides})
+
+  /* Feedback arriving was the product's one genuinely invisible event: written to the table, rendered
+   * on one panel, announced nowhere. */
+  it('surfaces a client response as a today item pointing at the candidate it is about',()=>{
+    const items=buildTodayWorkItems({...empty,feedback:[feedback()]})
+    expect(items).toHaveLength(1)
+    expect(items[0]!.kind).toBe('today')
+    expect(items[0]!.title).toBe('Aditya Nugroho · Engineering Manager')
+    // The wording comes from the feedbackDecision map, so a Today row and the badge on arrival agree.
+    expect(items[0]!.reason).toBe('Client responded: wants to interview.')
+    expect(items[0]!.href).toBe('/app/northstar/jobs/j1?candidate=jc1')
+  })
+
+  it('keeps another consultant’s client response out of My work',()=>{
+    const mine=feedback({id:'mine',jobOwnerMemberId:'m1'});const theirs=feedback({id:'theirs',jobOwnerMemberId:'m2'})
+    const items=buildTodayWorkItems({...empty,currentMemberId:'m1',feedback:[mine,theirs]})
+    expect(items.map((item)=>item.id)).toEqual(['feedback-mine'])
+  })
+})
+
+describe('today work items · consent expiry',()=>{
+  const empty={base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],tasks:[],interviews:[],offers:[]}
+  const consent=(overrides:Partial<TodayConsent>={}):TodayConsent=>({
+    candidateId:'c1',fullName:'Alya Maharani',expiresAt:'2026-07-26T10:00:00Z',status:'active',ownerMemberId:null,...overrides})
+
+  it('warns ahead of the date and escalates as it arrives',()=>{
+    const far=buildTodayWorkItems({...empty,consentExpiring:[consent()]})
+    expect(far[0]!.kind).toBe('upcoming')
+    expect(far[0]!.reason).toBe('Consent expires in 10 days.')
+    const near=buildTodayWorkItems({...empty,consentExpiring:[consent({expiresAt:'2026-07-18T10:00:00Z'})]})
+    expect(near[0]!.kind).toBe('today')
+    expect(near[0]!.reason).toBe('Consent expires in 2 days.')
+  })
+
+  /* Expired is 'blocked' rather than merely late because a submission genuinely cannot happen -- which
+   * is the whole reason this item exists rather than being left to whoever opens the record. */
+  it('treats already-expired consent as blocking, because submission is',()=>{
+    const items=buildTodayWorkItems({...empty,consentExpiring:[consent({expiresAt:'2026-07-14T10:00:00Z'})]})
+    expect(items[0]!.kind).toBe('blocked')
+    expect(items[0]!.reason).toContain('cannot be sent to a client')
+  })
+
+  it('says nothing about candidates nobody is going to submit',()=>{
+    const items=buildTodayWorkItems({...empty,consentExpiring:[consent({status:'archived'}),consent({candidateId:'c2',status:'do_not_contact'})]})
+    expect(items).toEqual([])
   })
 })

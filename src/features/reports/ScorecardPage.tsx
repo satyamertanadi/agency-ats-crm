@@ -47,6 +47,16 @@ export function ScorecardPage(){
   const rows=buildConsultantRows({members:team.data||[],submissions:data.submissions,interviews:data.interviews,offers:data.offers,placements:data.placements,activeJobs:data.activeJobs,overdueTasks,baseCurrency:organization?.base_currency})
   const mine:ConsultantRow=rows.find((row)=>row.id===currentMember?.id)??{id:currentMember?.id||'me',name:user?.user_metadata.full_name as string||'You',jobs:0,submissions:0,interviews:0,offers:0,placements:0,fees:0,overdue:0}
   const base=`/app/${organization!.slug}`
+  /* Every other number on this page is the consultant's own; this one counted every accepted offer in
+   * the organization, and counted offers that had already become placements. On a page titled "What
+   * needs you now", both halves were wrong in the same direction -- it reported work that was not
+   * theirs, and work that was already done.
+   *
+   * Attributed by `created_by`, which is how buildConsultantRows attributes the offers and placements
+   * rendered directly above it. Scoping this one tile by job ownership instead would make it disagree
+   * with the conversion rates it sits under, on the same screen. */
+  const placedCandidates=new Set(data.placements.filter((placement)=>placement.status!=='cancelled').map((placement)=>placement.job_candidate_id))
+  const awaitingPlacement=data.offers.filter((offer)=>offer.status==='accepted'&&offer.created_by===user?.id&&!placedCandidates.has(offer.job_candidate_id))
 
   return <Page title="My scorecard" eyebrow="Personal performance" description="Your own recruitment activity and outcomes, using the same definitions as the team report."
     actions={<div className="date-range"><Field label="From"><Input type="date" value={from} max={to} onChange={(event)=>setFrom(event.target.value)}/></Field><Field label="To"><Input type="date" value={to} min={from} onChange={(event)=>setTo(event.target.value)}/></Field></div>}>
@@ -68,9 +78,11 @@ export function ScorecardPage(){
       </Panel>
       <Panel title="What needs you now" subtitle="Signals worth acting on rather than a ranking.">
         <div className="settings-list">
-          <article className="finance-row"><span>Overdue tasks</span><strong className={mine.overdue?'overdue-text':''}>{mine.overdue}</strong></article>
-          <article className="finance-row"><span>Jobs you own</span><strong>{mine.jobs}</strong></article>
-          <article className="finance-row"><span>Accepted offers awaiting placement</span><strong>{data.offers.filter((offer)=>offer.status==='accepted').length}</strong></article>
+          {/* Each number links to the surface that resolves it. A tile on a page called "What needs you
+            * now" that cannot be clicked is a report, not a prompt. */}
+          <article className="finance-row"><span>Overdue tasks</span><Link className="record-link" to={`${base}/today`}><strong className={mine.overdue?'overdue-text':''}>{mine.overdue}</strong></Link></article>
+          <article className="finance-row"><span>Jobs you own</span><Link className="record-link" to={`${base}/jobs`}><strong>{mine.jobs}</strong></Link></article>
+          <article className="finance-row"><span>Accepted offers awaiting placement</span><Link className="record-link" to={`${base}/today`}><strong>{awaitingPlacement.length}</strong></Link></article>
         </div>
         <div className="panel-footer-action"><Link className="record-link" to={`${base}/today`}>Go to Today <ArrowRight size={13}/></Link></div>
       </Panel>
