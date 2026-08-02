@@ -24,6 +24,7 @@ import {CandidateCardMenu} from './CandidateCardMenu'
 import {OutcomePrompt} from './OutcomePrompt'
 import {OutcomesDrawer} from './OutcomesDrawer'
 import {SubmissionComposerDrawer} from '../submissions/SubmissionComposerDrawer'
+import {JobSubmissionsRail,type SubmissionPackageRow} from '../submissions/JobSubmissionsRail'
 import {PhaseJump} from './PhaseJump'
 import {TaskButton} from '../activities/TaskButton'
 import {formatMoney} from '../../shared/lib/format'
@@ -171,6 +172,13 @@ export function JobWorkspacePage(){
             })}
           </div>
         </DndContext>
+      </Panel>
+      {/* Sits under the board rather than in a tab: what you already sent a client is context for
+        * what you do next on it, and a tab would hide the expired link that is the reason nobody has
+        * replied. */}
+      <Panel title="Sent to this client">
+        <JobSubmissionsRail packages={(packages.data||[]) as SubmissionPackageRow[]} jobId={jobId}
+          canSubmit={Boolean(capabilities.data?.canSubmit)} onChanged={refresh} onResend={()=>setComposerOpen(true)}/>
       </Panel>
     </>}
     {view==='activity'&&<ActivityFeed links={[{job_id:jobId}]} title="Job activity" subtitle="Calls, client updates, submissions, feedback, and stage movement in one history." readOnly={capabilities.data?.readOnly}/>}

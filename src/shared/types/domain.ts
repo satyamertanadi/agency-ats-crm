@@ -33,6 +33,7 @@ export type OfferStatus='draft'|'presented'|'accepted'|'declined'|'withdrawn'
 export type InterviewStatus='scheduled'|'completed'|'cancelled'|'no_show'
 // What a client answered on a submitted candidate, per submission_feedback.decision's check constraint.
 export type FeedbackDecision='approve'|'reject'|'interview'|'hold'
+export type SubmissionPackageStatus='draft'|'shared'|'reviewed'|'closed'
 export type PlacementStatus='confirmed'|'started'|'failed_guarantee'|'completed'|'cancelled'
 export type InvoiceStatus='not_issued'|'draft'|'issued'|'overdue'|'paid'|'void'
 export type TaskStatus='open'|'in_progress'|'completed'|'cancelled'
