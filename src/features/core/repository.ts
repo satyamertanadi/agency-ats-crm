@@ -170,6 +170,37 @@ export async function listSubmissionFeedback(organizationId:string,jobCandidateI
   return rows(data,submissionFeedbackSchema,'Submission feedback rows did not match the expected shape') as SubmissionFeedback[]
 }
 
+/* The org-wide counterpart. `listSubmissionFeedback` answers "what did the client say about this
+ * candidate", which only helps someone already looking at that candidate. This answers "has any client
+ * said anything recently" -- the question nobody could ask, and the reason a client approval could sit
+ * unread for days: feedback was written to the table, rendered on one panel, and announced nowhere.
+ *
+ * Windowed rather than unbounded because this is a work queue, not an archive: feedback from three
+ * weeks ago has either been actioned or become a different problem. */
+export async function listRecentSubmissionFeedback(organizationId:string,sinceIso:string){
+  const {data,error}=await supabase.from('submission_feedback')
+    .select('id,decision,comments,reviewer_name,created_at,candidate_submissions!inner(job_candidate_id,job_candidates(candidates(full_name),jobs(id,title,owner_member_id)))')
+    .eq('organization_id',organizationId).gte('created_at',sinceIso).order('created_at',{ascending:false})
+  if(error)fail(error,'Could not load recent client feedback')
+  return data??[]
+}
+
+/* Consent that is about to lapse, which is a commercial deadline rather than an administrative one:
+ * the moment it expires the candidate cannot be submitted, and a shortlist assembled the day before
+ * becomes unsendable.
+ *
+ * It reads candidate_private_details, so a member without `candidates_private.read` gets an empty list
+ * rather than an error -- correct, because renewing consent is not an action they can take either. */
+export async function listExpiringConsent(organizationId:string,beforeIso:string){
+  const {data,error}=await supabase.from('candidate_private_details')
+    .select('candidate_id,consent_expires_at,candidates!inner(id,full_name,status,owner_member_id)')
+    .eq('organization_id',organizationId).eq('consent_status','granted')
+    .not('consent_expires_at','is',null).lte('consent_expires_at',beforeIso)
+    .order('consent_expires_at')
+  if(error)fail(error,'Could not load consent expiry')
+  return data??[]
+}
+
 /* Every stage change this candidate has been through, in the words that were recorded at the time.
  * Written on every move since the initial schema and never once displayed.
  *

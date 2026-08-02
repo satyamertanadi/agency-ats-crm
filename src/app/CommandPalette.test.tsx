@@ -38,10 +38,15 @@ describe('CommandPalette keyboard navigation',()=>{
     expect(selected()).toContain('Add candidate')
   })
 
+  /* Asserts the wrap rather than a particular label: the quick-nav list shows the first five routes,
+   * so naming the last one here would make this test fail every time a destination is added -- which
+   * is exactly what it did when Scorecard, Referrals, Reports and Finance were. */
   it('wraps around at both ends rather than dead-ending',()=>{
     const input=renderPalette()
+    const options=()=>[...document.querySelectorAll('[role="option"]')].map((node)=>node.textContent||'')
+    const last=options().at(-1)!
     fireEvent.keyDown(input,{key:'ArrowUp'})
-    expect(selected()).toContain('Open my settings')
+    expect(selected()).toBe(last)
     fireEvent.keyDown(input,{key:'ArrowDown'})
     expect(selected()).toContain('Add candidate')
   })

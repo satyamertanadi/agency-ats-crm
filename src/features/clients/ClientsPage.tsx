@@ -51,7 +51,7 @@ export function ClientsPage(){
     },
     onError:(error)=>toast.error(error,'Nothing was exported.'),
   })
-  if(companies.isLoading||contacts.isLoading||team.isLoading||capabilities.isLoading)return <Page title="Clients" eyebrow="Client relationships" description="Client accounts, decision-makers, jobs, and relationship history in one place." className="clients-page"><Panel><TableSkeleton rows={7} columns={5} label="Opening clients…"/></Panel></Page>
+  if(companies.isLoading||contacts.isLoading||team.isLoading||capabilities.isLoading)return <Page title="Clients" eyebrow="Client relationships" description="Client accounts, decision-makers, jobs, and relationship history in one place." className="clients-page"><Panel><TableSkeleton rows={7} columns={7} label="Opening clients…"/></Panel></Page>
   if(companies.error||contacts.error||team.error)return <ErrorState error={companies.error||contacts.error||team.error}/>
   const visible=visibleRows
   const summary=bdSummary(visible,new Date())

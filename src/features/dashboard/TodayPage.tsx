@@ -1,22 +1,48 @@
 import {useState} from 'react'
-import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
+import {useQuery} from '@tanstack/react-query'
 import {ArrowRight,BriefcaseBusiness,CalendarClock,CheckCircle2,ChevronDown,ListChecks,OctagonAlert,Plus,TriangleAlert} from 'lucide-react'
-import {Link,useSearchParams} from 'react-router'
+import {Link} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {createTask,dashboardSummary,listEmailDeliveryIssues,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages,listTasks} from '../core/repository'
+import {dashboardSummary,listEmailDeliveryIssues,listExpiringConsent,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listRecentSubmissionFeedback,listSubmissionPackages,listTasks} from '../core/repository'
 import {ErrorState,TableSkeleton} from '../../shared/ui/States'
-import {useToast} from '../../shared/ui/Toast'
 import {Page,Panel} from '../../shared/ui/Page'
-import {Button} from '../../shared/ui/Button'
-import {Modal} from '../../shared/ui/Modal'
-import {Field,Input,Select} from '../../shared/ui/Field'
 import {formatTime} from '../../shared/lib/format'
 import {lookup,todayWorkKind} from '../../shared/lib/status'
-import {buildTodayWorkItems, type TodayWorkItem} from '../workflow/workflow'
+import {buildTodayWorkItems,type TodayConsent,type TodayFeedback,type TodayWorkItem} from '../workflow/workflow'
 import {phaseSegments} from '../jobs/jobHealth'
 import {SetupChecklist,buildSetupSteps} from './SetupChecklist'
+
+/* Both windows are deliberately short. This is a work queue: a client response from three weeks ago
+ * has either been actioned or turned into a different problem, and consent lapsing next quarter is not
+ * a thing to do today. Two weeks is roughly the notice a consultant needs to reach a candidate, get a
+ * reply and record it before a live shortlist becomes unsendable. */
+const FEEDBACK_WINDOW_HOURS=72
+const CONSENT_WINDOW_DAYS=14
+
+/* The nested Supabase rows flattened for the pure builder. Kept at this edge on purpose: workflow.ts
+ * is tested, and its fixtures should express "this job is owned by someone else" as one field rather
+ * than a four-level object. */
+const toTodayFeedback=(rows:unknown[]):TodayFeedback[]=>rows.map((entry)=>{
+  const row=entry as {id:string;decision:string;created_at:string;candidate_submissions?:{job_candidate_id:string;job_candidates?:{candidates?:{full_name:string|null}|null;jobs?:{id:string;title:string;owner_member_id:string|null}|null}|null}|null}
+  const assignment=row.candidate_submissions?.job_candidates
+  return {id:row.id,decision:row.decision,createdAt:row.created_at,jobCandidateId:row.candidate_submissions?.job_candidate_id||'',
+    jobId:assignment?.jobs?.id??null,jobTitle:assignment?.jobs?.title??null,jobOwnerMemberId:assignment?.jobs?.owner_member_id??null,
+    candidateName:assignment?.candidates?.full_name??null}
+})
+const toTodayConsent=(rows:unknown[]):TodayConsent[]=>rows.map((entry)=>{
+  const row=entry as {candidate_id:string;consent_expires_at:string;candidates?:{full_name:string;status:string;owner_member_id:string|null}|null}
+  return {candidateId:row.candidate_id,fullName:row.candidates?.full_name||'Candidate',expiresAt:row.consent_expires_at,
+    status:row.candidates?.status||'active',ownerMemberId:row.candidates?.owner_member_id??null}
+})
+
+/* Dismissal is per workspace and local to the browser. It records a preference about a checklist, not
+ * a fact about the organization -- a second consultant joining should still get their own onboarding
+ * -- so it does not warrant a column, a migration, or an RLS policy. */
+const setupKey=(organizationId?:string)=>`setup-dismissed:${organizationId||'unknown'}`
+const readSetupDismissed=(organizationId?:string)=>{try{return localStorage.getItem(setupKey(organizationId))==='1'}catch{return false}}
+const writeSetupDismissed=(organizationId?:string)=>{try{localStorage.setItem(setupKey(organizationId),'1')}catch{/* private mode: the checklist simply returns next visit */}}
 
 const latenessLabel=(dueAt:string,now:Date)=>{const days=Math.max(1,Math.ceil((now.getTime()-new Date(dueAt).getTime())/86_400_000));return `${days} day${days===1?'':'s'} late`}
 
@@ -37,23 +63,30 @@ function WorkQueueRow({item,now}:{item:TodayWorkItem;now:Date}){
 }
 
 export function TodayPage(){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams();const [scope,setScope]=useState<'mine'|'team'>('mine')
-  const [taskTitle,setTaskTitle]=useState('');const [taskDue,setTaskDue]=useState('');const [taskJobId,setTaskJobId]=useState('')
+  const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const [scope,setScope]=useState<'mine'|'team'>('mine')
   const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
+  const [setupHidden,setSetupHidden]=useState(()=>readSetupDismissed(organization?.id))
   const query=useQuery({queryKey:['today',organization?.id],enabled:Boolean(organization),queryFn:async()=>{
-    const [tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth]=await Promise.all([listTasks(organization!.id),listInterviews(organization!.id),listOffers(organization!.id),listPlacements(organization!.id),listJobs(organization!.id),dashboardSummary(organization!.id),listEmailDeliveryIssues(organization!.id),listSubmissionPackages(organization!.id),listJobHealth(organization!.id)])
-    return {tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth}
+    /* The two windows the notification-lite items are built from. Both are bounded on the server: an
+     * unbounded feedback list would be an archive rather than a queue, and consent that lapses in six
+     * months is not today's problem. */
+    const feedbackSince=new Date(Date.now()-FEEDBACK_WINDOW_HOURS*3_600_000).toISOString()
+    const consentBefore=new Date(Date.now()+CONSENT_WINDOW_DAYS*86_400_000).toISOString()
+    const [tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth,feedback,consent]=await Promise.all([listTasks(organization!.id),listInterviews(organization!.id),listOffers(organization!.id),listPlacements(organization!.id),listJobs(organization!.id),dashboardSummary(organization!.id),listEmailDeliveryIssues(organization!.id),listSubmissionPackages(organization!.id),listJobHealth(organization!.id),listRecentSubmissionFeedback(organization!.id,feedbackSince),listExpiringConsent(organization!.id,consentBefore)])
+    return {tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth,feedback,consent}
   }})
-  const taskOpen=params.get('action')==='task'&&!capabilities.data?.readOnly
-  const closeTask=()=>{const next=new URLSearchParams(params);next.delete('action');setParams(next,{replace:true})}
-  const createFollowUp=useMutation({mutationFn:()=>createTask(organization!.id,user!.id,{title:taskTitle.trim(),priority:'normal',due_at:taskDue?new Date(taskDue).toISOString():undefined,owner_member_id:currentMember?.id,link:taskJobId?{type:'job',id:taskJobId}:undefined}),onSuccess:async()=>{const created=taskTitle.trim();setTaskTitle('');setTaskDue('');setTaskJobId('');closeTask();await cache.invalidateQueries({queryKey:['today',organization?.id]});toast.success(`Task added: ${created}`)},onError:(error)=>toast.error(error,'The follow-up was not created.')})
   const name=(user?.user_metadata.full_name as string|undefined)?.split(' ')[0]
   if(query.isLoading||capabilities.isLoading)return <Page title={name?`Today, ${name}`:'Today'} eyebrow={organization?.name} description="Your next recruitment actions, in the order they need attention." className="today-page"><Panel><TableSkeleton rows={6} columns={2} label="Preparing your work for today…"/></Panel></Page>
   if(query.error||!query.data)return <ErrorState error={query.error} retry={()=>void query.refetch()}/>
   const base=`/app/${organization!.slug}`
   const now=new Date()
-  const items=buildTodayWorkItems({base,now,currentMemberId:scope==='mine'?currentMember?.id:undefined,tasks:query.data.tasks,interviews:query.data.interviews,offers:query.data.offers,placements:query.data.placements,jobs:query.data.jobs,deliveryIssues:query.data.deliveryIssues,submissions:query.data.submissions})
+  const items=buildTodayWorkItems({base,now,currentMemberId:scope==='mine'?currentMember?.id:undefined,tasks:query.data.tasks,interviews:query.data.interviews,offers:query.data.offers,placements:query.data.placements,jobs:query.data.jobs,deliveryIssues:query.data.deliveryIssues,submissions:query.data.submissions,feedback:toTodayFeedback(query.data.feedback),consentExpiring:toTodayConsent(query.data.consent)})
   const steps=buildSetupSteps(query.data.summary,base);const setupComplete=steps.length>0&&steps.every((step)=>step.done)
+  // Complete or hidden both mean the same thing to the page below: show the brief. The checklist used
+  // to render a `onDismiss` prop nobody passed, so a solo consultant who would never invite a team
+  // was stuck on a permanently unfinished list with the operating brief suppressed behind it.
+  const showSetup=!setupComplete&&!setupHidden
+  const dismissSetup=()=>{writeSetupDismissed(organization?.id);setSetupHidden(true)}
   const urgent=items.filter((item)=>item.kind==='blocked'||item.kind==='overdue').length
   // Three bands, split by the same `kind` buildTodayWorkItems already assigns -- no second urgency
   // model to keep in sync with the first.
@@ -63,8 +96,8 @@ export function TodayPage(){
   const activeJobs=query.data.jobs.filter((job)=>job.status==='open'&&(scope==='team'||!job.owner_member_id||job.owner_member_id===currentMember?.id))
   const healthByJob=new Map(query.data.jobHealth.map((health)=>[health.id,health]))
   return <Page title={name?`Today, ${name}`:'Today'} eyebrow={organization?.name} description="Your next recruitment actions, in the order they need attention." className="today-page" actions={<div className="page-scope-actions">{capabilities.data?.canViewTeamReports&&<div className="segmented-control" aria-label="Work scope"><button className={scope==='mine'?'active':''} onClick={()=>setScope('mine')}>My work</button><button className={scope==='team'?'active':''} onClick={()=>setScope('team')}>Team view</button></div>}{capabilities.data?.canWriteCandidates&&<Link className="button button-primary" to={`${base}/candidates?new=1`}><Plus size={15}/>Add candidate</Link>}</div>}>
-    {!setupComplete&&<SetupChecklist steps={steps}/>}
-    {setupComplete&&<section className={`today-brief ${urgent?'today-brief-alert':''}`}><div className="today-brief-main"><span>{urgent?<TriangleAlert size={21}/>:<CheckCircle2 size={21}/>}</span><div><p className="eyebrow">Operating brief</p><h2>{urgent?`${urgent} action${urgent===1?'':'s'} need attention`:'You are clear for today'}</h2>{items.length===0&&<p>No overdue or upcoming work is waiting.</p>}</div></div>{items.length>0&&<div className="today-brief-stats"><div className="today-brief-stat"><strong>{items.length}</strong><span>total items</span></div><div className="today-brief-stat"><strong>{activeJobs.length}</strong><span>active jobs</span></div></div>}</section>}
+    {showSetup&&<SetupChecklist steps={steps} onDismiss={dismissSetup}/>}
+    {!showSetup&&<section className={`today-brief ${urgent?'today-brief-alert':''}`}><div className="today-brief-main"><span>{urgent?<TriangleAlert size={21}/>:<CheckCircle2 size={21}/>}</span><div><p className="eyebrow">Operating brief</p><h2>{urgent?`${urgent} action${urgent===1?'':'s'} need attention`:'You are clear for today'}</h2>{items.length===0&&<p>No overdue or upcoming work is waiting.</p>}</div></div>{items.length>0&&<div className="today-brief-stats"><div className="today-brief-stat"><strong>{items.length}</strong><span>total items</span></div><div className="today-brief-stat"><strong>{activeJobs.length}</strong><span>active jobs</span></div></div>}</section>}
     <div className="today-layout">
       <Panel title="Next actions" subtitle="One click opens the right record with its context preserved." icon={<ListChecks size={16}/>} elevation="raised">
         {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<>
@@ -78,9 +111,15 @@ export function TodayPage(){
           const health=healthByJob.get(job.id)
           // waiting_count already IS list_job_health's stalled signal (candidates untouched 7+ days
           // in an active stage) -- reused as-is rather than recomputed against the board's SLA targets.
-          const chip=!health||health.candidate_count===0?{label:'Empty',tone:'bad'}:health.waiting_count>0?{label:`${health.waiting_count} stalled`,tone:health.waiting_count>=3?'bad':'warn'}:{label:'Healthy',tone:'good'}
+          /* "Stalled" is a defined term, not a vibe, and the definition lives in SQL. Stating it on
+             hover is the difference between a chip a consultant trusts and one they learn to ignore. */
+          const chip=!health||health.candidate_count===0
+            ?{label:'Empty',tone:'bad',title:'No candidates are in this pipeline yet.'}
+            :health.waiting_count>0
+              ?{label:`${health.waiting_count} stalled`,tone:health.waiting_count>=3?'bad':'warn',title:`${health.waiting_count} ${health.waiting_count===1?'candidate has':'candidates have'} sat in the same active stage for more than 7 days.`}
+              :{label:'Healthy',tone:'good',title:'Every candidate has moved within the last 7 days.'}
           return <Link to={`${base}/jobs/${job.id}`} key={job.id} className="today-job-row">
-            <div className="today-job-row-top"><strong>{job.title}</strong><span className={`today-job-chip tone-${chip.tone}`}>{chip.label}</span></div>
+            <div className="today-job-row-top"><strong>{job.title}</strong><span className={`today-job-chip tone-${chip.tone}`} title={chip.title}>{chip.label}</span></div>
             <small>{job.companies?.name||'Client'} · {job.location||'Location not set'}{health?` · ${health.candidate_count} candidates`:''}</small>
             {health&&health.candidate_count>0&&<div className="pipeline-mini" aria-label={`${health.candidate_count} candidates by phase`}>{phaseSegments(health).map((segment)=><span key={segment.key} className={`phase-${segment.key}`} style={{flexGrow:segment.count}}/>)}</div>}
           </Link>
@@ -89,6 +128,8 @@ export function TodayPage(){
       </Panel>
     </div>
     {!capabilities.data?.readOnly&&<section className="today-shortcuts" aria-label="Common actions">{capabilities.data?.canWriteJobs&&<Link to={`${base}/jobs?new=1`}><BriefcaseBusiness size={18}/><span><strong>Create job</strong><small>Start a client search</small></span></Link>}<Link to={`${base}/today?action=task`}><CalendarClock size={18}/><span><strong>Add follow-up</strong><small>Capture the next action</small></span></Link></section>}
-    <Modal title="Add follow-up" open={taskOpen} onClose={closeTask}><form className="stack" onSubmit={(event)=>{event.preventDefault();createFollowUp.mutate()}}><Field label="What needs to happen?"><Input autoFocus value={taskTitle} onChange={(event)=>setTaskTitle(event.target.value)} required/></Field><div className="form-grid"><Field label="Due"><Input type="datetime-local" value={taskDue} onChange={(event)=>setTaskDue(event.target.value)}/></Field><Field label="Job"><Select value={taskJobId} onChange={(event)=>setTaskJobId(event.target.value)}><option value="">No linked job</option>{query.data.jobs.filter((job)=>job.status==='open').map((job)=><option key={job.id} value={job.id}>{job.title} · {job.companies?.name||'Client'}</option>)}</Select></Field></div><p className="muted">This follow-up is assigned to you. Ownership and priority can be changed later if needed.</p>{createFollowUp.error&&<p className="form-error" role="alert">{createFollowUp.error.message}</p>}<div className="form-actions"><Button type="button" variant="quiet" onClick={closeTask}>Cancel</Button><Button loading={createFollowUp.isPending} disabled={!taskTitle.trim()}>Create follow-up</Button></div></form></Modal>
+    {/* The inline "Add follow-up" modal that used to live here is gone: `?action=task` now opens the
+      * one shared QuickTaskModal mounted in AppShell, which carries this modal's job picker plus the
+      * description, owner, priority and due shortcuts this one never had. */}
   </Page>
 }

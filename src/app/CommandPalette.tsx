@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BriefcaseBusiness, Building2, CheckSquare, LayoutDashboard, Plus, Search, Settings, UserRoundSearch, X } from 'lucide-react'
+import { BarChart3, BriefcaseBusiness, Building2, CheckSquare, LayoutDashboard, Plus, Receipt, Search, Settings, UserPlus, UserRoundSearch, X } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { searchWorkspace } from '../features/core/repository'
 import { Input } from '../shared/ui/Field'
+import { useDebouncedValue } from '../shared/lib/useDebouncedValue'
 
 interface CommandPaletteProps {open:boolean;onClose:()=>void;organizationId:string;organizationSlug:string}
 const routeItems=[
@@ -11,6 +12,15 @@ const routeItems=[
   {path:'candidates',label:'Open candidates',hint:'Talent database',icon:UserRoundSearch},
   {path:'jobs',label:'Open jobs',hint:'Vacancies and pipeline',icon:BriefcaseBusiness},
   {path:'clients',label:'Open clients',hint:'Accounts and contacts',icon:Building2},
+  /* The four destinations the palette could not reach. Every one of them is a page in the sidebar or
+   * the admin centre, so "search everything except these four" was a rule nobody had decided -- it was
+   * just the list nobody had extended. Capability-gated routes stay listed: they redirect on arrival
+   * exactly as typing the URL does, and hiding them would need the palette to duplicate the route
+   * guards it sits above. */
+  {path:'scorecard',label:'Open my scorecard',hint:'Your placements, offers, and activity',icon:BarChart3},
+  {path:'referrals',label:'Open referrals',hint:'Inbound candidate referrals',icon:UserPlus},
+  {path:'admin/reports',label:'Open reports',hint:'Team performance and delivery',icon:BarChart3},
+  {path:'admin/finance',label:'Open finance',hint:'Placements, fees, and invoices',icon:Receipt},
   {path:'admin/personal',label:'Open my settings',hint:'Calendar connection',icon:Settings},
 ] as const
 
@@ -28,7 +38,11 @@ export function CommandPalette({open,onClose,organizationId,organizationSlug}:Co
   const [query,setQuery]=useState('');const [activeIndex,setActiveIndex]=useState(0)
   const inputRef=useRef<HTMLInputElement>(null);const listRef=useRef<HTMLDivElement>(null);const navigate=useNavigate()
   useEffect(()=>{if(!open)return;setQuery('');setActiveIndex(0);requestAnimationFrame(()=>inputRef.current?.focus());const handleKey=(event:globalThis.KeyboardEvent)=>{if(event.key==='Escape')onClose()};document.addEventListener('keydown',handleKey);return()=>document.removeEventListener('keydown',handleKey)},[open,onClose])
-  const results=useQuery({queryKey:['command-search',organizationId,query],enabled:open&&query.trim().length>=2,queryFn:()=>searchWorkspace(organizationId,query.trim())})
+  /* Only the server query is debounced. The route and action lists are filtered in memory and must
+   * stay instant -- debouncing them would make the palette's own commands feel slower than the
+   * database. Typing "candidate" used to fire eight workspace searches and race their responses. */
+  const debouncedQuery=useDebouncedValue(query,250)
+  const results=useQuery({queryKey:['command-search',organizationId,debouncedQuery],enabled:open&&debouncedQuery.trim().length>=2,queryFn:()=>searchWorkspace(organizationId,debouncedQuery.trim())})
   const needle=query.trim().toLowerCase()
   const routes=useMemo(()=>needle?routeItems.filter((item)=>`${item.label} ${item.hint}`.toLowerCase().includes(needle)):routeItems.slice(0,5),[needle])
   const actions=useMemo(()=>needle?actionItems.filter((item)=>`${item.label} ${item.hint}`.toLowerCase().includes(needle)):actionItems.slice(0,5),[needle])
@@ -57,6 +71,11 @@ export function CommandPalette({open,onClose,organizationId,organizationSlug}:Co
   }
   const optionId=(index:number)=>`command-option-${index}`
   const searching=query.trim().length>=2
+  /* The debounce opens a gap the empty state must not fall into: for 250ms after a keystroke the query
+   * has not been issued yet, so `isLoading` is false and there are no results -- which would render
+   * "No matching records" about a search that has not run. Anything typed but not yet searched for
+   * counts as pending. */
+  const pending=results.isLoading||results.isFetching||query.trim()!==debouncedQuery.trim()
   // Each section's options continue the flat index, matching the order `items` was built in.
   const actionOffset=results.data?.length??0
   const routeOffset=actionOffset+actions.length
@@ -71,7 +90,7 @@ export function CommandPalette({open,onClose,organizationId,organizationSlug}:Co
         <kbd>Esc</kbd><button className="icon-button" onClick={onClose} aria-label="Close command palette"><X size={18}/></button></header>
       <div className="command-results" id="command-results" role="listbox" aria-label="Results and commands" ref={listRef}>
         <p className="command-section-label">{searching?'Workspace results':'Quick navigation'}</p>
-        {searching&&results.isLoading&&<p className="command-status">Searching secure workspace…</p>}
+        {searching&&pending&&<p className="command-status">Searching secure workspace…</p>}
         {results.data?.map((result,offset)=><button key={`${result.entity_type}-${result.entity_id}`} id={optionId(offset)} role="option" aria-selected={offset===activeIndex}
           onMouseMove={()=>setActiveIndex(offset)} onClick={()=>go(resultPath(result.entity_type,result.entity_id))}>
           <span className="command-icon"><Search size={16}/></span><span><strong>{result.title}</strong><small>{result.subtitle||result.entity_type}</small></span><em>{result.entity_type}</em></button>)}
@@ -82,7 +101,7 @@ export function CommandPalette({open,onClose,organizationId,organizationSlug}:Co
         {routes.map(({path,label,hint,icon:Icon},offset)=><button key={`route-${path}`} id={optionId(routeOffset+offset)} role="option" aria-selected={routeOffset+offset===activeIndex}
           onMouseMove={()=>setActiveIndex(routeOffset+offset)} onClick={()=>go(path)}>
           <span className="command-icon"><Icon size={16}/></span><span><strong>{label}</strong><small>{hint}</small></span></button>)}
-        {searching&&!results.isLoading&&!items.length&&<p className="command-status">No matching records or actions.</p>}
+        {searching&&!pending&&!items.length&&<p className="command-status">No matching records or actions.</p>}
       </div>
       <footer><span><kbd>↑</kbd><kbd>↓</kbd> Browse</span><span><kbd>Enter</kbd> Open</span><span>Results respect your agency permissions</span></footer>
     </section>

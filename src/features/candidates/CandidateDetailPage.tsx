@@ -17,7 +17,7 @@ import {Badge,Panel,StatusBadge} from '../../shared/ui/Page'
 import {candidateStatus,consentStatus,lookup,profileStatus,type Tone} from '../../shared/lib/status'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
 import {formatCvDate,formatDate,formatSalary} from '../../shared/lib/format'
-import {whatsAppLink} from '../../shared/lib/whatsapp'
+import {renderWhatsAppMessage,whatsAppLink} from '../../shared/lib/whatsapp'
 import {CandidateCvParser} from './CandidateCvParser'
 import {CandidateProfileGenerator} from './CandidateProfileGenerator'
 import {EducationListEditor,EmploymentListEditor,LanguagesListEditor,SkillsListEditor,type EducationItem,type EmploymentItem,type LanguageItem,type SkillItem} from './CandidateProfileEditors'
@@ -92,10 +92,16 @@ export function CandidateDetailPage(){
   const startSkillsEdit=()=>{const existing=candidate.candidate_skills||[];setSkillsDraft(existing.length?existing.map((item)=>({skill_id:item.skill_id,name:item.skills?.name||'',proficiency:item.proficiency,years_experience:item.years_experience})):[{name:'',proficiency:null,years_experience:null}]);setSkillsEditing(true)}
   const preparedBy=members.data?.find((member)=>member.user_id===user?.id)?.profiles?.full_name||''
   const canWrite=Boolean(capabilities.data?.canWriteCandidates)
+  /* The message and the country code both come from the workspace now. The hardcoded English sentence
+   * and the hardcoded 62 were the two places this feature assumed one agency in one country. */
+  const whatsAppMessage=renderWhatsAppMessage(organization?.whatsapp_template,{
+    first_name:candidate.full_name.split(/\s+/)[0]||candidate.full_name,
+    consultant:preparedBy||'the team',
+    agency:organization?.name||'our agency',
+  })
   const openWhatsApp=()=>{
     if(!privateData?.phone){toast.error('No phone number on file for this candidate.');return}
-    const firstName=candidate.full_name.split(/\s+/)[0]||candidate.full_name
-    const link=whatsAppLink(privateData.phone,`Hi ${firstName}, this is ${preparedBy||'the team'} from ${organization?.name||'our agency'}. Do you have a moment to chat?`)
+    const link=whatsAppLink(privateData.phone,whatsAppMessage,organization?.whatsapp_country_code||undefined)
     if(!link){toast.error('That phone number could not be turned into a WhatsApp link.');return}
     window.open(link,'_blank','noopener,noreferrer')
     logWhatsApp.mutate(candidate.full_name)

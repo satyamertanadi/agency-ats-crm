@@ -1,24 +1,28 @@
 import {useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {Building2,CalendarCheck,CalendarX,Copy,ImageUp,RefreshCw,ShieldCheck,Trash2,UserPlus} from 'lucide-react'
+import {Building2,Copy,ImageUp,MessageSquare,ShieldCheck,Trash2,UserPlus} from 'lucide-react'
 import {useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
-import {disconnectCalendar,listCalendarConnections,listInvitations,listOrganizationRoles,listTeamMembers,removeOrganizationLogo,removeOrganizationProfileBanner,uploadOrganizationProfileBanner,revokeInvitation,sendTeamInvitation,startCalendarConnection,updateMemberAccess,updateOrganizationAccent,updateOrganizationSalaryPeriod,uploadOrganizationLogo} from '../core/commercialRepository'
+import {listCalendarConnections,listInvitations,listOrganizationRoles,listTeamMembers,removeOrganizationLogo,removeOrganizationProfileBanner,uploadOrganizationProfileBanner,revokeInvitation,sendTeamInvitation,updateMemberAccess,updateOrganizationAccent,updateOrganizationSalaryPeriod,updateWhatsAppSettings,uploadOrganizationLogo} from '../core/commercialRepository'
 import {resolveAccent} from '../../shared/lib/branding'
+import {DEFAULT_COUNTRY_CODE,DEFAULT_WHATSAPP_TEMPLATE,renderWhatsAppMessage} from '../../shared/lib/whatsapp'
 import {Button} from '../../shared/ui/Button'
-import {Field,Input,Select} from '../../shared/ui/Field'
+import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
 import {useToast} from '../../shared/ui/Toast'
 import {Badge,MetaBadge,Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {invitationState,memberStatus} from '../../shared/lib/status'
 import {ErrorState,LoadingState} from '../../shared/ui/States'
-import {formatDate,formatDateTime} from '../../shared/lib/format'
+import {formatDate} from '../../shared/lib/format'
 import {ConfirmDialog} from '../../shared/ui/ConfirmDialog'
+import {CalendarConnectionCard} from './CalendarConnectionCard'
+import {Callout} from '../../shared/ui/Callout'
 import type {OrganizationInvitation,TeamMember} from '../../shared/types/domain'
 
 export function SettingsPage(){
   const {organization,memberships,refresh}=useOrganization();const {user}=useAuth();const [params]=useSearchParams();const cache=useQueryClient();const toast=useToast();const [open,setOpen]=useState(false);const [email,setEmail]=useState('');const [roleId,setRoleId]=useState('');const [previewLink,setPreviewLink]=useState('');const [accent,setAccent]=useState(resolveAccent(organization?.primary_color))
+  const [waCode,setWaCode]=useState(organization?.whatsapp_country_code||DEFAULT_COUNTRY_CODE);const [waTemplate,setWaTemplate]=useState(organization?.whatsapp_template||DEFAULT_WHATSAPP_TEMPLATE)
   // Revoking kills a live invite token for good -- it can only be re-sent as a new one, so it asks.
   const [revokeTarget,setRevokeTarget]=useState<OrganizationInvitation|null>(null)
   const members=useQuery({queryKey:['members',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
@@ -29,9 +33,8 @@ export function SettingsPage(){
   const invite=useMutation({mutationFn:()=>sendTeamInvitation(organization!.id,email,roleId),onSuccess:async(result)=>{toast.success(`Invitation sent to ${email}.`,'The link expires in 7 days.');setOpen(false);setEmail('');setRoleId('');setPreviewLink(result.previewUrl||'');await refreshTeam()},onError:(error)=>toast.error(error,'No invitation was sent.')})
   const access=useMutation({mutationFn:({member,status,nextRoleId}:{member:TeamMember;status:'active'|'suspended';nextRoleId:string})=>updateMemberAccess(organization!.id,member.id,status,nextRoleId),onSuccess:async(_result,variables)=>{const who=variables.member.profiles?.full_name||variables.member.profiles?.email||'The member';toast.success(variables.status==='suspended'?`${who} is suspended.`:`${who} has access.`,'Database access changes immediately.');await refreshTeam()},onError:(error)=>toast.error(error,'Their access is unchanged.')})
   const revoke=useMutation({mutationFn:revokeInvitation,onSuccess:async()=>{toast.success('Invitation revoked.','The link stops working immediately.');setRevokeTarget(null);await refreshTeam()},onError:(error)=>toast.error(error,'The invitation is still active.')})
-  const connect=useMutation({mutationFn:()=>startCalendarConnection(organization!.id,`/app/${organization!.slug}/settings`),onSuccess:(result)=>window.location.assign(result.authorizationUrl),onError:(error)=>toast.error(error,'Google was not contacted.')})
-  const disconnect=useMutation({mutationFn:()=>disconnectCalendar(organization!.id),onSuccess:async()=>{toast.success('Calendar disconnected.','Interviews stay in the ATS but no longer sync.');await refreshTeam()},onError:(error)=>toast.error(error,'The calendar is still connected.')})
   const saveBrand=useMutation({mutationFn:()=>updateOrganizationAccent(organization!.id,accent),onSuccess:async()=>{toast.success('Accent colour saved.','Client-facing review pages use it too.');await refresh()},onError:(error)=>toast.error(error,'The accent colour was not saved.')})
+  const saveWhatsApp=useMutation({mutationFn:()=>updateWhatsAppSettings(organization!.id,{countryCode:waCode,template:waTemplate}),onSuccess:async()=>{toast.success('WhatsApp settings saved.');await refresh()},onError:(error)=>toast.error(error,'WhatsApp settings are unchanged.')})
   const saveSalaryPeriod=useMutation({mutationFn:(period:'annual'|'monthly')=>updateOrganizationSalaryPeriod(organization!.id,period),onSuccess:async(_result,period)=>{toast.success(`Salaries are now read as ${period}.`,'Every expected-fee figure is recalculated from this.');await refresh()},onError:(error)=>toast.error(error,'The salary period is unchanged.')})
   const uploadLogo=useMutation({mutationFn:(file:File)=>uploadOrganizationLogo(organization!.id,file,organization?.logo_path),onSuccess:async()=>{toast.success('Logo updated.');await refresh()},onError:(error)=>toast.error(error,'The logo was not changed.')})
   const removeLogo=useMutation({mutationFn:()=>removeOrganizationLogo(organization!.id,organization!.logo_path!),onSuccess:async()=>{toast.success('Logo removed.','Client pages fall back to your workspace initials.');await refresh()},onError:(error)=>toast.error(error,'The logo was not removed.')})
@@ -55,7 +58,25 @@ export function SettingsPage(){
         {organization?.profile_footer_banner_url&&<img className="brand-banner-preview" src={organization.profile_footer_banner_url} alt="Client profile footer banner preview"/>}
         <p className="muted">Printed across the footer of every generated client profile page. The approved template uses a 17.0 × 4.9 cm banner; without one the confidentiality line is printed instead.</p>
         {(saveBrand.error||uploadLogo.error||removeLogo.error||uploadBanner.error||removeBanner.error)&&<p className="form-error" role="alert">{(saveBrand.error||uploadLogo.error||removeLogo.error||uploadBanner.error||removeBanner.error)?.message}</p>}</div></Panel>}
-      <Panel title="My Google Calendar"><div className="settings-list">{ownConnection?.status==='connected'?<><article><strong>{ownConnection.google_email}</strong><p>{ownConnection.last_synced_at?`Connected · last synced ${formatDateTime(ownConnection.last_synced_at)}`:'Connected · not synced yet'}</p></article>{ownConnection.last_error&&<p className="form-error">{ownConnection.last_error}</p>}<div className="form-actions"><Button variant="secondary" loading={connect.isPending} leadingIcon={<RefreshCw size={14}/>} onClick={()=>connect.mutate()}>Reconnect</Button><Button variant="caution" loading={disconnect.isPending} leadingIcon={<CalendarX size={14}/>} onClick={()=>disconnect.mutate()}>Disconnect</Button></div></>:<><p className="muted">Connect your own Google account so ATS interview changes create and update events on your primary Calendar.</p><Button loading={connect.isPending} leadingIcon={<CalendarCheck size={15}/>} onClick={()=>connect.mutate()}>Connect Google Calendar</Button></>}</div>{(connect.error||disconnect.error)&&<p className="form-error" role="alert">{(connect.error||disconnect.error)?.message}</p>}</Panel>
+      {canManageOrganization&&<Panel title="Candidate WhatsApp" subtitle="The number format and opening line used by the WhatsApp button on a candidate record.">
+        {/* Both of these were literals in the candidate page: a 62 country code and an English
+          * sentence. Neither is a thing this tool should be deciding on an agency's behalf -- a wrong
+          * country code fails silently inside WhatsApp, and a recruiter's first line to a candidate is
+          * theirs to write. */}
+        <div className="stack">
+          <div className="form-grid">
+            <Field label="Country code"><Input value={waCode} maxLength={4} inputMode="numeric" onChange={(event)=>setWaCode(event.target.value.replace(/\D/g,''))}/></Field>
+          </div>
+          <p className="muted">Applied only to numbers stored with a leading zero. A number saved with a “+” already carries its own country code and is left alone.</p>
+          <Field label="Opening message"><Textarea rows={3} value={waTemplate} onChange={(event)=>setWaTemplate(event.target.value)}/></Field>
+          <p className="muted">Placeholders: <code>{'{first_name}'}</code>, <code>{'{consultant}'}</code>, <code>{'{agency}'}</code>. Anything else is sent as written.</p>
+          {/* Shown before opening rather than after: the message is pre-filled into a real chat with a
+            * real candidate, and the first time anyone reads a broken template should not be there. */}
+          <Callout tone="info" title="Preview">{renderWhatsAppMessage(waTemplate,{first_name:'Ayu',consultant:user?.user_metadata.full_name as string||'you',agency:organization?.name||'your agency'})}</Callout>
+          <div className="form-actions"><Button variant="secondary" loading={saveWhatsApp.isPending} leadingIcon={<MessageSquare size={14}/>} onClick={()=>saveWhatsApp.mutate()}>Save WhatsApp settings</Button></div>
+          {saveWhatsApp.error&&<p className="form-error" role="alert">{saveWhatsApp.error.message}</p>}
+        </div></Panel>}
+      <CalendarConnectionCard title="My Google Calendar" connection={ownConnection} returnPath={`/app/${organization?.slug}/admin/workspace`}/>
     </div>
     <Panel title="Team access" subtitle={seats.limit?`${seats.used} of ${seats.limit} client seats used${seats.support?` · ${seats.support} vendor support (no seat)`:''}${seats.pending?` · ${seats.pending} invited`:''}`:undefined}
       action={seats.limit&&seats.used+seats.pending>=seats.limit?<Badge tone="warn">No seats left</Badge>:undefined}>

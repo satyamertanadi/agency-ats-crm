@@ -1,4 +1,7 @@
 import type {Interview,Job,JobCandidate,Offer,PipelinePhaseKey,PipelineStage,Task,TodayWorkKind} from '../../shared/types/domain'
+// Wording stays in the status maps rather than being re-phrased here; "Wants to interview" has to read
+// the same in a Today row as it does on the badge the consultant sees when they arrive.
+import {feedbackDecision,lookup} from '../../shared/lib/status'
 
 export type {PipelinePhaseKey,TodayWorkKind} from '../../shared/types/domain'
 export type NextActionKey='add_candidates'|'submit'|'check_feedback'|'schedule_interview'|'record_outcome'|'record_offer'|'create_placement'|'resolve_delivery'|'complete_job'
@@ -9,6 +12,12 @@ export interface TodayWorkItemGroup {label:string;href:string;cta:string}
 // hardcode "jobs" in that toggle because unowned jobs were the only thing that grouped; now that
 // repeated tasks group too, the noun has to travel with the item.
 export interface TodayWorkItem {id:string;kind:TodayWorkKind;title:string;reason:string;href:string;cta:string;dueAt?:string|null;group?:TodayWorkItemGroup[];groupNoun?:string}
+
+/* Flattened at the call site rather than taking the nested Supabase row shape. This module is pure and
+ * tested, and threading `candidate_submissions.job_candidates.jobs.owner_member_id` through it would
+ * make every test fixture a four-level object to express one string. */
+export interface TodayFeedback {id:string;decision:string;createdAt:string;jobCandidateId:string;jobId:string|null;jobTitle:string|null;jobOwnerMemberId:string|null;candidateName:string|null}
+export interface TodayConsent {candidateId:string;fullName:string;expiresAt:string;status:string;ownerMemberId:string|null}
 
 export const pipelinePhases:Array<{key:PipelinePhaseKey;label:string}>=[
   {key:'sourcing',label:'Sourcing'},
@@ -155,6 +164,8 @@ export function buildTodayWorkItems(input:{
   placements?:Array<{job_candidate_id:string;status?:string}>
   deliveryIssues?:Array<{id:string;status:string;email_type:string;related_entity_id:string|null;error_message:string|null;updated_at:string}>
   submissions?:Array<{id:string;job_id:string;title:string;public_submission_links:Array<{id:string;expires_at:string;revoked_at:string|null}>}>
+  feedback?:TodayFeedback[]
+  consentExpiring?:TodayConsent[]
 }):TodayWorkItem[]{
   const {base,now,currentMemberId}=input
   const items:TodayWorkItem[]=[]
@@ -271,6 +282,40 @@ export function buildTodayWorkItems(input:{
     // Same fix again: every expired link used to say "Renew expired submission link" in bold with
     // which package it was buried in the muted line -- swap so the package name leads.
     if(expired)items.push({id:`submission-expired-${expired.id}`,kind:'blocked',title:pack.title,reason:'The client review link for this submission has expired.',href:`${base}/jobs/${pack.job_id}`,cta:'Resolve',dueAt:expired.expires_at})
+  }
+  /* The one moment in the whole workflow where the client is waiting on the consultant, and the one
+   * moment nothing told them: feedback was written to submission_feedback, rendered on that
+   * candidate's panel, and announced nowhere else. A client approval could sit unread until someone
+   * happened to open the right candidate.
+   *
+   * Filed under 'today' rather than 'recommended' because a client who has just answered is expecting
+   * a reply now -- but never 'blocked', because nothing is stuck; the next move is simply the
+   * consultant's. */
+  for(const entry of input.feedback||[]){
+    if(currentMemberId&&entry.jobOwnerMemberId&&entry.jobOwnerMemberId!==currentMemberId)continue
+    items.push({
+      id:`feedback-${entry.id}`,kind:'today',
+      title:`${entry.candidateName||'Candidate'} · ${entry.jobTitle||'Job'}`,
+      reason:`Client responded: ${lookup(feedbackDecision,entry.decision).label.toLowerCase()}.`,
+      href:entry.jobId?`${base}/jobs/${entry.jobId}?candidate=${entry.jobCandidateId}`:`${base}/today`,
+      cta:'Open feedback',dueAt:entry.createdAt,
+    })
+  }
+  /* Consent expiry is a commercial deadline wearing an administrative costume: the day it lapses the
+   * candidate cannot be submitted, so a shortlist assembled the evening before becomes unsendable.
+   * Already-expired is 'blocked' because a submission genuinely is; approaching is a heads-up that
+   * sorts by the date it actually falls due. */
+  for(const entry of input.consentExpiring||[]){
+    if(entry.status==='archived'||entry.status==='do_not_contact')continue
+    if(currentMemberId&&entry.ownerMemberId&&entry.ownerMemberId!==currentMemberId)continue
+    const days=Math.ceil((new Date(entry.expiresAt).getTime()-now.getTime())/86_400_000)
+    items.push({
+      id:`consent-${entry.candidateId}`,
+      kind:days<=0?'blocked':days<=3?'today':'upcoming',
+      title:entry.fullName,
+      reason:days<=0?'Consent has expired — this candidate cannot be sent to a client until it is renewed.':`Consent expires in ${days} day${days===1?'':'s'}.`,
+      href:`${base}/candidates/${entry.candidateId}`,cta:'Renew consent',dueAt:entry.expiresAt,
+    })
   }
   const order:Record<TodayWorkKind,number>={blocked:0,overdue:1,today:2,upcoming:3,recommended:4}
   return items.sort((a,b)=>order[a.kind]-order[b.kind]||(a.dueAt||'9999').localeCompare(b.dueAt||'9999'))

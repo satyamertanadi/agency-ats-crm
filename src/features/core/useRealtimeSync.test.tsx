@@ -2,6 +2,7 @@ import {QueryClient,QueryClientProvider,useMutation} from '@tanstack/react-query
 import {act,render,waitFor} from '@testing-library/react'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
 import type {ReactNode} from 'react'
+import {queriesForTable,realtimeTables} from './realtimeSync'
 
 /* A fake Supabase channel. The hook's real risk is not "does a socket connect" -- it is the ordering
  * rules around it, which are pure logic and were previously asserted only by the comments in the
@@ -90,7 +91,10 @@ describe('useRealtimeSync',()=>{
     render(<Harness organizationId="org-1"/>,{wrapper})
     invalidated=[]
     act(()=>subscribeCallback?.('SUBSCRIBED'))
-    expect(new Set(invalidated)).toEqual(new Set(['pipeline','job-health','today','candidate-pipelines','jobs','company-pipeline','tasks','interviews','offers','placements']))
+    // Derived from the map rather than restated: "everything it covers" is the claim, and a literal
+    // list here would only ever record which tables existed the day the test was written.
+    const covered=new Set(realtimeTables.flatMap((table)=>[...queriesForTable(table)]))
+    expect(new Set(invalidated)).toEqual(covered)
   })
 
   it('reports a channel error without refetching or throwing',()=>{
