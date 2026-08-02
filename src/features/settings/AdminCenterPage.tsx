@@ -12,7 +12,12 @@ export function AdminCenterPage(){
   const base=`/app/${organization!.slug}/admin`
   const items=[
     capabilities.data.canViewTeamReports&&{href:`${base}/reports`,title:'Reports',description:'Agency funnel, workload, and consultant performance.',icon:BarChart3},
-    capabilities.data.canManageFinance&&{href:`${base}/finance`,title:'Finance',description:'Placement credits, invoices, and guarantees.',icon:Landmark},
+    /* Recording a placement is a recruitment act, not a finance one, and it was reachable only
+     * through this finance-gated tile -- so a consultant holding placements.write could convert an
+     * accepted offer from the candidate panel but could not see the placement afterwards, and could
+     * not record one directly at all. The tile follows placements.write; the revenue splits and
+     * invoices inside the page keep their own finance check. */
+    capabilities.data.canManagePlacements&&{href:`${base}/finance`,title:'Placements',description:capabilities.data.canManageFinance?'Placements, revenue credits, invoices, and guarantees.':'Placements, starts, and guarantees.',icon:Landmark},
     capabilities.data.canImport&&{href:`${base}/imports`,title:'Data imports',description:'Controlled migration, validation, and rollback.',icon:FileUp},
     capabilities.data.canManageTemplates&&{href:`${base}/templates`,title:'Profile templates',description:'Client-facing candidate profile formats.',icon:FileSignature},
     capabilities.data.canManageWorkspace&&{href:`${base}/workspace`,title:'Team & workspace',description:'Access, branding, roles, and organization settings.',icon:UsersRound},
