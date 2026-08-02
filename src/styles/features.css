@@ -139,7 +139,14 @@
 }
 
 .activity-time{position:relative;display:inline-flex;outline:none}.activity-time-exact{position:absolute;z-index:4;left:0;bottom:calc(100% + 6px);display:none;width:max-content;padding:5px 8px;border:1px solid var(--color-line);border-radius:var(--radius-xs);background:var(--color-surface);box-shadow:var(--shadow-sm);color:var(--color-ink)}.activity-time:hover .activity-time-exact,.activity-time:focus .activity-time-exact{display:block}
-.candidate-row-muted{opacity:.58}.candidate-row-muted:hover{opacity:.78}
+/* Archived and Do-not-contact rows read as secondary without becoming unreadable. Opacity .58 on the
+   whole row dragged every colour in it -- including body text already at the 4.5:1 floor -- below it,
+   so the rows a consultant most needs to read carefully (the ones they must not contact) were the
+   hardest to read. The row is de-emphasised by surface and muted text instead, which leaves contrast
+   intact, and carries a left marker so the state survives greyscale and colour-blind viewing. */
+.candidate-row-muted{background:var(--color-surface-soft);color:var(--color-muted)}
+.candidate-row-muted>td:first-child{box-shadow:inset 3px 0 0 var(--color-faint)}
+.candidate-row-muted:hover{background:var(--color-canvas-deep)}
 .filter-panel{margin:12px 0}.filter-panel>summary{cursor:pointer;color:var(--color-muted);font-weight:var(--weight-semibold)}.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px}
 .task-date-shortcuts{display:flex;flex-wrap:wrap;gap:6px}
 .job-choice-context{display:flex;gap:12px;padding:14px;border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface-soft)}.job-choice-context dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 24px;margin:0;flex:1}.job-choice-context dt{font-size:var(--text-xs);color:var(--color-muted)}.job-choice-context dd{margin:2px 0 0;font-weight:var(--weight-semibold)}
@@ -1003,12 +1010,6 @@
 .record-metadata{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}.record-metadata>span:not(.badge){color:var(--color-muted);font-size:var(--text-sm)}
 .record-tabs{display:flex;gap:var(--space-1);border-bottom:1px solid var(--color-line)}.record-tabs button{border:0;background:transparent;padding:10px 15px;border-bottom:2px solid transparent;color:var(--color-muted);font:inherit;font-weight:var(--weight-semibold);cursor:pointer}.record-tabs button.active{color:var(--color-accent);border-bottom-color:var(--color-accent)}
 .workflow-toolbar{justify-content:space-between;gap:var(--space-4)}.workflow-toolbar>div:first-child strong,.workflow-toolbar>div:first-child span{display:block}.workflow-toolbar>div:first-child span{color:var(--color-muted);margin-top:3px}.detail-toggle{display:inline-flex;align-items:center;gap:7px;color:var(--color-muted);font-size:var(--text-sm);font-weight:var(--weight-semibold)}.outcome-summary{display:flex;gap:var(--space-2);flex-wrap:wrap}
-/* No grid-template-columns here on purpose. This used to pin `repeat(7,…)` to pipelinePhases.length
- * across a file boundary, but groupPipelineStages drops empty phases -- so a job with four populated
- * phases rendered four columns into seven tracks and left the rest as dead space. The detailed
- * variant's auto-fit was worse: it wrapped and crushed fourteen stages instead of scrolling. Base
- * .kanban already does the right thing (auto-flow column + auto-columns + overflow:auto), and
- * letting it through also un-breaks the 84vw column width in responsive.css. */
 .workflow-kanban{min-height:460px}.workflow-column{min-height:440px}.workflow-candidate-card{padding:0;touch-action:none;overflow:hidden}.workflow-candidate-card.dragging{opacity:.65;box-shadow:var(--shadow-lg);z-index:5}.candidate-card-open{display:grid;grid-template-columns:1fr auto;width:100%;text-align:left;border:0;background:transparent;padding:var(--space-3);color:inherit;cursor:pointer}.candidate-card-open strong,.candidate-card-open span,.candidate-card-open small{grid-column:1}.candidate-card-open svg{grid-column:2;grid-row:1/4;align-self:center;color:var(--color-faint)}.candidate-card-open span,.candidate-card-open small{margin-top:2px;color:var(--color-muted)}.workflow-candidate-card>label{display:block;padding:0 var(--space-3) var(--space-3)}.workflow-candidate-card select{width:100%;font-size:var(--text-xs)}
 
 /* ---- pipeline board redesign: SLA-aware cards, phase-ramp column headers, density toggle --------
@@ -1017,6 +1018,15 @@
  * count varies), falling back to 6 -- the base `.kanban`'s own `overflow-x:auto` still applies as the
  * narrow-viewport fallback, so a board that doesn't fit still scrolls instead of crushing columns. */
 .workflow-kanban{grid-auto-flow:unset;grid-template-columns:repeat(var(--kanban-columns,6),minmax(186px,1fr));align-items:start}
+/* ...and hands it straight back below 840px. `grid-auto-columns:84vw` in responsive.css only sizes
+ * IMPLICIT tracks, so the explicit template above silently defeated it: the phone got six 186px
+ * columns to scroll through instead of one near-full-width column per swipe -- the exact layout the
+ * 84vw rule exists to prevent. The template is a desktop concern (fill the width evenly with however
+ * many phases this job has); on a phone the board is a swipe deck and the base .kanban already knows
+ * how to be one. */
+@media(max-width:840px){
+  .workflow-kanban{grid-auto-flow:column;grid-template-columns:none}
+}
 /* border-left-width only -- the colour itself is set inline per card from the phase ramp
  * (`phaseRampColor`), so this stays the one place the 3px thickness is declared. */
 .workflow-candidate-card{border-left-width:3px}

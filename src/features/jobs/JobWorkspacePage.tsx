@@ -85,6 +85,7 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
   const targetDays=item.pipeline_stages?slaTargetDays[phaseForStage(item.pipeline_stages)]??7:7
   const urgency=stageUrgency(days,targetDays)
   const owner=members.find((member)=>member.id===item.candidates?.owner_member_id)
+  const ownerName=owner?.profiles?.full_name||owner?.profiles?.email||'Unassigned'
   return <article ref={setNodeRef} style={style} className={`candidate-card workflow-candidate-card ${isDragging?'dragging':''}`} {...(canMove?listeners:{})} {...attributes}>
     <button className="candidate-card-open" onPointerDown={(event)=>event.stopPropagation()} onClick={onOpen}>
       <span className="workflow-card-top">
@@ -95,7 +96,10 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
       <span className="workflow-card-role">{item.candidates?.current_position||'Role not recorded'}{item.candidates?.current_company?` · ${item.candidates.current_company}`:''}</span>
       <span className="workflow-card-bottom">
         <span className={`workflow-days-badge tone-${urgency}`}><Clock size={10}/>{days}d</span>
-        <span className="workflow-card-owner" aria-hidden="true">{memberInitials(owner)}</span>
+        {/* Two initials are unreadable to anyone who does not already know the team, and were hidden
+          * from assistive tech entirely -- so the chip told a screen-reader user nothing at all and a
+          * new consultant nothing they could act on. The name travels with it both ways now. */}
+        <span className="workflow-card-owner" title={`Candidate owner: ${ownerName}`}>{memberInitials(owner)}<span className="sr-only">Candidate owner: {ownerName}</span></span>
       </span>
     </button>
     {canMove&&<label onPointerDown={(event)=>event.stopPropagation()}><span className="sr-only">Move {name}</span><Select aria-label={`Move ${name}`} value={columnKey} onChange={(event)=>onMove(event.target.value)}>{targets.map((target)=><option value={target.key} key={target.key}>{target.label}</option>)}</Select></label>}

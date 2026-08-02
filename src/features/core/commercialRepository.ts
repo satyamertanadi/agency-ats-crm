@@ -50,6 +50,15 @@ async function patchOrganizationSettings(organizationId:string,change:Record<str
   if(error)fail(error,'Could not save organization settings')
 }
 
+/* Both were hardcoded in the candidate page: a 62 country code and an English opening line, in a
+ * product sold to agencies that are not all Indonesian and do not all write to candidates in English.
+ * Validated here rather than only in the form, because this blob is also the thing a future import or
+ * script would write to. */
+export async function updateWhatsAppSettings(organizationId:string,input:{countryCode:string;template:string}){
+  const code=input.countryCode.replace(/\D/g,'')
+  if(!/^\d{1,4}$/.test(code))throw new AppError('Country code must be 1–4 digits, without a plus sign.','invalid_country_code')
+  await patchOrganizationSettings(organizationId,{whatsapp_country_code:code,whatsapp_template:input.template.trim()||null})
+}
 export async function uploadOrganizationProfileBanner(organizationId:string,file:File,previousPath?:string|null){const allowed=['image/png','image/jpeg','image/webp'];if(!allowed.includes(file.type))throw new AppError('Use a PNG, JPG, or WebP banner.','invalid_banner_type');if(file.size>2*1024*1024)throw new AppError('Banner files are limited to 2 MB.','banner_too_large');const extension=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';const storagePath=`${organizationId}/profile-banner-${crypto.randomUUID()}.${extension}`;const upload=await supabase.storage.from('organization-assets').upload(storagePath,file,{contentType:file.type,upsert:false,cacheControl:'3600'});if(upload.error)fail(upload.error,'Could not upload profile banner');try{await patchOrganizationSettings(organizationId,{profile_footer_banner_path:storagePath})}catch(error){await supabase.storage.from('organization-assets').remove([storagePath]);throw error}if(previousPath&&previousPath!==storagePath)await supabase.storage.from('organization-assets').remove([previousPath]);return storagePath}
 export async function removeOrganizationProfileBanner(organizationId:string,bannerPath:string){await patchOrganizationSettings(organizationId,{profile_footer_banner_path:null});const removed=await supabase.storage.from('organization-assets').remove([bannerPath]);if(removed.error)fail(removed.error,'Banner setting was cleared, but the old file could not be removed')}
 

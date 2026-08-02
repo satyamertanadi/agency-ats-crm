@@ -111,9 +111,15 @@ export function TodayPage(){
           const health=healthByJob.get(job.id)
           // waiting_count already IS list_job_health's stalled signal (candidates untouched 7+ days
           // in an active stage) -- reused as-is rather than recomputed against the board's SLA targets.
-          const chip=!health||health.candidate_count===0?{label:'Empty',tone:'bad'}:health.waiting_count>0?{label:`${health.waiting_count} stalled`,tone:health.waiting_count>=3?'bad':'warn'}:{label:'Healthy',tone:'good'}
+          /* "Stalled" is a defined term, not a vibe, and the definition lives in SQL. Stating it on
+             hover is the difference between a chip a consultant trusts and one they learn to ignore. */
+          const chip=!health||health.candidate_count===0
+            ?{label:'Empty',tone:'bad',title:'No candidates are in this pipeline yet.'}
+            :health.waiting_count>0
+              ?{label:`${health.waiting_count} stalled`,tone:health.waiting_count>=3?'bad':'warn',title:`${health.waiting_count} ${health.waiting_count===1?'candidate has':'candidates have'} sat in the same active stage for more than 7 days.`}
+              :{label:'Healthy',tone:'good',title:'Every candidate has moved within the last 7 days.'}
           return <Link to={`${base}/jobs/${job.id}`} key={job.id} className="today-job-row">
-            <div className="today-job-row-top"><strong>{job.title}</strong><span className={`today-job-chip tone-${chip.tone}`}>{chip.label}</span></div>
+            <div className="today-job-row-top"><strong>{job.title}</strong><span className={`today-job-chip tone-${chip.tone}`} title={chip.title}>{chip.label}</span></div>
             <small>{job.companies?.name||'Client'} · {job.location||'Location not set'}{health?` · ${health.candidate_count} candidates`:''}</small>
             {health&&health.candidate_count>0&&<div className="pipeline-mini" aria-label={`${health.candidate_count} candidates by phase`}>{phaseSegments(health).map((segment)=><span key={segment.key} className={`phase-${segment.key}`} style={{flexGrow:segment.count}}/>)}</div>}
           </Link>

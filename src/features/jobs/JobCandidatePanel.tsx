@@ -5,7 +5,7 @@ import {Link} from 'react-router'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {convertOfferToPlacement,createInterview,createOffer,listContacts,listJobHealth,type PlacementFeeSource} from '../core/repository'
+import {convertOfferToPlacement,createInterview,createOffer,listContacts,listJobHealth,updateInterview,type PlacementFeeSource} from '../core/repository'
 import {getCandidateDetail,listCalendarConnections,listSubmissionCandidateDocuments,sendClientSubmission,syncInterviewCalendar} from '../core/commercialRepository'
 import type {Interview,Job,JobCandidate,Offer,PipelineStage,Placement} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
@@ -39,6 +39,8 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
   const [recipientName,setRecipientName]=useState('');const [recipientEmail,setRecipientEmail]=useState('');const [message,setMessage]=useState('Please review this candidate for the role.');const [selectedDocuments,setSelectedDocuments]=useState<string[]>([])
   const startDefault=useMemo(()=>{const start=new Date();start.setDate(start.getDate()+1);start.setHours(9,0,0,0);return start},[])
   const [startsAt,setStartsAt]=useState(localValue(startDefault));const [endsAt,setEndsAt]=useState(localValue(new Date(startDefault.valueOf()+60*60*1000)));const [location,setLocation]=useState('');const [attendeeEmails,setAttendeeEmails]=useState('');const [createMeet,setCreateMeet]=useState(true)
+  // Non-null only while this form is moving an existing interview rather than creating one.
+  const [rescheduling,setRescheduling]=useState<Interview|null>(null)
   const [salary,setSalary]=useState('');const [startDate,setStartDate]=useState('');const [fee,setFee]=useState('');const [moveStage,setMoveStage]=useState(item.current_stage_id);const [moveNote,setMoveNote]=useState('')
   /* Which source set the fee is recorded, not inferred. Accepting the suggested figure states the
    * agreement that produced it; typing anything else is a manual price, and saying so is what keeps
@@ -65,7 +67,24 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
    * working a board of twelve needs to know which card the confirmation belongs to. */
   const candidateName=item.candidates?.full_name||'The candidate'
   const submit=useMutation({mutationFn:()=>sendClientSubmission({organizationId:organization!.id,jobId:job.id,title:`${item.candidates?.full_name} · ${job.title}`,message,recipientName:recipientName||undefined,recipientEmail,expiryDays:7,items:[{job_candidate_id:item.id,candidate_summary:`${item.candidates?.full_name} — ${item.candidates?.current_position||'Experienced candidate'}${item.candidates?.current_company?` at ${item.candidates.current_company}`:''}.`,document_ids:selectedDocuments}]}),onSuccess:async()=>{trackAction('action_completed','submit');toast.success(`${candidateName} was sent to ${recipientName||recipientEmail}.`,'The review link expires in 7 days.');onAction(null);await refresh()},onError:(error)=>toast.error(error,'The client was not emailed and no review link was created.')})
-  const interview=useMutation({mutationFn:async()=>{const id=await createInterview(organization!.id,user!.id,{job_candidate_id:item.id,starts_at:new Date(startsAt).toISOString(),ends_at:new Date(endsAt).toISOString(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,location,attendee_emails:attendeeEmails.split(',').map((email)=>email.trim()).filter(Boolean),create_google_meet:createMeet&&calendarConnected,organizer_member_id:calendarConnected?currentMemberId:undefined,interview_type:'client_interview'});if(calendarConnected)await syncInterviewCalendar(organization!.id,id);return id},onSuccess:async()=>{trackAction('action_completed','interview');toast.success(`Interview scheduled for ${candidateName}.`,calendarConnected?'Added to your Google Calendar.':'Saved in the ATS only — your calendar is not connected.');onAction(null);await refresh()},onError:(error)=>toast.error(error,'The interview was not scheduled.')})
+  /* Reschedule moves the interview that exists; it used to open this same form and call
+   * createInterview, so "reschedule" quietly produced a SECOND interview -- two rows on the card, two
+   * calendar events, and a client invited twice. updateInterview has existed since the initial schema
+   * with nothing calling it. The form is shared deliberately: a reschedule collects exactly the fields
+   * a schedule does, and a second near-identical form is how the two drift. */
+  const interview=useMutation({mutationFn:async()=>{
+    const fields={starts_at:new Date(startsAt).toISOString(),ends_at:new Date(endsAt).toISOString(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,location,attendee_emails:attendeeEmails.split(',').map((email)=>email.trim()).filter(Boolean),create_google_meet:createMeet&&calendarConnected}
+    if(rescheduling){
+      await updateInterview(organization!.id,rescheduling.id,fields)
+      // Re-synced for the same reason the create path syncs: an unsynced move leaves the attendees
+      // holding an invitation to the old time, which is worse than never having sent one.
+      if(calendarConnected)await syncInterviewCalendar(organization!.id,rescheduling.id)
+      return rescheduling.id
+    }
+    const id=await createInterview(organization!.id,user!.id,{job_candidate_id:item.id,starts_at:new Date(startsAt).toISOString(),ends_at:new Date(endsAt).toISOString(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,location,attendee_emails:attendeeEmails.split(',').map((email)=>email.trim()).filter(Boolean),create_google_meet:createMeet&&calendarConnected,organizer_member_id:calendarConnected?currentMemberId:undefined,interview_type:'client_interview'})
+    if(calendarConnected)await syncInterviewCalendar(organization!.id,id)
+    return id
+  },onSuccess:async()=>{trackAction('action_completed','interview');toast.success(rescheduling?`Interview moved for ${candidateName}.`:`Interview scheduled for ${candidateName}.`,calendarConnected?'Your Google Calendar is updated.':'Saved in the ATS only — your calendar is not connected.');setRescheduling(null);onAction(null);await refresh()},onError:(error)=>toast.error(error,rescheduling?'The interview was not moved.':'The interview was not scheduled.')})
   const offer=useMutation({mutationFn:()=>createOffer(organization!.id,user!.id,{job_candidate_id:item.id,salary:Number(salary),currency:job.currency||organization!.base_currency,start_date:startDate||undefined}),onSuccess:async()=>{trackAction('action_completed','offer');toast.success(`Offer recorded for ${candidateName}.`);onAction(null);await refresh()},onError:(error)=>toast.error(error,'The offer was not recorded.')})
   const place=useMutation({mutationFn:()=>convertOfferToPlacement(acceptedOffer!.id,Number(fee),90,feeSource),onSuccess:async()=>{trackAction('action_completed','placement');toast.success(`${candidateName} is placed.`,`Fee recorded as ${feeSource==='manual'?'manually priced':feeSource==='job_override'?'a job override':'the account agreement'}.`);onAction(null);await refresh()},onError:(error)=>toast.error(error,'The placement was not recorded.')})
   /* Was its own bare mutation, so a move made here got no optimistic patch, no rollback and no Undo,
@@ -81,7 +100,16 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
       note:moveNote,source:'panel',undo:{stageId:item.current_stage_id,label:stage.name}})
     trackAction('action_completed','move');onAction(null)
   }
-  const chooseAction=(value:ActionName)=>{trackAction('action_started',value);onAction(value)};const action=readOnly?null:requestedAction
+  const chooseAction=(value:ActionName)=>{trackAction('action_started',value);setRescheduling(null);onAction(value)};const action=readOnly?null:requestedAction
+  /* Pre-filled with the interview's current time, because a reschedule is an edit of a known value --
+   * making the consultant retype a slot the card is displaying beside them is how a wrong date gets
+   * typed. Retains the same form, in reschedule mode. */
+  const startReschedule=(entry:Interview)=>{
+    setRescheduling(entry)
+    setStartsAt(localValue(new Date(entry.starts_at)));setEndsAt(localValue(new Date(entry.ends_at)))
+    setLocation(entry.location||'');setAttendeeEmails((entry.attendee_emails||[]).join(', '))
+    trackAction('action_started','interview');onAction('interview')
+  }
   const closePanel=()=>{if(action)trackAction('action_abandoned',action);onClose()}
   return <Drawer title={item.candidates?.full_name||'Candidate'} description={`${stage.name} · ${job.title}`} eyebrow="Candidate action" open onClose={closePanel}>
     <div className="candidate-context"><div className="candidate-context-summary"><span className="candidate-context-avatar">{item.candidates?.full_name?.split(/\s+/).slice(0,2).map((part)=>part[0]).join('')}</span><div><strong>{item.candidates?.current_position||'Role not recorded'}</strong><p>{[item.candidates?.current_company,item.candidates?.location].filter(Boolean).join(' · ')||'Profile details need review'}</p></div></div><div className="context-badges"><Badge tone="info">{stage.name}</Badge>{privateData&&<StatusBadge map={consentStatus} value={privateData.consent_status}/>}</div><Link className="record-link" to={`/app/${organization!.slug}/candidates/${item.candidate_id}`}>Open full candidate profile</Link></div>
@@ -91,7 +119,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
     {/* 'check_feedback' no longer needs a step of its own -- the feedback is on the lifecycle cards
       * below, so choosing it just returns to them rather than opening a screen that restated the
       * question instead of answering it. */}
-    {action==='interview'&&<section className="context-action-form"><h3>Schedule interview</h3><div className="form-grid"><Field label="Starts"><Input type="datetime-local" value={startsAt} onChange={(event)=>setStartsAt(event.target.value)}/></Field><Field label="Ends"><Input type="datetime-local" value={endsAt} onChange={(event)=>setEndsAt(event.target.value)}/></Field></div><Field label="Location or call details"><Input value={location} onChange={(event)=>setLocation(event.target.value)}/></Field><Field label="Attendee emails"><Input value={attendeeEmails} onChange={(event)=>setAttendeeEmails(event.target.value)}/></Field><label className="check-row"><input type="checkbox" checked={createMeet} disabled={!calendarConnected} onChange={(event)=>setCreateMeet(event.target.checked)}/><span>Create a Google Meet link and synchronize my Calendar</span></label>{!calendarConnected&&<p className="muted">Calendar is not connected. The interview will still be saved in the ATS.</p>}{interview.error&&<p className="form-error" role="alert">{interview.error.message}</p>}<ActionButtons onCancel={()=>onAction(null)} label="Schedule interview" loading={interview.isPending} disabled={!startsAt||!endsAt} onSave={()=>interview.mutate()}/></section>}
+    {action==='interview'&&<section className="context-action-form"><h3>{rescheduling?'Reschedule interview':'Schedule interview'}</h3><div className="form-grid"><Field label="Starts"><Input type="datetime-local" value={startsAt} onChange={(event)=>setStartsAt(event.target.value)}/></Field><Field label="Ends"><Input type="datetime-local" value={endsAt} onChange={(event)=>setEndsAt(event.target.value)}/></Field></div><Field label="Location or call details"><Input value={location} onChange={(event)=>setLocation(event.target.value)}/></Field><Field label="Attendee emails"><Input value={attendeeEmails} onChange={(event)=>setAttendeeEmails(event.target.value)}/></Field><label className="check-row"><input type="checkbox" checked={createMeet} disabled={!calendarConnected} onChange={(event)=>setCreateMeet(event.target.checked)}/><span>Create a Google Meet link and synchronize my Calendar</span></label>{!calendarConnected&&<p className="muted">Calendar is not connected. The interview will still be saved in the ATS.</p>}{interview.error&&<p className="form-error" role="alert">{interview.error.message}</p>}<ActionButtons onCancel={()=>{setRescheduling(null);onAction(null)}} label={rescheduling?'Move interview':'Schedule interview'} loading={interview.isPending} disabled={!startsAt||!endsAt} onSave={()=>interview.mutate()}/></section>}
     {action==='offer'&&<section className="context-action-form"><h3>Record offer</h3><Field label="Salary"><Input type="number" min="0" value={salary} onChange={(event)=>setSalary(event.target.value)}/></Field><Field label="Currency"><Input value={job.currency||organization!.base_currency} disabled/></Field><Field label="Proposed start"><Input type="date" value={startDate} onChange={(event)=>setStartDate(event.target.value)}/></Field>{offer.error&&<p className="form-error" role="alert">{offer.error.message}</p>}<ActionButtons onCancel={()=>onAction(null)} label="Record offer" loading={offer.isPending} disabled={!salary} onSave={()=>offer.mutate()}/></section>}
     {action==='placement'&&<section className="context-action-form"><h3>Create placement</h3>{acceptedOffer?<><p className="success-box"><CheckCircle2 size={15}/>Accepted offer · {formatMoney(acceptedOffer.salary,acceptedOffer.currency)}</p>{expectedFee!=null&&expectedSource
       ?<p className="fee-suggestion"><span>Expected fee <strong>{formatMoney(expectedFee,jobHealth?.currency||job.currency||undefined)}</strong> · {jobHealth?.fee_source}</span><Button size="sm" variant="secondary" type="button" onClick={()=>{setFee(String(expectedFee));setFeeSource(expectedSource)}}>Use this fee</Button></p>
@@ -119,7 +147,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
         :detailLoading&&<p className="muted">Loading offers, interviews and placements…</p>}
       <JobCandidateLifecycle organizationId={organization!.id} jobCandidateId={item.id} candidateName={candidateName}
         interviews={interviews} offers={offers} canManage={Boolean(capabilities.data?.canManagePlacements)} readOnly={readOnly}
-        onUpdated={refresh} onReschedule={()=>chooseAction('interview')}/>
+        onUpdated={refresh} onReschedule={startReschedule}/>
       {!readOnly&&<div className="context-secondary-actions">{capabilities.data?.canManagePlacements&&<><Button variant="secondary" leadingIcon={<CalendarPlus size={14}/>} onClick={()=>chooseAction('interview')}>Interview</Button><Button variant="secondary" leadingIcon={<BriefcaseBusiness size={14}/>} onClick={()=>chooseAction('offer')}>Offer</Button></>}{capabilities.data?.canMovePipeline&&<Button variant="quiet" onClick={()=>chooseAction('move')}>Move stage</Button>}</div>}
     </section>}
   </Drawer>
