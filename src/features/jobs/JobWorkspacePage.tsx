@@ -1,4 +1,4 @@
-import {useRef,useState} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import {DndContext,PointerSensor,useDraggable,useDroppable,useSensor,useSensors,type DragEndEvent} from '@dnd-kit/core'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ArrowLeft,Clock,GripVertical,Info,Layers3,Plus,Send} from 'lucide-react'
@@ -6,11 +6,12 @@ import {Link,useParams,useSearchParams} from 'react-router'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {addCandidateToJob,getPipeline,listCandidatesPage,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
+import {getPipeline,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
 import {useStageMove} from '../core/useStageMove'
 import {listTeamMembers,updateJob} from '../core/commercialRepository'
 import type {Job,JobCandidate,JobHealth,PipelineStage,TeamMember} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
+import {Callout} from '../../shared/ui/Callout'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
 import {Page,Panel,StatusBadge} from '../../shared/ui/Page'
@@ -25,9 +26,11 @@ import {OutcomePrompt} from './OutcomePrompt'
 import {OutcomesDrawer} from './OutcomesDrawer'
 import {SubmissionComposerDrawer} from '../submissions/SubmissionComposerDrawer'
 import {JobSubmissionsRail,type SubmissionPackageRow} from '../submissions/JobSubmissionsRail'
+import {nextActionDetail} from './jobHealth'
 import {PhaseJump} from './PhaseJump'
+import {AddCandidateToJobModal} from '../candidates/AddCandidateToJobModal'
 import {TaskButton} from '../activities/TaskButton'
-import {formatMoney} from '../../shared/lib/format'
+import {formatMoney,formatSalary} from '../../shared/lib/format'
 
 type WorkspaceView='pipeline'|'activity'|'details'
 type Density='compact'|'roomy'
@@ -80,12 +83,21 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
 }
 
 export function JobWorkspacePage(){
-  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [candidateId,setCandidateId]=useState('');const [detailed,setDetailed]=useState(false);const [editOpen,setEditOpen]=useState(false);const [density,setDensity]=useState<Density>('compact');const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerOpen,setComposerOpen]=useState(false)
+  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [detailed,setDetailed]=useState(false);const [editOpen,setEditOpen]=useState(false);const [density,setDensity]=useState<Density>('compact');const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerOpen,setComposerOpen]=useState(false)
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)});const job=jobs.data?.find((item)=>item.id===jobId)
-  const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const candidates=useQuery({queryKey:['job-add-candidates',organization?.id],enabled:Boolean(organization&&addOpen),queryFn:()=>listCandidatesPage(organization!.id,{},0,100)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
+  const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
   const interviews=useQuery({queryKey:['interviews',organization?.id],enabled:Boolean(organization),queryFn:()=>listInterviews(organization!.id)});const offers=useQuery({queryKey:['offers',organization?.id],enabled:Boolean(organization),queryFn:()=>listOffers(organization!.id)});const placements=useQuery({queryKey:['placements',organization?.id],enabled:Boolean(organization),queryFn:()=>listPlacements(organization!.id)});const packages=useQuery({queryKey:['submissions',organization?.id],enabled:Boolean(organization),queryFn:()=>listSubmissionPackages(organization!.id)});const members=useQuery({queryKey:['members',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
-  const refresh=()=>Promise.all([cache.invalidateQueries({queryKey:['pipeline',jobId]}),cache.invalidateQueries({queryKey:['jobs',organization?.id]}),cache.invalidateQueries({queryKey:['today',organization?.id]})])
-  const add=useMutation({mutationFn:()=>addCandidateToJob(organization!.id,user!.id,job!,candidateId),onSuccess:async()=>{const name=candidates.data?.rows.find((row)=>row.id===candidateId)?.full_name;setAddOpen(false);setCandidateId('');await refresh();toast.success(`${name||'Candidate'} was added to ${job!.title}.`)},onError:(error)=>toast.error(error,'No candidate was added.')})
+  const refresh=()=>Promise.all([cache.invalidateQueries({queryKey:['pipeline',jobId]}),cache.invalidateQueries({queryKey:['jobs',organization?.id]}),cache.invalidateQueries({queryKey:['job-health',organization?.id]}),cache.invalidateQueries({queryKey:['today',organization?.id]})])
+  /* The jobs list's next-action CTAs name an action, so they carry it: arriving with ?open=add or
+   * ?open=edit lands on the surface that resolves the action rather than on the board with the
+   * consultant left to find it. Consumed on arrival so a reload or a back-navigation does not
+   * reopen a modal the consultant already dismissed. */
+  useEffect(()=>{
+    const open=params.get('open')
+    if(open!=='add'&&open!=='edit')return
+    if(open==='add')setAddOpen(true);else setEditOpen(true)
+    const next=new URLSearchParams(params);next.delete('open');setParams(next,{replace:true})
+  },[params,setParams])
   const move=useStageMove(jobId,refresh)
   const sensors=useSensors(useSensor(PointerSensor,{activationConstraint:{distance:8}}));const canRecruit=job?.status==='open'&&Boolean(capabilities.data?.canMovePipeline)
   // The board is the thing worth holding space for: it is the tallest, slowest part of this screen
@@ -182,8 +194,16 @@ export function JobWorkspacePage(){
       </Panel>
     </>}
     {view==='activity'&&<ActivityFeed links={[{job_id:jobId}]} title="Job activity" subtitle="Calls, client updates, submissions, feedback, and stage movement in one history." readOnly={capabilities.data?.readOnly}/>}
-    {view==='details'&&<JobDetails job={job} health={jobHealth} members={members.data||[]} phases={buildPipelineColumns(pipeline.data!.stages,false)} items={pipeline.data!.items} onEdit={capabilities.data?.canWriteJobs?()=>setEditOpen(true):undefined}/>}
-    <Modal title="Add candidate to job" open={addOpen} onClose={()=>setAddOpen(false)}><div className="stack"><Field label="Candidate"><Select value={candidateId} onChange={(event)=>setCandidateId(event.target.value)}><option value="">Select candidate</option>{candidates.data?.rows.filter((candidate)=>!pipeline.data!.items.some((item)=>item.candidate_id===candidate.id)).map((candidate)=><option value={candidate.id} key={candidate.id}>{candidate.full_name} · {candidate.current_position||'Profile'}</option>)}</Select></Field>{add.error&&<p className="form-error" role="alert">{add.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={()=>setAddOpen(false)}>Cancel</Button><Button loading={add.isPending} disabled={!candidateId} onClick={()=>add.mutate()}>Add candidate</Button></div></div></Modal>
+    {view==='details'&&<JobDetails job={job} health={jobHealth} members={members.data||[]} phases={buildPipelineColumns(pipeline.data!.stages,false)} items={pipeline.data!.items} onEdit={capabilities.data?.canWriteJobs?()=>setEditOpen(true):undefined} onAdd={canRecruit?()=>setAddOpen(true):undefined}/>}
+    {/* The bare list this replaces held the first 100 candidates in the organization, unsearchable and
+      * unordered, and added exactly one at a time -- so filling a pipeline from the job side meant
+      * repeating a scroll through a list that could not contain the person you wanted. The good modal
+      * already existed on the candidate side; it is handed this job and this board's occupants so it
+      * neither asks which job nor offers someone already on it. */}
+    {/* Gated on the same capability as the buttons that open it, so arriving with ?open=add cannot
+      * hand a read-only member a form whose only possible outcome is an RLS rejection. */}
+    {canRecruit&&<AddCandidateToJobModal open={addOpen} onClose={()=>setAddOpen(false)} job={{id:job.id,title:job.title}}
+      excludeIds={pipeline.data!.items.map((item)=>item.candidate_id)} onAdded={refresh}/>}
     {capabilities.data?.canWriteJobs&&<JobEditModal job={job} members={members.data||[]} open={editOpen} onClose={()=>setEditOpen(false)} onSaved={async()=>{setEditOpen(false);await refresh()}}/>}
     {selected&&<JobCandidatePanel job={job} item={selected} stage={pipeline.data!.stages.find((stage)=>stage.id===selected.current_stage_id)!} stages={pipeline.data!.stages} currentMemberId={currentMember?.id} interviews={(interviews.data||[]).filter((item)=>item.job_candidate_id===selected.id)} offers={(offers.data||[]).filter((item)=>item.job_candidate_id===selected.id)} placement={(placements.data||[]).find((item)=>item.job_id===job.id&&item.candidate_id===selected.candidate_id)||null} hasSubmission={(packages.data||[]).some((pack)=>Array.isArray(pack.candidate_submissions)&&pack.candidate_submissions.some((submission)=>submission.job_candidate_id===selected.id))} action={params.get('action')} readOnly={job.status!=='open'} onAction={(action)=>{const nextParams=new URLSearchParams(params);if(action)nextParams.set('action',action);else nextParams.delete('action');setParams(nextParams)}} onClose={()=>{const nextParams=new URLSearchParams(params);nextParams.delete('candidate');nextParams.delete('action');setParams(nextParams)}} onUpdated={refresh} onMove={move.mutate} moving={move.isPending} detailLoading={detailLoading} detailError={detailError}/>}
     <SubmissionComposerDrawer open={composerOpen} onClose={()=>setComposerOpen(false)} job={job} organizationId={organization!.id}
@@ -196,18 +216,53 @@ export function JobWorkspacePage(){
   </Page>
 }
 
-function JobDetails({job,health,members,phases,items,onEdit}:{job:Job;health?:JobHealth;members:Array<{id:string;profiles?:{full_name?:string;email?:string}|null}>;phases:PipelineColumn[];items:JobCandidate[];onEdit?:()=>void}){
+function JobDetails({job,health,members,phases,items,onEdit,onAdd}:{job:Job;health?:JobHealth;members:Array<{id:string;profiles?:{full_name?:string;email?:string}|null}>;phases:PipelineColumn[];items:JobCandidate[];onEdit?:()=>void;onAdd?:()=>void}){
   const owner=members.find((member)=>member.id===job.owner_member_id)
   // This card used to render the seven static phases as decorative pills -- the same words for every
   // job, saying nothing about this one. It now reports where this job's candidates actually are.
   const counts=phases.map((phase)=>({...phase,count:items.filter((item)=>phase.stages.some((stage)=>stage.id===item.current_stage_id)).length}))
   const furthest=counts.reduce((last,phase,index)=>phase.count>0?index:last,-1)
-  void health
-  return <div className="record-overview-grid"><Panel title="Job overview" action={onEdit&&<Button variant="secondary" onClick={onEdit}>Edit job</Button>}><dl className="record-summary"><div><dt>Client</dt><dd>{job.companies?.name||'—'}</dd></div><div><dt>Owner</dt><dd>{owner?.profiles?.full_name||owner?.profiles?.email||'Unassigned'}</dd></div><div><dt>Location</dt><dd>{job.location||'Not set'}</dd></div><div><dt>Status</dt><dd>{lookup(jobStatus,job.status).label}</dd></div><div><dt>Priority</dt><dd>{lookup(jobPriority,job.priority).label}</dd></div><div><dt>Currency</dt><dd>{job.currency||'Not set'}</dd></div></dl></Panel><Panel title="Where candidates are" subtitle={items.length>0?`${items.length} in this pipeline.`:undefined}>{counts.length>0?<ol className="phase-progress">{counts.map((phase,index)=><li key={phase.key} className={phase.count>0?'phase-progress-live':index<furthest?'phase-progress-cleared':''}><span>{phase.label}</span><strong>{phase.count}</strong></li>)}</ol>:<p className="muted">This job has no pipeline stages configured yet.</p>}</Panel></div>
+  /* `health` was fetched, threaded through two components and then discarded with `void health`. It
+   * carries the two facts this page could not otherwise state without re-deriving them in TypeScript:
+   * what the placement is worth and where that number came from. The fee formula lives in SQL --
+   * salary period, job override, account agreement fallback -- and re-deriving it here is how a
+   * workspace comes to quote a different fee from the jobs list it was opened from. */
+  const next=health?nextActionDetail(health):null
+  const act=next?.surface==='edit'?onEdit:next?.surface==='add'?onAdd:undefined
+  return <div className="stack">
+    {next&&<Callout tone="info" title={next.label} action={act&&<Button size="sm" variant="secondary" onClick={act}>{next.label}</Button>}>{next.explain}</Callout>}
+    <div className="record-overview-grid"><Panel title="Job overview" action={onEdit&&<Button variant="secondary" onClick={onEdit}>Edit job</Button>}><dl className="record-summary"><div><dt>Client</dt><dd>{job.companies?.name||'—'}</dd></div><div><dt>Owner</dt><dd>{owner?.profiles?.full_name||owner?.profiles?.email||'Unassigned'}</dd></div><div><dt>Location</dt><dd>{job.location||'Not set'}</dd></div><div><dt>Status</dt><dd>{lookup(jobStatus,job.status).label}</dd></div><div><dt>Priority</dt><dd>{lookup(jobPriority,job.priority).label}</dd></div><div><dt>Days open</dt><dd>{health?`${health.days_open} days`:'—'}</dd></div><div><dt>Salary</dt><dd>{job.salary_min||job.salary_max?<>{formatSalary(job.salary_min??null,job.currency)}{job.salary_max?` – ${formatSalary(job.salary_max,job.currency)}`:''}</>:'Not set'}</dd></div><div><dt>Expected fee</dt><dd>{health?.expected_fee?<>{formatMoney(health.expected_fee,health.currency)}<small className="muted"> · {health.fee_source||'no source'}</small></>:'Not set'}</dd></div></dl></Panel><Panel title="Where candidates are" subtitle={items.length>0?`${items.length} in this pipeline.`:undefined}>{counts.length>0?<ol className="phase-progress">{counts.map((phase,index)=><li key={phase.key} className={phase.count>0?'phase-progress-live':index<furthest?'phase-progress-cleared':''}><span>{phase.label}</span><strong>{phase.count}</strong></li>)}</ol>:<p className="muted">This job has no pipeline stages configured yet.</p>}</Panel></div>
+  </div>
 }
 
+/* Empty means "not set", which for the fee fields is not the same as zero: a null override falls back
+ * to the account agreement, a 0 asserts this job is worked for free. `''` therefore has to survive as
+ * null rather than being coerced through Number(). */
+const numberOrNull=(value:string)=>value.trim()===''?null:Number(value)
+
 function JobEditModal({job,members,open,onClose,onSaved}:{job:Job;members:Array<{id:string;status:string;profiles?:{full_name?:string;email?:string}|null}>;open:boolean;onClose:()=>void;onSaved:()=>Promise<void>}){
+  const {organization}=useOrganization();const toast=useToast()
   const [title,setTitle]=useState(job.title);const [location,setLocation]=useState(job.location||'');const [priority,setPriority]=useState(job.priority);const [status,setStatus]=useState(job.status);const [owner,setOwner]=useState(job.owner_member_id||'');const [description,setDescription]=useState(job.description||'')
-  const mutation=useMutation({mutationFn:()=>updateJob(job.organization_id,job.id,{title,location:location||null,priority,status,owner_member_id:owner||null,description:description||null}),onSuccess:onSaved})
-  return <Modal title="Edit job" open={open} onClose={onClose}><div className="stack"><Field label="Job title"><Input value={title} onChange={(event)=>setTitle(event.target.value)}/></Field><div className="form-grid"><Field label="Owner"><Select value={owner} onChange={(event)=>setOwner(event.target.value)}><option value="">Unassigned</option>{members.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><Field label="Location"><Input value={location} onChange={(event)=>setLocation(event.target.value)}/></Field><Field label="Priority"><Select value={priority} onChange={(event)=>setPriority(event.target.value as Job['priority'])}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></Select></Field><Field label="Status"><Select value={status} onChange={(event)=>setStatus(event.target.value as Job['status'])}><option value="draft">Draft</option><option value="open">Open</option><option value="on_hold">On hold</option><option value="filled">Filled</option><option value="closed">Closed</option><option value="cancelled">Cancelled</option></Select></Field></div><details className="advanced-fields"><summary>Advanced details</summary><Field label="Description"><Textarea value={description} onChange={(event)=>setDescription(event.target.value)}/></Field></details>{mutation.error&&<p className="form-error" role="alert">{mutation.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={onClose}>Cancel</Button><Button loading={mutation.isPending} disabled={title.trim().length<2} onClick={()=>mutation.mutate()}>Save job</Button></div></div></Modal>
+  /* Salary and fee were settable once, in the create drawer, and never again -- so a brief that
+   * arrived with the budget still to be confirmed (which is most of them) left the job permanently
+   * quoting a fee derived from a salary nobody could correct. */
+  const [salaryMin,setSalaryMin]=useState(job.salary_min?.toString()||'');const [salaryMax,setSalaryMax]=useState(job.salary_max?.toString()||'');const [currency,setCurrency]=useState(job.currency||organization?.base_currency||'USD')
+  const [feePercentage,setFeePercentage]=useState(job.placement_fee_percentage?.toString()||'');const [fixedFee,setFixedFee]=useState(job.fixed_fee?.toString()||'')
+  const period=organization?.salary_period==='monthly'?'month':'year'
+  const mutation=useMutation({
+    mutationFn:()=>updateJob(job.organization_id,job.id,{title,location:location||null,priority,status,owner_member_id:owner||null,description:description||null,
+      salary_min:numberOrNull(salaryMin),salary_max:numberOrNull(salaryMax),currency:currency.trim().toUpperCase()||null,
+      placement_fee_percentage:numberOrNull(feePercentage),fixed_fee:numberOrNull(fixedFee)}),
+    onSuccess:async()=>{await onSaved();toast.success(`${title} was updated.`)},
+    onError:(error)=>toast.error(error,'The job is unchanged.'),
+  })
+  return <Modal title="Edit job" open={open} onClose={onClose}><div className="stack"><Field label="Job title"><Input value={title} onChange={(event)=>setTitle(event.target.value)}/></Field><div className="form-grid"><Field label="Owner"><Select value={owner} onChange={(event)=>setOwner(event.target.value)}><option value="">Unassigned</option>{members.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><Field label="Location"><Input value={location} onChange={(event)=>setLocation(event.target.value)}/></Field><Field label="Priority"><Select value={priority} onChange={(event)=>setPriority(event.target.value as Job['priority'])}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></Select></Field><Field label="Status"><Select value={status} onChange={(event)=>setStatus(event.target.value as Job['status'])}><option value="draft">Draft</option><option value="open">Open</option><option value="on_hold">On hold</option><option value="filled">Filled</option><option value="closed">Closed</option><option value="cancelled">Cancelled</option></Select></Field></div>
+    <div className="form-grid"><Field label={`Salary minimum (per ${period})`}><Input type="number" min="0" value={salaryMin} onChange={(event)=>setSalaryMin(event.target.value)}/></Field><Field label={`Salary maximum (per ${period})`}><Input type="number" min="0" value={salaryMax} onChange={(event)=>setSalaryMax(event.target.value)}/></Field><Field label="Currency"><Input maxLength={3} value={currency} onChange={(event)=>setCurrency(event.target.value.toUpperCase())}/></Field></div>
+    <details className="advanced-fields"><summary>Fee override and description</summary>
+      {/* Named an override because that is what it is: leave both empty and the fee follows the
+        * client's approved commercial terms, which is the right answer for most jobs. */}
+      <p className="muted">Leave both fee fields empty to use the client's approved commercial terms. A fixed fee wins over a percentage.</p>
+      <div className="form-grid"><Field label="Fee percentage of salary"><Input type="number" min="0" max="100" step="0.5" value={feePercentage} onChange={(event)=>setFeePercentage(event.target.value)}/></Field><Field label="Fixed fee"><Input type="number" min="0" value={fixedFee} onChange={(event)=>setFixedFee(event.target.value)}/></Field></div>
+      <Field label="Description"><Textarea value={description} onChange={(event)=>setDescription(event.target.value)}/></Field>
+    </details>{mutation.error&&<p className="form-error" role="alert">{mutation.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={onClose}>Cancel</Button><Button loading={mutation.isPending} disabled={title.trim().length<2} onClick={()=>mutation.mutate()}>Save job</Button></div></div></Modal>
 }
