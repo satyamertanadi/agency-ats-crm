@@ -63,7 +63,7 @@ select p.organization_id,p.id,s.name,s.stage_key,s.stage_type,s.position,s.visib
 
 insert into public.companies(id,organization_id,name,industry,website,location,account_status,business_development_stage,owner_member_id,created_by) values
 ('60000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','Atlas Renewable Energy','energy_utilities','https://example.com','Singapore','active_client','won','40000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000001'),
-('60000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000001','Meridian Hospitality','hospitality',null,'Bali','prospect','pitching','40000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000001'),
+('60000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000001','Meridian Hospitality','hospitality',null,'Bali','prospect','qualifying','40000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000001'),
 ('60000000-0000-0000-0000-000000000003','30000000-0000-0000-0000-000000000002','Private Rival Client','technology',null,'Remote','active_client','won','40000000-0000-0000-0000-000000000008','20000000-0000-0000-0000-000000000001');
 insert into public.contacts(id,organization_id,company_id,full_name,position,email,phone,decision_authority,relationship_owner_id,created_by) values
 ('61000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','60000000-0000-0000-0000-000000000001','Amanda Chen','VP People','amanda@example.com','+65 6000 0000','Final hiring decision','40000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000001');
