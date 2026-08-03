@@ -34,15 +34,18 @@ const owner=(owners,index)=>owners[index%owners.length]
 const iso=(anchor,days,hour=9)=>{const date=new Date(`${anchor}T${String(hour).padStart(2,'0')}:00:00+08:00`);date.setUTCDate(date.getUTCDate()+days);return date.toISOString()}
 const day=(anchor,days)=>iso(anchor,days).slice(0,10)
 
+// Column 2 is a canonical industry key from src/shared/lib/industries.ts, not a display label -- demo
+// data that seeded free text would make the clients filter look broken in exactly the workspace people
+// use to evaluate the product.
 const companySource=[
-  ['Kinarya Digital Nusantara','Technology','Jakarta','201-500','active_client','won'],
-  ['Arunika Dana Teknologi','Fintech','Jakarta','101-200','active_client','won'],
-  ['Lintas Rona Logistik','Logistics','Surabaya','501-1000','active_client','won'],
-  ['Sembada Pangan Indonesia','Consumer goods','Bandung','501-1000','active_client','won'],
-  ['Tirta Surya Energi','Renewable energy','Makassar','201-500','active_client','won'],
-  ['Nawasena Hospitality Group','Hospitality','Bali','201-500','prospect','proposal'],
-  ['Satwika Medika Utama','Healthcare','Yogyakarta','101-200','prospect','qualified'],
-  ['Bumirakit Manufaktur','Manufacturing','Bekasi','1001-5000','inactive','lost'],
+  ['Kinarya Digital Nusantara','technology','Jakarta','201-500','active_client','won'],
+  ['Arunika Dana Teknologi','fintech','Jakarta','101-200','active_client','won'],
+  ['Lintas Rona Logistik','logistics','Surabaya','501-1000','active_client','won'],
+  ['Sembada Pangan Indonesia','consumer_goods','Bandung','501-1000','active_client','won'],
+  ['Tirta Surya Energi','energy_utilities','Makassar','201-500','active_client','won'],
+  ['Nawasena Hospitality Group','hospitality','Bali','201-500','prospect','pitching'],
+  ['Satwika Medika Utama','healthcare','Yogyakarta','101-200','prospect','qualifying'],
+  ['Bumirakit Manufaktur','manufacturing','Bekasi','1001-5000','inactive','lost'],
 ]
 
 const contactSource=[

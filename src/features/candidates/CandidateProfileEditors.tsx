@@ -4,6 +4,8 @@ import type {z} from 'zod'
 import type {cvEducationSchema,cvEmploymentSchema,cvLanguageSchema,cvSkillSchema} from '../../shared/validation/candidateFields'
 import {Button} from '../../shared/ui/Button'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
+import {OptionSelect} from '../../shared/ui/OptionSelect'
+import {educationLevel,language,languageProficiency,skillProficiency} from '../../shared/lib/optionSets'
 
 export type EmploymentItem=z.infer<typeof cvEmploymentSchema>
 export type EducationItem=z.infer<typeof cvEducationSchema>
@@ -50,7 +52,7 @@ export function EducationListEditor({value,onChange,confidenceFor,disabled,showH
     {value.map((item,index)=><div className="cv-repeat-card" key={`education-${index}`}>
       <div className="form-grid">
         <RepeatField label="Institution" low={low(index,'institution')}><Input value={item.institution} disabled={disabled} onChange={(event)=>change(index,'institution',event.target.value)}/></RepeatField>
-        <Field label="Degree"><Input value={item.degree||''} disabled={disabled} onChange={(event)=>change(index,'degree',event.target.value||null)}/></Field>
+        <Field label="Degree"><OptionSelect label="Degree" placeholder="Not recorded" disabled={disabled} options={educationLevel.options(item.degree)} value={educationLevel.key(item.degree)} onChange={(next)=>change(index,'degree',next||null)}/></Field>
         <Field label="Field of study"><Input value={item.field_of_study||''} disabled={disabled} onChange={(event)=>change(index,'field_of_study',event.target.value||null)}/></Field>
         <Field label="Started"><Input type="date" disabled={disabled} value={item.started_on||''} onChange={(event)=>change(index,'started_on',event.target.value||null)}/></Field>
         <Field label="Start precision"><Select value={item.started_on_precision||''} disabled={disabled} onChange={(event)=>change(index,'started_on_precision',(event.target.value||null) as EducationItem['started_on_precision'])}>{datePrecisionOptions}</Select></Field>
@@ -69,7 +71,7 @@ export function SkillsListEditor({value,onChange,disabled,showHeading=true}:{val
     {value.length>0&&<div className="cv-inline-row cv-inline-row-header" aria-hidden="true"><span>Skill</span><span>Proficiency</span><span>Years</span><span/></div>}
     {value.map((item,index)=><div className="cv-inline-row" key={`skill-${index}`}>
       <Input aria-label="Skill" value={item.name} disabled={disabled} onChange={(event)=>change(index,'name',event.target.value)}/>
-      <Input aria-label="Skill proficiency" value={item.proficiency||''} disabled={disabled} onChange={(event)=>change(index,'proficiency',event.target.value||null)}/>
+      <OptionSelect label="Skill proficiency" placeholder="Not rated" disabled={disabled} options={skillProficiency.options(item.proficiency)} value={skillProficiency.key(item.proficiency)} onChange={(next)=>change(index,'proficiency',next||null)}/>
       <Input aria-label="Years of experience" type="number" min="0" step="0.5" value={item.years_experience??''} disabled={disabled} onChange={(event)=>change(index,'years_experience',event.target.value?Number(event.target.value):null)}/>
       <Button variant="quiet" leadingIcon={<Trash2 size={14}/>} disabled={disabled} onClick={()=>onChange(value.filter((_,itemIndex)=>itemIndex!==index))}>Remove</Button>
     </div>)}
@@ -82,8 +84,8 @@ export function LanguagesListEditor({value,onChange,disabled,showHeading=true}:{
     <div className="cv-section-title">{showHeading&&<h3>Languages</h3>}<Button variant="secondary" leadingIcon={<Plus size={13}/>} disabled={disabled} onClick={()=>onChange([...value,{language:'',proficiency:null}])}>Add</Button></div>
     {value.length>0&&<div className="cv-inline-row cv-inline-row-short cv-inline-row-header" aria-hidden="true"><span>Language</span><span>Proficiency</span><span/></div>}
     {value.map((item,index)=><div className="cv-inline-row cv-inline-row-short" key={`language-${index}`}>
-      <Input aria-label="Language" value={item.language} disabled={disabled} onChange={(event)=>change(index,'language',event.target.value)}/>
-      <Input aria-label="Language proficiency" value={item.proficiency||''} disabled={disabled} onChange={(event)=>change(index,'proficiency',event.target.value||null)}/>
+      <OptionSelect label="Language" placeholder="Select a language" disabled={disabled} options={language.options(item.language)} value={language.key(item.language)} onChange={(next)=>change(index,'language',next)}/>
+      <OptionSelect label="Language proficiency" placeholder="Not rated" disabled={disabled} options={languageProficiency.options(item.proficiency)} value={languageProficiency.key(item.proficiency)} onChange={(next)=>change(index,'proficiency',next||null)}/>
       <Button variant="quiet" leadingIcon={<Trash2 size={14}/>} disabled={disabled} onClick={()=>onChange(value.filter((_,itemIndex)=>itemIndex!==index))}>Remove</Button>
     </div>)}
   </section>

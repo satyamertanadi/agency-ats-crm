@@ -76,15 +76,21 @@ export const accountStatus=map<AccountStatus>({
  * last commercial pursuit ENDED. A dormant account whose last deal was lost is honestly both. The
  * client page labels them so that reads as deliberate rather than as two disagreeing truths.
  *
- * Like jobPriority, not DB-constrained (migration :112 is a bare `text not null default 'lead'`), so
- * this map is our best understanding of what the client edit form writes, not a guarantee. */
+ * The column has no CHECK (migration :112 is a bare `text not null default 'lead'`), but both writers
+ * now go through set_company_bd_stage, which rejects anything outside these seven. This used to be a
+ * different six -- qualified/proposal/negotiation -- while the BD board used qualifying/pitching/
+ * negotiating/dormant and the RPC only accepted the board's list. The edit form bypassed the RPC with
+ * a plain update, so each surface wrote stages the other could not represent and the board grew a
+ * trailing column per stray value. One vocabulary now, the RPC's, because that is the one the database
+ * actually enforces. lookup() still carries whatever an import left behind. */
 export const businessDevelopmentStage=map<BusinessDevelopmentStage>({
   lead:{tone:'neutral',label:'Lead'},
-  qualified:{tone:'info',label:'Qualified'},
-  proposal:{tone:'info',label:'Proposal'},
-  negotiation:{tone:'warn',label:'Negotiation'},
+  qualifying:{tone:'info',label:'Qualifying'},
+  pitching:{tone:'info',label:'Pitching'},
+  negotiating:{tone:'warn',label:'Negotiating'},
   won:{tone:'good',label:'Won'},
   lost:{tone:'bad',label:'Lost'},
+  dormant:{tone:'neutral',label:'Dormant'},
 })
 
 /* Like jobPriority, not DB-constrained -- the contact form (RecordDetailPages.tsx:19) is the only

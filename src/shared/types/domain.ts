@@ -19,13 +19,17 @@
  * OPTIMISTICALLY -- JobPriority and ContactStatus -- because a form is their only writer and it
  * offers a closed list (contact_status: RecordDetailPages.tsx:19 offers exactly three options).
  * Their maps must therefore survive an unrecognised value at runtime, which lookup() handles.
- * business_development_stage stays `string`: nothing in the UI constrains what goes in it, so a
- * union would be a promise neither the schema nor the app keeps.
+ * business_development_stage is the third, and is narrowed for a different reason: the column has no
+ * CHECK, but set_company_bd_stage validates the list and is now the only path both writers take, so
+ * the union is enforced at the door rather than by the schema.
  */
 export type JobStatus='draft'|'open'|'on_hold'|'filled'|'cancelled'|'closed'
 export type JobPriority='low'|'normal'|'high'|'urgent' /* NOT db-constrained; see lookup() */
 export type AccountStatus='prospect'|'active_client'|'inactive'|'do_not_contact'
-export type BusinessDevelopmentStage='lead'|'qualified'|'proposal'|'negotiation'|'won'|'lost' /* NOT db-constrained; see lookup() */
+/* No CHECK on the column, but set_company_bd_stage (20260719000000 :110) rejects anything outside this
+ * list, and the board and the edit form now both write through it -- so this union is enforced at the
+ * only two doors, even though the column itself would still accept anything an import wrote. */
+export type BusinessDevelopmentStage='lead'|'qualifying'|'pitching'|'negotiating'|'won'|'lost'|'dormant'
 export type ContactStatus='active'|'inactive'|'do_not_contact' /* NOT db-constrained; see lookup() */
 export type CandidateStatus='active'|'passive'|'placed'|'do_not_contact'|'archived'
 export type ConsentStatus='unknown'|'requested'|'granted'|'withdrawn'|'expired'
@@ -81,7 +85,7 @@ export type SavedView = {
 }
 
 export type Contact = { id: string; organization_id: string; company_id: string; full_name: string; position: string | null; email: string | null; phone: string | null; contact_status: ContactStatus; next_follow_up_at: string | null; companies?: Pick<Company,'id'|'name'> | null }
-export type Job = { id: string; organization_id: string; company_id: string; pipeline_id: string | null; title: string; location: string | null; priority: JobPriority; status: JobStatus; currency: string | null; salary_min?:number|null;salary_max?:number|null;placement_fee_percentage: number | null;fixed_fee?:number|null;description?:string|null;requirements?:string|null;owner_member_id:string|null; opened_at: string | null; updated_at: string; companies?: Pick<Company,'id'|'name'> | null }
+export type Job = { id: string; organization_id: string; company_id: string; pipeline_id: string | null; title: string; location: string | null; priority: JobPriority; status: JobStatus; employment_type?: string | null; currency: string | null; salary_min?:number|null;salary_max?:number|null;placement_fee_percentage: number | null;fixed_fee?:number|null;description?:string|null;requirements?:string|null;owner_member_id:string|null; opened_at: string | null; updated_at: string; companies?: Pick<Company,'id'|'name'> | null }
 export type JobHealth={id:string;company_id:string;pipeline_id:string;title:string;company_name:string;location:string|null;priority:JobPriority;status:JobStatus;owner_member_id:string|null;owner_name:string|null;opened_at:string|null;days_open:number;candidate_count:number;waiting_count:number;phase_counts:Record<string,number>;salary_min:number|null;salary_max:number|null;currency:string|null;fee_percentage:number|null;fixed_fee:number|null;expected_fee:number|null;fee_source:string|null;next_action:string|null;last_activity_at:string|null;already_in_job:boolean;updated_at:string}
 export type PipelineStage = { id: string; pipeline_id: string; name: string; stage_key: string; stage_type: string; phase_key:PipelinePhaseKey|null; position: number; color: string | null }
 export type JobCandidate = { id: string; job_id: string; candidate_id: string; current_stage_id: string; updated_at: string; candidates?: Candidate | null; pipeline_stages?: PipelineStage | null; stage_history?: Array<{occurred_at:string;note?:string|null;to_stage_id?:string}> }
