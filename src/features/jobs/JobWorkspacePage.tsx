@@ -13,6 +13,9 @@ import type {Job,JobCandidate,JobHealth,PipelineStage,TeamMember} from '../../sh
 import {Button} from '../../shared/ui/Button'
 import {Callout} from '../../shared/ui/Callout'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
+import {currencyOptions} from '../../shared/lib/currencies'
+import {OptionSelect} from '../../shared/ui/OptionSelect'
+import {employmentType} from '../../shared/lib/optionSets'
 import {Modal} from '../../shared/ui/Modal'
 import {Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {jobPriority,jobStatus,lookup} from '../../shared/lib/status'
@@ -284,16 +287,18 @@ function JobEditModal({job,members,open,onClose,onSaved}:{job:Job;members:Array<
    * quoting a fee derived from a salary nobody could correct. */
   const [salaryMin,setSalaryMin]=useState(job.salary_min?.toString()||'');const [salaryMax,setSalaryMax]=useState(job.salary_max?.toString()||'');const [currency,setCurrency]=useState(job.currency||organization?.base_currency||'USD')
   const [feePercentage,setFeePercentage]=useState(job.placement_fee_percentage?.toString()||'');const [fixedFee,setFixedFee]=useState(job.fixed_fee?.toString()||'')
+  // The column shipped with the initial schema and never had an input; only the CSV importer wrote it.
+  const [employment,setEmployment]=useState(employmentType.key(job.employment_type))
   const period=organization?.salary_period==='monthly'?'month':'year'
   const mutation=useMutation({
-    mutationFn:()=>updateJob(job.organization_id,job.id,{title,location:location||null,priority,status,owner_member_id:owner||null,description:description||null,
+    mutationFn:()=>updateJob(job.organization_id,job.id,{title,location:location||null,priority,status,employment_type:employment||null,owner_member_id:owner||null,description:description||null,
       salary_min:numberOrNull(salaryMin),salary_max:numberOrNull(salaryMax),currency:currency.trim().toUpperCase()||null,
       placement_fee_percentage:numberOrNull(feePercentage),fixed_fee:numberOrNull(fixedFee)}),
     onSuccess:async()=>{await onSaved();toast.success(`${title} was updated.`)},
     onError:(error)=>toast.error(error,'The job is unchanged.'),
   })
-  return <Modal title="Edit job" open={open} onClose={onClose}><div className="stack"><Field label="Job title"><Input value={title} onChange={(event)=>setTitle(event.target.value)}/></Field><div className="form-grid"><Field label="Owner"><Select value={owner} onChange={(event)=>setOwner(event.target.value)}><option value="">Unassigned</option>{members.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><Field label="Location"><Input value={location} onChange={(event)=>setLocation(event.target.value)}/></Field><Field label="Priority"><Select value={priority} onChange={(event)=>setPriority(event.target.value as Job['priority'])}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></Select></Field><Field label="Status"><Select value={status} onChange={(event)=>setStatus(event.target.value as Job['status'])}><option value="draft">Draft</option><option value="open">Open</option><option value="on_hold">On hold</option><option value="filled">Filled</option><option value="closed">Closed</option><option value="cancelled">Cancelled</option></Select></Field></div>
-    <div className="form-grid"><Field label={`Salary minimum (per ${period})`}><Input type="number" min="0" value={salaryMin} onChange={(event)=>setSalaryMin(event.target.value)}/></Field><Field label={`Salary maximum (per ${period})`}><Input type="number" min="0" value={salaryMax} onChange={(event)=>setSalaryMax(event.target.value)}/></Field><Field label="Currency"><Input maxLength={3} value={currency} onChange={(event)=>setCurrency(event.target.value.toUpperCase())}/></Field></div>
+  return <Modal title="Edit job" open={open} onClose={onClose}><div className="stack"><Field label="Job title"><Input value={title} onChange={(event)=>setTitle(event.target.value)}/></Field><div className="form-grid"><Field label="Owner"><Select value={owner} onChange={(event)=>setOwner(event.target.value)}><option value="">Unassigned</option>{members.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><Field label="Location"><Input value={location} onChange={(event)=>setLocation(event.target.value)}/></Field><Field label="Priority"><Select value={priority} onChange={(event)=>setPriority(event.target.value as Job['priority'])}>{Object.entries(jobPriority).map(([value,item])=><option key={value} value={value}>{item.label}</option>)}</Select></Field><Field label="Employment type"><OptionSelect label="Employment type" placeholder="Not specified" options={employmentType.options(employment)} value={employmentType.key(employment)} onChange={setEmployment}/></Field><Field label="Status"><Select value={status} onChange={(event)=>setStatus(event.target.value as Job['status'])}><option value="draft">Draft</option><option value="open">Open</option><option value="on_hold">On hold</option><option value="filled">Filled</option><option value="closed">Closed</option><option value="cancelled">Cancelled</option></Select></Field></div>
+    <div className="form-grid"><Field label={`Salary minimum (per ${period})`}><Input type="number" min="0" value={salaryMin} onChange={(event)=>setSalaryMin(event.target.value)}/></Field><Field label={`Salary maximum (per ${period})`}><Input type="number" min="0" value={salaryMax} onChange={(event)=>setSalaryMax(event.target.value)}/></Field><Field label="Currency"><Select value={currency} onChange={(event)=>setCurrency(event.target.value)}>{currencyOptions(organization?.base_currency).map((option)=><option key={option.code} value={option.code}>{option.code} — {option.name}</option>)}</Select></Field></div>
     <details className="advanced-fields"><summary>Fee override and description</summary>
       {/* Named an override because that is what it is: leave both empty and the fee follows the
         * client's approved commercial terms, which is the right answer for most jobs. */}

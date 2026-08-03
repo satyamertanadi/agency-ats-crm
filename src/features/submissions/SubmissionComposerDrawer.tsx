@@ -9,6 +9,8 @@ import {Callout} from '../../shared/ui/Callout'
 import {CollapsibleSection} from '../../shared/ui/CollapsibleSection'
 import {Drawer} from '../../shared/ui/Drawer'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
+import {OptionSelect} from '../../shared/ui/OptionSelect'
+import {candidateAvailability,relocationWillingness} from '../../shared/lib/optionSets'
 import {Badge} from '../../shared/ui/Page'
 import {useToast} from '../../shared/ui/Toast'
 
@@ -145,8 +147,8 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
                 <Field label="What is motivating them"><Textarea rows={2} value={drafts[entry.jobCandidateId]?.motivation??''} onChange={(event)=>update(entry.jobCandidateId,{motivation:event.target.value})}/></Field>
                 <Field label={`Expected salary${job.currency?` (${job.currency})`:''}`}><Input value={drafts[entry.jobCandidateId]?.expected_salary??''} onChange={(event)=>update(entry.jobCandidateId,{expected_salary:event.target.value})}/></Field>
                 <Field label="Notice period"><Input value={drafts[entry.jobCandidateId]?.notice_period??''} onChange={(event)=>update(entry.jobCandidateId,{notice_period:event.target.value})}/></Field>
-                <Field label="Availability"><Input value={drafts[entry.jobCandidateId]?.availability??''} onChange={(event)=>update(entry.jobCandidateId,{availability:event.target.value})}/></Field>
-                <Field label="Relocation"><Input value={drafts[entry.jobCandidateId]?.relocation_willingness??''} onChange={(event)=>update(entry.jobCandidateId,{relocation_willingness:event.target.value})}/></Field>
+                <Field label="Availability"><OptionSelect label="Availability" placeholder="Not stated" options={candidateAvailability.options(drafts[entry.jobCandidateId]?.availability)} value={candidateAvailability.key(drafts[entry.jobCandidateId]?.availability)} onChange={(next)=>update(entry.jobCandidateId,{availability:next})}/></Field>
+                <Field label="Relocation"><OptionSelect label="Relocation" placeholder="Not stated" options={relocationWillingness.options(drafts[entry.jobCandidateId]?.relocation_willingness)} value={relocationWillingness.key(drafts[entry.jobCandidateId]?.relocation_willingness)} onChange={(next)=>update(entry.jobCandidateId,{relocation_willingness:next})}/></Field>
               </div>
               <fieldset>
                 <legend>Documents to share</legend>

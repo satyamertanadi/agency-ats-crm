@@ -5,6 +5,8 @@ import {Button} from '../../shared/ui/Button'
 import {Callout} from '../../shared/ui/Callout'
 import {Checkbox,Field,Input,Radio,Select,Textarea} from '../../shared/ui/Field'
 import {Combobox} from '../../shared/ui/Combobox'
+import {OptionSelect} from '../../shared/ui/OptionSelect'
+import {industryOptions} from '../../shared/lib/industries'
 import {KpiGrid,KpiTile} from '../../shared/ui/KpiTile'
 import {Menu} from '../../shared/ui/Menu'
 import {Badge,Page,Panel} from '../../shared/ui/Page'
@@ -83,6 +85,8 @@ export function StyleguidePage(){
   const [view,setView]=useState<'list'|'board'>('list')
   const [density,setDensity]=useState<'compact'|'roomy'>('compact')
   const [skill,setSkill]=useState('')
+  const [sgIndustry,setSgIndustry]=useState('')
+  const [sgLegacyIndustry,setSgLegacyIndustry]=useState('Boutique villa management')
   const [page,setPage]=useState(0)
   const sgTabsId=useTabsId()
   /* The theme with the most token surface area (~40 overrides under [data-theme='dark']) had no
@@ -264,6 +268,13 @@ export function StyleguidePage(){
     <Section id="combobox" title="Combobox" note="Autocomplete against a known list, for the filters that ask a consultant to type a normalized value blind today (searching “reactjs” finds nothing when the tag is “React”).">
       <div style={{maxWidth:320}}>
         <Field label="Skill"><Combobox value={skill} onChange={setSkill} label="Skill" placeholder="Start typing a skill" options={SG_SKILLS.filter((option)=>option.label.toLowerCase().includes(skill.toLowerCase()))}/></Field>
+      </div>
+    </Section>
+
+    <Section id="option-select" title="Option select" note="A curated list with an “Other…” row that reveals a free-text box, for the categorical columns that were free text and so held four spellings of the same sector. The second specimen shows the guarantee that makes it safe to retrofit: a value the list has never heard of stays selected rather than being silently dropped on the next save.">
+      <div className="form-grid" style={{maxWidth:560}}>
+        <Field label="Industry"><OptionSelect label="Industry" options={industryOptions()} value={sgIndustry} onChange={setSgIndustry}/></Field>
+        <Field label="Industry (legacy value)"><OptionSelect label="Industry" options={industryOptions(sgLegacyIndustry)} value={sgLegacyIndustry} onChange={setSgLegacyIndustry}/></Field>
       </div>
     </Section>
 

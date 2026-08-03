@@ -1167,6 +1167,18 @@ td span:not([class]) {
   color: var(--color-faint);
 }
 
+/* OptionSelect: a select over a curated list, plus the free-text row that "Other…" reveals beneath
+   it. Column rather than row so the revealed input keeps the select's full width inside a .form-grid
+   cell, where a side-by-side pair would halve both. */
+.option-select {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-15);
+}
+.option-select .select-wrap {
+  width: 100%;
+}
+
 /* Combobox: an input plus a listbox of suggestions. Reuses .select-wrap so the chevron sits exactly
    where every Select in the app puts it. */
 .combobox {

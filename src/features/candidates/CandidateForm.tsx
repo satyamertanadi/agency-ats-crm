@@ -1,11 +1,14 @@
 import {AlertTriangle} from 'lucide-react'
 import type {ReactNode} from 'react'
-import type {UseFormReturn} from 'react-hook-form'
+import {useController,type Control,type UseFormReturn} from 'react-hook-form'
 import type {z} from 'zod'
 import {candidateFormSchema} from '../core/schemas'
 import {candidateStatus,consentStatus} from '../../shared/lib/status'
 import {currencyOptions} from '../../shared/lib/currencies'
+import {candidateAvailability,candidateSource,workAuthorization} from '../../shared/lib/optionSets'
+import type {OptionSet} from '../../shared/lib/optionSet'
 import {Field,Input,Select} from '../../shared/ui/Field'
+import {OptionSelect} from '../../shared/ui/OptionSelect'
 
 export type CandidateFormInput=z.input<typeof candidateFormSchema>
 export type CandidateFormOutput=z.output<typeof candidateFormSchema>
@@ -47,7 +50,7 @@ export type CandidateFormProps={
  * how you reach them, how you will work them, and money, it is four short lists in the order a
  * consultant actually learns these facts. */
 export function CandidateForm({form,mode='create',owners=[],salaryPeriod,baseCurrency,lowConfidence,disabled=false}:CandidateFormProps){
-  const {register,formState:{errors}}=form
+  const {register,control,formState:{errors}}=form
   const periodLabel=salaryPeriod==='monthly'?'month':'year'
   /* The status maps are written for badges, where a chip reading just "Granted" out of context is
    * ambiguous -- so they carry the noun ("Consent granted"). Inside a select that already has a
@@ -112,10 +115,10 @@ export function CandidateForm({form,mode='create',owners=[],salaryPeriod,baseCur
             </Select>
           </FormField>
         </>}
-        <FormField label="Source" low={lowConfidence?.('source')}><Input placeholder="Referral, LinkedIn, job board…" disabled={disabled} {...register('source')}/></FormField>
-        <FormField label="Availability" low={lowConfidence?.('availability')}><Input placeholder="Immediately, from March…" disabled={disabled} {...register('availability')}/></FormField>
+        <OptionField control={control} name="source" set={candidateSource} label="Source" disabled={disabled} low={lowConfidence?.('source')}/>
+        <OptionField control={control} name="availability" set={candidateAvailability} label="Availability" disabled={disabled} low={lowConfidence?.('availability')}/>
         <FormField label="Notice period (days)" error={errors.notice_period_days?.message} low={lowConfidence?.('notice_period_days')}><Input type="number" min="0" disabled={disabled} {...register('notice_period_days')}/></FormField>
-        <FormField label="Work authorization"><Input disabled={disabled} {...register('work_authorization')}/></FormField>
+        <OptionField control={control} name="work_authorization" set={workAuthorization} label="Work authorization" disabled={disabled}/>
       </div>
     </section>
 
@@ -138,6 +141,33 @@ export function CandidateForm({form,mode='create',owners=[],salaryPeriod,baseCur
 /* Field plus the two annotations that were previously hand-repeated per call site: the resolver error
  * and the parser's low-confidence marker, which had a `confidenceFor` helper but no row ever rendered
  * it. */
+/* Source, availability and work authorization were free-text boxes with example-laden placeholders
+ * ("Referral, LinkedIn, job board…"), which is a list you cannot filter by: CandidatesPage filters all
+ * three with `ilike`, so "Linkedin" and "LinkedIn" were different sources. They are curated sets now.
+ *
+ * These are the codebase's first useController bindings. Every other input here is register()-based
+ * because it is a plain string field; OptionSelect is controlled, so register() cannot drive it.
+ *
+ * The stored value is normalised for DISPLAY only -- a legacy "Linkedin" preselects LinkedIn -- and
+ * the normalised form is written on the next save the consultant makes. Deliberately not written on
+ * mount: setValue() during render would mark the form dirty before anyone touched it and trip the
+ * host's discard guard on every open. */
+function OptionField({control,name,set,label,low,disabled}:{
+  control:Control<CandidateFormInput,unknown,CandidateFormOutput>
+  name:'source'|'availability'|'work_authorization'
+  set:OptionSet
+  label:string
+  low?:boolean
+  disabled?:boolean
+}){
+  const {field}=useController({control,name})
+  const stored=(field.value as string|undefined)??''
+  return <FormField label={label} low={low}>
+    <OptionSelect label={label} disabled={disabled} placeholder="Not recorded"
+      options={set.options(stored)} value={set.key(stored)} onChange={field.onChange}/>
+  </FormField>
+}
+
 function FormField({label,error,low,className,children}:{label:string;error?:string;low?:boolean;className?:string;children:ReactNode}){
   const field=<Field label={label} error={error}>{children}{low&&<small className="cv-low-confidence"><AlertTriangle size={11}/>Low confidence — check this value</small>}</Field>
   return className?<div className={className}>{field}</div>:field
