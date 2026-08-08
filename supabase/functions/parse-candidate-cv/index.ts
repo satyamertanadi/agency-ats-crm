@@ -164,7 +164,7 @@ async function cleanup(request:Request,requestID:string){
   let candidatesRetained=0
   let retentionFailures=0
   for(const candidate of due.data||[]){
-    const storagePaths=Array.isArray(candidate.storage_paths)?candidate.storage_paths.filter((path):path is string=>typeof path==='string'&&path.length>0):[]
+    const storagePaths=Array.isArray(candidate.storage_paths)?candidate.storage_paths.filter((path:unknown):path is string=>typeof path==='string'&&path.length>0):[]
     if(storagePaths.length){
       const removed=await admin.storage.from(bucket).remove(storagePaths)
       if(removed.error){
