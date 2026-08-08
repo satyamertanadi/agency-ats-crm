@@ -12,10 +12,13 @@ const admin=createClient(url,serviceKey,{auth:{persistSession:false}})
 let candidateId=''
 let auditRoleId=''
 let auditMemberId=''
+let ownerUserId=''
 
 beforeAll(async()=>{
   const signedIn=await owner.auth.signInWithPassword({email:'owner@northstar.local',password:'LocalTest!123'})
   if(signedIn.error)throw signedIn.error
+  ownerUserId=String(signedIn.data.user?.id||'')
+  if(!ownerUserId)throw new Error('The Northstar owner user id is required for audit tests.')
 })
 
 afterAll(async()=>{
@@ -66,7 +69,7 @@ describe('candidate retention and immutable audit evidence',()=>{
   })
 
   it('records role-permission and member-role changes without copying their values',async()=>{
-    const member=await owner.from('organization_members').select('id').eq('organization_id',ORGANIZATION).single()
+    const member=await owner.from('organization_members').select('id').eq('organization_id',ORGANIZATION).eq('user_id',ownerUserId).single()
     expect(member.error).toBeNull()
     auditMemberId=String(member.data?.id)
 
