@@ -8,12 +8,14 @@ Use separate staging and production accounts/projects. Never copy local seed dat
 2. Apply migrations through the approved release pipeline. Do not run `supabase/seed.sql` remotely.
 3. Enable Google Auth, disable public email/password signup, and set exact HTTPS site/redirect URLs.
 4. Create private `candidate-documents` storage and verify its RLS policies.
-5. Deploy Edge Functions from `supabase/functions`; set `APP_ORIGIN`, `ENVIRONMENT`, `EMAIL_FROM`, `RESEND_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALENDAR_REDIRECT_URI`, and a randomly generated `CALENDAR_TOKEN_ENCRYPTION_KEY`. Leave the optional `CALENDAR_TOKEN_ENCRYPTION_KEY_VERSION`/`_PREVIOUS`/`_PREVIOUS_VERSION` unset until an actual key rotation -- see "Rotating the Calendar token encryption key" in `docs/runbooks.md`.
+5. Deploy Edge Functions from `supabase/functions`; set `APP_ORIGIN`, `ENVIRONMENT`, `EMAIL_FROM`, `RESEND_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALENDAR_REDIRECT_URI`, `GOOGLE_PLACES_API_KEY`, and a randomly generated `CALENDAR_TOKEN_ENCRYPTION_KEY`. Leave the optional `CALENDAR_TOKEN_ENCRYPTION_KEY_VERSION`/`_PREVIOUS`/`_PREVIOUS_VERSION` unset until an actual key rotation -- see "Rotating the Calendar token encryption key" in `docs/runbooks.md`.
 6. Provision the first organization and owner through an audited administrative process, then invite five consultants and the named support administrator.
 
 ## Google
 
 Create separate OAuth clients for staging and production. Normal sign-in requests identity scopes only. Calendar connection is a separate incremental authorization using offline access and the Edge callback. Add the Supabase Auth callback and `calendar-auth-callback` URL exactly; reject wildcard production redirects.
+
+`GOOGLE_PLACES_API_KEY` is a separate credential type -- a Places API (New) key, not an OAuth client -- created against the same or a different Google Cloud project, with the Places API enabled and billing active. It has no redirect URI and is never sent to the browser; `location-autocomplete` is the only reader. Location search degrades to plain text entry if it is unset, so it is not a launch blocker.
 
 ## Resend and web hosting
 

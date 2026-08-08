@@ -8,6 +8,7 @@ import {currencyOptions} from '../../shared/lib/currencies'
 import {candidateAvailability,candidateSource,workAuthorization} from '../../shared/lib/optionSets'
 import type {OptionSet} from '../../shared/lib/optionSet'
 import {Field,Input,Select} from '../../shared/ui/Field'
+import {LocationField} from '../../shared/ui/LocationField'
 import {OptionSelect} from '../../shared/ui/OptionSelect'
 
 export type CandidateFormInput=z.input<typeof candidateFormSchema>
@@ -72,7 +73,7 @@ export function CandidateForm({form,mode='create',owners=[],salaryPeriod,baseCur
         </FormField>
         <FormField label="Current company" low={lowConfidence?.('current_company')}><Input disabled={disabled} {...register('current_company')}/></FormField>
         <FormField label="Current position" low={lowConfidence?.('current_position')}><Input disabled={disabled} {...register('current_position')}/></FormField>
-        <FormField label="Location" low={lowConfidence?.('location')}><Input disabled={disabled} {...register('location')}/></FormField>
+        <LocationControlledField control={control} low={lowConfidence?.('location')}/>
         <FormField label="LinkedIn" error={errors.linkedin_url?.message}><Input type="url" placeholder="https://linkedin.com/in/…" disabled={disabled} {...register('linkedin_url')}/></FormField>
         <FormField label="Portfolio" error={errors.portfolio_url?.message}><Input type="url" disabled={disabled} {...register('portfolio_url')}/></FormField>
       </div>
@@ -165,6 +166,19 @@ function OptionField({control,name,set,label,low,disabled}:{
   return <FormField label={label} low={low}>
     <OptionSelect label={label} disabled={disabled} placeholder="Not recorded"
       options={set.options(stored)} value={set.key(stored)} onChange={field.onChange}/>
+  </FormField>
+}
+
+/* Same useController shape as OptionField, one field over -- Combobox (and so LocationField) is
+ * controlled, so register() cannot drive it either. `disabled` is deliberately not threaded through:
+ * Combobox has no disabled affordance, and no live caller of CandidateForm currently sets it true. */
+function LocationControlledField({control,low}:{
+  control:Control<CandidateFormInput,unknown,CandidateFormOutput>
+  low?:boolean
+}){
+  const {field}=useController({control,name:'location'})
+  return <FormField label="Location" low={low}>
+    <LocationField bare value={(field.value as string|undefined)??''} onChange={field.onChange}/>
   </FormField>
 }
 
