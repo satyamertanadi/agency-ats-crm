@@ -7,12 +7,17 @@ test.skip(!enabled,'Authenticated production gate runs only with its dedicated s
 test('@authenticated consultant can open the daily delivery workspace',async({page})=>{
   const url=process.env.PRODUCTION_SUPABASE_URL
   const anonKey=process.env.PRODUCTION_SUPABASE_ANON_KEY
+  const serviceRoleKey=process.env.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY
   const email=process.env.PRODUCTION_E2E_CONSULTANT_EMAIL
-  const password=process.env.PRODUCTION_E2E_CONSULTANT_PASSWORD
-  if(!url||!anonKey||!email||!password)throw new Error('The authenticated production gate requires the Supabase URL, anon key, and dedicated E2E consultant credentials.')
+  if(!url||!anonKey||!serviceRoleKey||!email)throw new Error('The authenticated production gate requires the Supabase URL, anon key, server-only key, and dedicated E2E consultant email.')
 
+  const admin=createClient(url,serviceRoleKey,{auth:{persistSession:false,autoRefreshToken:false}})
   const auth=createClient(url,anonKey,{auth:{persistSession:false,autoRefreshToken:false}})
-  const signedIn=await auth.auth.signInWithPassword({email,password})
+  const generated=await admin.auth.admin.generateLink({type:'magiclink',email})
+  if(generated.error)throw generated.error
+  const tokenHash=generated.data.properties?.hashed_token
+  if(!tokenHash)throw new Error('The synthetic consultant did not receive a one-time token.')
+  const signedIn=await auth.auth.verifyOtp({token_hash:tokenHash,type:'email'})
   if(signedIn.error||!signedIn.data.session)throw signedIn.error||new Error('The synthetic consultant did not receive a session.')
   const projectRef=new URL(url).hostname.split('.')[0]
   await page.addInitScript(({storageKey,session})=>localStorage.setItem(storageKey,JSON.stringify(session)),{

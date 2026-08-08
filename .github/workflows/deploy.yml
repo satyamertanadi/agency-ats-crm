@@ -200,8 +200,8 @@ jobs:
           RUN_AUTHENTICATED_GOLDEN_PATH: 'true'
           PRODUCTION_SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
           PRODUCTION_SUPABASE_ANON_KEY: ${{ secrets.PRODUCTION_SUPABASE_ANON_KEY }}
+          PRODUCTION_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}
           PRODUCTION_E2E_CONSULTANT_EMAIL: ${{ secrets.PRODUCTION_E2E_CONSULTANT_EMAIL }}
-          PRODUCTION_E2E_CONSULTANT_PASSWORD: ${{ secrets.PRODUCTION_E2E_CONSULTANT_PASSWORD }}
 
   promote-production:
     needs: [build-vercel-candidate,browser-gate,deploy-production-supabase,authenticated-browser-gate]
