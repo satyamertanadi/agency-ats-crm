@@ -2,16 +2,16 @@ import {useState,type FocusEvent} from 'react'
 import {useForm} from 'react-hook-form'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {Archive,ArrowLeft,Briefcase,CalendarClock,FileSignature,FileText,GraduationCap,Inbox,Languages,Layers3,Mail,MessageSquare,MoreHorizontal,Plus,RotateCcw,Tag,TriangleAlert,Trash2,Upload,Wrench} from 'lucide-react'
+import {Archive,ArrowLeft,Briefcase,CalendarClock,FileSignature,FileText,GraduationCap,Inbox,Languages,Layers3,Mail,MessageSquare,MoreHorizontal,Plus,RotateCcw,ShieldAlert,Tag,TriangleAlert,Trash2,Upload,Wrench} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router'
 import type {z} from 'zod'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
-import {addCandidateEmployment,addCandidateEducation,addCandidateLanguage,addCandidateSkill,addCandidateTag,deleteCandidateDocument,deleteCandidateProfileItem,getCandidateDetail,listCandidateDocuments,listCandidateProfileVersions,listTeamMembers,removeCandidateSkill,removeCandidateTag,setCandidateArchived,updateCandidateEducation,updateCandidateEmployment,updateCandidateLanguage,updateCandidateProfile,updateCandidateSkill} from '../core/commercialRepository'
+import {addCandidateTag,deleteCandidateDocument,deleteCandidateProfileItem,getCandidateDetail,listCandidateDocuments,listCandidateProfileVersions,listTeamMembers,removeCandidateSkill,removeCandidateTag,replaceCandidateProfileSection,setCandidateArchived,setCandidateLegalHold,updateCandidateProfile} from '../core/commercialRepository'
 import {candidateProfileEditSchema} from '../core/schemas'
 import {CandidateForm} from './CandidateForm'
 import {Button} from '../../shared/ui/Button'
-import {Field,Input} from '../../shared/ui/Field'
+import {Field,Input,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
 import {Badge,Panel,StatusBadge} from '../../shared/ui/Page'
 import {candidateStatus,consentStatus,lookup,profileStatus,type Tone} from '../../shared/lib/status'
@@ -45,7 +45,7 @@ const TABS=[{key:'overview',label:'Overview'},{key:'profile',label:'Profile'},{k
 type TabKey=typeof TABS[number]['key']
 
 export function CandidateDetailPage(){
-  const {candidateId=''}=useParams();const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams();const [addMode,setAddMode]=useState<AddMode>(null);const [cvOpen,setCvOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false);const [editing,setEditing]=useState(false);const [jobOpen,setJobOpen]=useState(false);const [menuOpen,setMenuOpen]=useState(false);const [renderedAt]=useState(Date.now)
+  const {candidateId=''}=useParams();const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams();const [addMode,setAddMode]=useState<AddMode>(null);const [cvOpen,setCvOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false);const [editing,setEditing]=useState(false);const [jobOpen,setJobOpen]=useState(false);const [menuOpen,setMenuOpen]=useState(false);const [legalHoldOpen,setLegalHoldOpen]=useState(false);const [legalHoldReason,setLegalHoldReason]=useState('');const [renderedAt]=useState(Date.now)
   const detail=useQuery({queryKey:['candidate-detail',organization?.id,candidateId],enabled:Boolean(organization&&candidateId),queryFn:()=>getCandidateDetail(organization!.id,candidateId)})
   const documents=useQuery({queryKey:['candidate-documents',organization?.id,candidateId],enabled:Boolean(organization&&candidateId),queryFn:()=>listCandidateDocuments(organization!.id,candidateId)})
   const profileVersions=useQuery({queryKey:['candidate-profile-versions',organization?.id,candidateId],enabled:Boolean(organization&&candidateId&&organization.profile_enabled),queryFn:()=>listCandidateProfileVersions(organization!.id,candidateId)})
@@ -57,6 +57,7 @@ export function CandidateDetailPage(){
   const editForm=useForm<EditFormInput,unknown,EditFormData>({resolver:zodResolver(candidateProfileEditSchema),defaultValues:{full_name:'',status:'active',consent_status:'unknown'}})
   const save=useMutation({mutationFn:(data:EditFormData)=>updateCandidateProfile(organization!.id,candidateId,{full_name:data.full_name,current_company:data.current_company,current_position:data.current_position,location:data.location,linkedin_url:data.linkedin_url,portfolio_url:data.portfolio_url,status:data.status,owner_member_id:data.owner_member_id||null,source:data.source,availability:data.availability,notice_period_days:data.notice_period_days??null},{email:data.email,phone:data.phone,current_salary:data.current_salary??null,expected_salary:data.expected_salary??null,salary_currency:data.salary_currency,work_authorization:data.work_authorization,consent_status:data.consent_status,consent_expires_at:data.consent_expires_at||null}),onSuccess:async(_result,data)=>{setEditing(false);toast.success(`${data.full_name} was saved.`);await refresh()},onError:(error)=>toast.error(error,'The changes were not saved.')})
   const archive=useMutation({mutationFn:(archived:boolean)=>setCandidateArchived(organization!.id,candidateId,archived),onSuccess:refresh})
+  const legalHold=useMutation({mutationFn:({hold,reason}:{hold:boolean;reason:string})=>setCandidateLegalHold(organization!.id,candidateId,hold,reason),onSuccess:async(_result,{hold})=>{toast.success(hold?'Legal hold applied.':'Legal hold removed.',hold?'Automated retention will skip this candidate.':'The normal retention policy applies again.');setLegalHoldOpen(false);setLegalHoldReason('');await refresh()},onError:(error)=>toast.error(error,'The legal hold was not changed.')})
   const removeItem=useMutation({mutationFn:({table,id}:{table:'candidate_employment'|'candidate_education'|'candidate_languages';id:string})=>deleteCandidateProfileItem(table,organization!.id,id),onSuccess:refresh})
   const removeSkill=useMutation({mutationFn:(skillId:string)=>removeCandidateSkill(organization!.id,candidateId,skillId),onSuccess:refresh})
   /* Was a bare promise with .then(refresh) and no catch -- a failure changed nothing and said
@@ -68,17 +69,16 @@ export function CandidateDetailPage(){
   // send inside WhatsApp itself, so this logs "opened," not "sent," and never blocks the tab from
   // opening even if the activity write fails.
   const logWhatsApp=useMutation({mutationFn:(name:string)=>createActivity(organization!.id,{activity_type:'whatsapp',direction:'outbound',summary:`WhatsApp conversation opened with ${name}.`},[{candidate_id:candidateId}]),onSuccess:refresh})
-  // In-place panel editing (Phase 5): each panel keeps its own open/draft state and diffs the draft
-  // against the record on save (present id -> update, missing id -> delete, no id -> insert). This
-  // replaces AddProfileItem's old one-entry-at-a-time flow for these four profile sections.
+  // Each repeatable section is replaced by one transactional RPC. The ids are editing-only state;
+  // the database validates and writes the complete ordered section or rolls the whole replacement back.
   const [employmentEditing,setEmploymentEditing]=useState(false);const [employmentDraft,setEmploymentDraft]=useState<EditableEmployment[]>([])
   const [educationEditing,setEducationEditing]=useState(false);const [educationDraft,setEducationDraft]=useState<EditableEducation[]>([])
   const [languagesEditing,setLanguagesEditing]=useState(false);const [languagesDraft,setLanguagesDraft]=useState<EditableLanguage[]>([])
   const [skillsEditing,setSkillsEditing]=useState(false);const [skillsDraft,setSkillsDraft]=useState<EditableSkill[]>([])
-  const saveEmployment=useMutation({mutationFn:async(items:EditableEmployment[])=>{const originalIds=new Set((detail.data?.candidate_employment||[]).map((item)=>item.id));const draftIds=new Set(items.filter((item)=>item.id).map((item)=>item.id as string));await Promise.all([...[...originalIds].filter((id)=>!draftIds.has(id)).map((id)=>deleteCandidateProfileItem('candidate_employment',organization!.id,id)),...items.filter((item)=>item.id).map((item)=>updateCandidateEmployment(organization!.id,item.id as string,item)),...items.filter((item)=>!item.id&&item.company_name.trim()&&item.title.trim()).map((item)=>addCandidateEmployment(organization!.id,candidateId,item))])},onSuccess:async()=>{setEmploymentEditing(false);await refresh()}})
-  const saveEducation=useMutation({mutationFn:async(items:EditableEducation[])=>{const originalIds=new Set((detail.data?.candidate_education||[]).map((item)=>item.id));const draftIds=new Set(items.filter((item)=>item.id).map((item)=>item.id as string));await Promise.all([...[...originalIds].filter((id)=>!draftIds.has(id)).map((id)=>deleteCandidateProfileItem('candidate_education',organization!.id,id)),...items.filter((item)=>item.id).map((item)=>updateCandidateEducation(organization!.id,item.id as string,item)),...items.filter((item)=>!item.id&&item.institution.trim()).map((item)=>addCandidateEducation(organization!.id,candidateId,item))])},onSuccess:async()=>{setEducationEditing(false);await refresh()}})
-  const saveLanguages=useMutation({mutationFn:async(items:EditableLanguage[])=>{const originalIds=new Set((detail.data?.candidate_languages||[]).map((item)=>item.id));const draftIds=new Set(items.filter((item)=>item.id).map((item)=>item.id as string));await Promise.all([...[...originalIds].filter((id)=>!draftIds.has(id)).map((id)=>deleteCandidateProfileItem('candidate_languages',organization!.id,id)),...items.filter((item)=>item.id).map((item)=>updateCandidateLanguage(organization!.id,item.id as string,item.language,item.proficiency||'')),...items.filter((item)=>!item.id&&item.language.trim()).map((item)=>addCandidateLanguage(organization!.id,candidateId,item.language,item.proficiency||''))])},onSuccess:async()=>{setLanguagesEditing(false);await refresh()}})
-  const saveSkills=useMutation({mutationFn:async(items:EditableSkill[])=>{const originalIds=new Set((detail.data?.candidate_skills||[]).map((item)=>item.skill_id));const draftIds=new Set(items.filter((item)=>item.skill_id).map((item)=>item.skill_id as string));await Promise.all([...[...originalIds].filter((id)=>!draftIds.has(id)).map((id)=>removeCandidateSkill(organization!.id,candidateId,id)),...items.filter((item)=>item.skill_id&&item.name.trim()).map((item)=>updateCandidateSkill(organization!.id,candidateId,item.skill_id as string,item.name,item.proficiency||'',item.years_experience??undefined)),...items.filter((item)=>!item.skill_id&&item.name.trim()).map((item)=>addCandidateSkill(organization!.id,candidateId,item.name,item.proficiency||'',item.years_experience??undefined))])},onSuccess:async()=>{setSkillsEditing(false);await refresh()}})
+  const saveEmployment=useMutation({mutationFn:(items:EditableEmployment[])=>replaceCandidateProfileSection(organization!.id,candidateId,'employment',items),onSuccess:async()=>{setEmploymentEditing(false);await refresh()}})
+  const saveEducation=useMutation({mutationFn:(items:EditableEducation[])=>replaceCandidateProfileSection(organization!.id,candidateId,'education',items),onSuccess:async()=>{setEducationEditing(false);await refresh()}})
+  const saveLanguages=useMutation({mutationFn:(items:EditableLanguage[])=>replaceCandidateProfileSection(organization!.id,candidateId,'languages',items),onSuccess:async()=>{setLanguagesEditing(false);await refresh()}})
+  const saveSkills=useMutation({mutationFn:(items:EditableSkill[])=>replaceCandidateProfileSection(organization!.id,candidateId,'skills',items),onSuccess:async()=>{setSkillsEditing(false);await refresh()}})
   if(detail.isLoading||documents.isLoading||members.isLoading||profileVersions.isLoading||pipelines.isLoading)return <LoadingState/>;if(detail.error||documents.error||members.error||profileVersions.error||pipelines.error||!detail.data)return <ErrorState error={detail.error||documents.error||members.error||profileVersions.error||pipelines.error}/>
   const candidate=detail.data;const privateData=Array.isArray(candidate.candidate_private_details)?candidate.candidate_private_details[0]:candidate.candidate_private_details
   const ownerOptions=(members.data||[]).filter((member)=>member.status==='active').map((member)=>({id:member.id,label:member.profiles?.full_name||member.profiles?.email||'Teammate'}))
@@ -154,6 +154,7 @@ export function CandidateDetailPage(){
       <div className="candidate-summary-actions">
         {capabilities.data?.canMovePipeline&&<Button onClick={()=>setJobOpen(true)} disabled={Boolean(candidate.deleted_at)||candidate.status==='do_not_contact'}>Add to job</Button>}
         <TaskButton linkType="candidate" linkId={candidateId}/>
+        {capabilities.data?.canManageOrganization&&<Button variant="secondary" leadingIcon={<ShieldAlert size={14}/>} onClick={()=>setLegalHoldOpen(true)}>{privateData?.legal_hold?'Remove legal hold':'Set legal hold'}</Button>}
         {canWrite&&<Button variant="secondary" onClick={()=>editing?setEditing(false):startEditing()}>{editing?'Cancel edit':'Edit candidate'}</Button>}
         {hasOverflow&&<div className="record-actions-menu" onBlur={closeMenu}>
           <Button variant="secondary" aria-haspopup="menu" aria-expanded={menuOpen} iconOnlyLabel="More actions" leadingIcon={<MoreHorizontal size={16}/>} onClick={()=>setMenuOpen((value)=>!value)} onKeyDown={(event)=>{if(event.key==='Escape')setMenuOpen(false)}}/>
@@ -166,6 +167,7 @@ export function CandidateDetailPage(){
       </div>
     </header>
     {candidate.deleted_at&&<p className="warning-box">This record is archived and excluded from normal candidate searches.</p>}
+    {privateData?.legal_hold&&<p className="warning-box"><ShieldAlert size={15}/> Legal hold is active. Automated retention will not anonymize this candidate.</p>}
     {actionItems.length>0&&<section className="readiness-action-band">
       <header><TriangleAlert size={15}/><strong>Needs action · {actionItems.length}</strong></header>
       <div className="readiness-action-grid">{actionItems.map((item)=><div className="readiness-action-card" key={item.key}>
@@ -222,6 +224,7 @@ export function CandidateDetailPage(){
     </>}
 
     <Modal title="Add tag" open={Boolean(addMode)} onClose={()=>setAddMode(null)}><AddProfileItem mode={addMode} organizationId={organization!.id} candidateId={candidateId} onDone={async()=>{setAddMode(null);await refresh()}}/></Modal>
+    <Modal title={privateData?.legal_hold?'Remove legal hold':'Set legal hold'} open={legalHoldOpen} onClose={()=>setLegalHoldOpen(false)}><div className="stack"><p className="muted">{privateData?.legal_hold?'Removing this hold makes the candidate eligible for the normal retention policy.':'A legal hold prevents automated anonymization regardless of age.'}</p><Field label="Reason"><Textarea rows={3} value={legalHoldReason} onChange={(event)=>setLegalHoldReason(event.target.value)} required/></Field>{legalHold.error&&<p className="form-error" role="alert">{legalHold.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={()=>setLegalHoldOpen(false)}>Cancel</Button><Button variant={privateData?.legal_hold?'danger':'secondary'} loading={legalHold.isPending} disabled={legalHoldReason.trim().length<5} onClick={()=>legalHold.mutate({hold:!privateData?.legal_hold,reason:legalHoldReason})}>{privateData?.legal_hold?'Remove hold':'Apply hold'}</Button></div></div></Modal>
     <Modal title="Upload and parse CV" open={cvOpen} wide onClose={()=>setCvOpen(false)}><CandidateCvParser organizationId={organization!.id} userId={user!.id} targetCandidateId={candidateId} targetCandidateName={candidate.full_name} onCancel={()=>setCvOpen(false)} onAccepted={async()=>{setCvOpen(false);await refresh()}}/></Modal>
     <Modal title="Generate client profile" open={profileOpen} wide onClose={()=>setProfileOpen(false)}><CandidateProfileGenerator organizationId={organization!.id} userId={user!.id} candidate={candidate} organizationName={organization!.name} accent={organization?.primary_color} logoUrl={organization?.logo_url} footerBannerUrl={organization?.profile_footer_banner_url} defaultPreparedBy={preparedBy} onClose={()=>setProfileOpen(false)} onFinalized={refresh}/></Modal>
     <AddCandidateToJobModal open={jobOpen} onClose={()=>setJobOpen(false)} candidates={[{id:candidate.id,full_name:candidate.full_name,current_position:candidate.current_position,status:candidate.status,consent_status:privateData?.consent_status||'unknown'}]}/>

@@ -27,7 +27,7 @@ Set a Sentry project per environment, keep traces conservative, and leave replay
 
 ## Automatic CV parsing
 
-Set `AI_PROVIDER=anthropic`, an explicit current `AI_MODEL`, `ANTHROPIC_API_KEY`, and a random `WORKER_SECRET` as Supabase Function secrets. Optionally set `AI_MODEL_PARSE` to a cheaper model (e.g. `claude-haiku-4-5`) for the mechanical CV and LinkedIn parsers; it falls back to `AI_MODEL` when unset, and evaluation (`generate-candidate-profile`) always uses `AI_MODEL`. Deploy `parse-candidate-cv`, then configure the repository secrets `SUPABASE_URL` and `CV_PARSE_WORKER_SECRET` so the hourly cleanup workflow can purge unconfirmed CV drafts after 24 hours. The GitHub secret must equal the Function `WORKER_SECRET`.
+Set `AI_PROVIDER=anthropic`, an explicit current `AI_MODEL`, `ANTHROPIC_API_KEY`, and a random `WORKER_SECRET` as Supabase Function secrets. Optionally set `AI_MODEL_PARSE` to a cheaper model (e.g. `claude-haiku-4-5`) for the mechanical CV and LinkedIn parsers; it falls back to `AI_MODEL` when unset, and evaluation (`generate-candidate-profile`) always uses `AI_MODEL`. Deploy `parse-candidate-cv`, then configure the production environment secrets `PRODUCTION_SUPABASE_URL` and `PRODUCTION_SUPABASE_SERVICE_ROLE_KEY` for the hourly retention worker. `CV_PARSE_WORKER_SECRET` remains a supported fallback and, when used, must equal the Function `WORKER_SECRET`. This worker purges unconfirmed CV drafts, removes expired delivery payloads, redacts raw completed-import rows after the 30-day rollback window, and enforces each organization's candidate-retention period unless a candidate is on legal hold.
 
 Before enabling the feature for consultants, test one English PDF, Indonesian PDF, scanned PDF, and DOCX in staging. Confirm extracted PII is visible only to the uploader, duplicate email handling opens the existing candidate, accepted files remain available, and abandoned files disappear after cleanup.
 
@@ -35,7 +35,7 @@ Before enabling the feature for consultants, test one English PDF, Indonesian PD
 
 ## Staging-gated Supabase and Vercel promotion
 
-Migrations, Edge Functions, and the web application deploy through `.github/workflows/deploy.yml`, never by hand. Every `main` commit first passes lint, typecheck, unit tests, and build. Supabase then deploys to staging, where Edge preflights and the real-provider CV/profile contract run. Only that same commit can update production Supabase. Vercel builds one production candidate, browser-smokes its unaliased URL, and promotes that exact artifact; a rebuild between browser gate and promotion is forbidden.
+Migrations, Edge Functions, and the web application deploy through `.github/workflows/deploy.yml`, never by hand. Every `main` commit first passes lint, typecheck, unit tests, and build. Supabase then deploys to staging, where Edge preflights and the real-provider CV/profile contract run. Vercel builds one production candidate and browser-smokes its unaliased URL before production Supabase can change. After the compatible database and Functions deploy, a dedicated synthetic consultant must open Today, Jobs, Candidates, and Clients on that same candidate artifact. Only then is the artifact promoted; a rebuild between browser gate and promotion is forbidden.
 
 Repository secrets the workflow requires:
 
@@ -47,7 +47,9 @@ Repository secrets the workflow requires:
 | `STAGING_SUPABASE_URL` | `https://<staging-ref>.supabase.co` |
 | `STAGING_SUPABASE_ANON_KEY` | staging anon key |
 | `STAGING_SUPABASE_SERVICE_ROLE_KEY` | staging service-role key; the gate uses it to provision and clean up its own test user, org, and candidate |
-| `PRODUCTION_SUPABASE_URL` | production project URL used only for post-deploy Edge preflights |
+| `PRODUCTION_SUPABASE_URL` / `PRODUCTION_SUPABASE_ANON_KEY` | production project client credentials used by Edge preflights and the authenticated browser gate |
+| `PRODUCTION_SUPABASE_SERVICE_ROLE_KEY` | production service-role key used only by the server-side retention worker; never expose it to Vite or browser code |
+| `PRODUCTION_E2E_CONSULTANT_EMAIL` / `PRODUCTION_E2E_CONSULTANT_PASSWORD` | dedicated synthetic consultant in a non-commercial production test workspace; the release gate only reads core screens |
 | `VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID` | credentials and identifiers for the pinned Vercel CLI deployment |
 | `PRODUCTION_APP_URL` | canonical HTTPS production URL used for rollback metadata and post-promotion browser smoke |
 

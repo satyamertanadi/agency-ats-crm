@@ -21,6 +21,7 @@ const phaseKey=z.enum(['sourcing','screening','shortlist','client_review','inter
 const candidatePrivateSchema=z.object({
   email:z.string().nullable(),phone:z.string().nullable(),current_salary:z.number().nullable(),
   expected_salary:z.number().nullable(),salary_currency:z.string().nullable(),consent_status:consentStatus,
+  legal_hold:z.boolean().optional(),
 })
 const candidatePrivateEmbed=z.union([candidatePrivateSchema,z.array(candidatePrivateSchema)]).nullable().optional()
 

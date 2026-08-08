@@ -87,7 +87,10 @@ jobs:
           STAGING_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
 
   deploy-production-supabase:
-    needs: staging-gate
+    # Production data changes wait until the exact frontend artifact has passed
+    # its public browser contract. These migrations stay backwards-compatible
+    # with the frontend currently serving the production alias.
+    needs: browser-gate
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
@@ -108,7 +111,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
 
   build-vercel-candidate:
-    needs: deploy-production-supabase
+    needs: staging-gate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -168,7 +171,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --project=desktop
+      - run: npm run test:e2e -- --project=desktop --grep-invert @authenticated
         env:
           PLAYWRIGHT_BASE_URL: ${{ needs.build-vercel-candidate.outputs.deployment_url }}
           # The candidate URL sits behind Vercel's own Deployment Protection (a login wall), which is
@@ -176,8 +179,32 @@ jobs:
           # gate approves it. This bypass secret is scoped to automation only; see playwright.config.ts.
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
 
+  authenticated-browser-gate:
+    needs: [build-vercel-candidate,deploy-production-supabase]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Authenticated consultant golden path
+        run: npm run test:e2e -- --project=desktop --grep @authenticated
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ needs.build-vercel-candidate.outputs.deployment_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          RUN_AUTHENTICATED_GOLDEN_PATH: 'true'
+          PRODUCTION_SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
+          PRODUCTION_SUPABASE_ANON_KEY: ${{ secrets.PRODUCTION_SUPABASE_ANON_KEY }}
+          PRODUCTION_E2E_CONSULTANT_EMAIL: ${{ secrets.PRODUCTION_E2E_CONSULTANT_EMAIL }}
+          PRODUCTION_E2E_CONSULTANT_PASSWORD: ${{ secrets.PRODUCTION_E2E_CONSULTANT_PASSWORD }}
+
   promote-production:
-    needs: [build-vercel-candidate,browser-gate]
+    needs: [build-vercel-candidate,browser-gate,deploy-production-supabase,authenticated-browser-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
@@ -195,7 +222,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Post-promotion browser smoke
-        run: npm run test:e2e -- --project=desktop
+        run: npm run test:e2e -- --project=desktop --grep-invert @authenticated
         env:
           PLAYWRIGHT_BASE_URL: ${{ secrets.PRODUCTION_APP_URL }}
           # The live production domain isn't behind Deployment Protection today (confirmed: it serves

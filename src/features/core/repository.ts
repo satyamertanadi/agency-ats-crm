@@ -3,7 +3,7 @@ import { AppError, DUPLICATE_CANDIDATE, humanizeRpcError } from '../../shared/li
 import { row, rows } from '../../shared/lib/rows'
 import { acceptReferralResultSchema, activitySchema, candidatePipelineAssignmentSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, referralLinkCreationSchema, referralLinkSchema, referralSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
 import type { Activity, CandidateStatus, ConsentStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReferral, PublicReview, Referral, ReferralLink, ReferralStatus, Task } from '../../shared/types/domain'
-import type {Json,TablesInsert} from '../../generated/database.types'
+import type {Json} from '../../generated/database.types'
 
 function fail(error:{message:string;code?:string}|null,fallback:string):never{
   /* Raw RPC identifiers (`invalid_nonnegative_value`, `permission_denied`, ...) used to reach the user
@@ -36,10 +36,9 @@ export async function listCandidatesPage(organizationId:string,filters:Candidate
  * creation now, which is what stops every hand-entered candidate arriving unassigned with consent
  * 'unknown' and needing a second visit.
  *
- * The compensating delete on a private-details failure stays: the two inserts cannot be one statement
- * from the client, so a failure on the second would otherwise leave a candidate with no private row at
- * all -- worse than not creating them. On a duplicate email the error names the collision so the caller
- * can offer the existing record rather than just refusing. */
+ * Candidate, private details, and profile lists now commit through one RPC transaction, so a failed
+ * write cannot leave a half-created candidate. On a duplicate email the error names the collision so
+ * the caller can offer the existing record rather than just refusing. */
 /* A unique-violation tells you a collision happened, not what it collided with -- so "a candidate with
  * this email already exists" was the end of the road: the consultant was informed and then left to go
  * find the record themselves. One extra query, only on the failure path, turns that into a link.
@@ -71,23 +70,25 @@ export interface CreateCandidateInput {
   status?:CandidateStatus;owner_member_id?:string;current_salary?:number;expected_salary?:number;salary_currency?:string
   work_authorization?:string;consent_status?:ConsentStatus;consent_expires_at?:string
 }
-export async function createCandidate(organizationId:string,userId:string,input:CreateCandidateInput) {
-  const {data,error}=await supabase.from('candidates').insert({organization_id:organizationId,full_name:input.full_name,
-    current_company:input.current_company||null,current_position:input.current_position||null,location:input.location||null,
-    source:input.source||null,linkedin_url:input.linkedin_url||null,portfolio_url:input.portfolio_url||null,
-    availability:input.availability||null,notice_period_days:input.notice_period_days??null,
-    status:input.status||'active',owner_member_id:input.owner_member_id||null,created_by:userId}).select('id').single()
+export interface CandidateProfileLists {
+  employment?:readonly unknown[]
+  education?:readonly unknown[]
+  languages?:readonly unknown[]
+  skills?:readonly unknown[]
+}
+export async function createCandidate(organizationId:string,_userId:string,input:CreateCandidateInput,profile:CandidateProfileLists={}) {
+  const candidate={full_name:input.full_name,current_company:input.current_company||null,current_position:input.current_position||null,
+    location:input.location||null,source:input.source||null,linkedin_url:input.linkedin_url||null,portfolio_url:input.portfolio_url||null,
+    availability:input.availability||null,notice_period_days:input.notice_period_days??null,status:input.status||'active',owner_member_id:input.owner_member_id||null}
+  const privateDetails={email:input.email||null,phone:input.phone||null,current_salary:input.current_salary??null,
+    expected_salary:input.expected_salary??null,salary_currency:input.salary_currency||null,work_authorization:input.work_authorization||null,
+    consent_status:input.consent_status||'unknown',consent_expires_at:input.consent_expires_at||null}
+  const {data,error}=await supabase.rpc('create_candidate_with_profile',{p_organization_id:organizationId,
+    p_candidate:candidate as Json,p_private:privateDetails as Json,p_employment:(profile.employment||[]) as unknown as Json,
+    p_education:(profile.education||[]) as unknown as Json,p_languages:(profile.languages||[]) as unknown as Json,
+    p_skills:(profile.skills||[]) as unknown as Json})
   if(error){await raiseDuplicateCandidate(organizationId,input.email,error);fail(error,'Could not create candidate')}
-  const privateResult=await supabase.from('candidate_private_details').insert({candidate_id:data.id,organization_id:organizationId,
-    email:input.email||null,phone:input.phone||null,current_salary:input.current_salary??null,expected_salary:input.expected_salary??null,
-    salary_currency:input.salary_currency||null,work_authorization:input.work_authorization||null,
-    consent_status:input.consent_status||'unknown',consent_expires_at:input.consent_expires_at||null})
-  if(privateResult.error){
-    await supabase.from('candidates').delete().eq('id',data.id)
-    await raiseDuplicateCandidate(organizationId,input.email,privateResult.error)
-    fail(privateResult.error,'Could not save candidate details')
-  }
-  return data.id as string
+  return data as string
 }
 
 export async function listCompanies(organizationId:string){const {data,error}=await supabase.from('companies').select('*').eq('organization_id',organizationId).is('deleted_at',null).order('updated_at',{ascending:false});if(error)fail(error,'Could not load companies');return rows(data,companySchema,'Company rows did not match the expected shape') as Company[]}
@@ -98,7 +99,7 @@ export async function createContact(organizationId:string,userId:string,input:{c
 
 export async function listJobs(organizationId:string){const {data,error}=await supabase.from('jobs').select('id,organization_id,company_id,pipeline_id,title,location,priority,status,currency,salary_min,salary_max,placement_fee_percentage,fixed_fee,description,requirements,owner_member_id,opened_at,updated_at,companies(id,name)').eq('organization_id',organizationId).is('deleted_at',null).order('updated_at',{ascending:false});if(error)fail(error,'Could not load jobs');return rows(data,jobSchema,'Job rows did not match the expected shape') as Job[]}
 export async function listJobHealth(organizationId:string,candidateId?:string){const {data,error}=await supabase.rpc('list_job_health',{p_organization_id:organizationId,p_candidate_id:candidateId||undefined});if(error)fail(error,'Could not load job health');const withPhaseCounts=(data??[]).map((item)=>({...item,phase_counts:(item.phase_counts||{}) as Record<string,number>}));return rows(withPhaseCounts,jobHealthSchema,'Job health rows did not match the expected shape') as JobHealth[]}
-export async function createJob(organizationId:string,input:{company_id:string;title:string;owner_member_id?:string}){const {data,error}=await supabase.rpc('create_job_with_pipeline',{p_organization_id:organizationId,p_company_id:input.company_id,p_title:input.title,p_owner_member_id:input.owner_member_id});if(error)fail(error,'Could not create job');return data as string}
+export async function createJob(organizationId:string,input:{company_id:string;title:string;owner_member_id?:string;details?:Record<string,unknown>}){const {data,error}=await supabase.rpc('create_job_with_details',{p_organization_id:organizationId,p_company_id:input.company_id,p_title:input.title,p_owner_member_id:input.owner_member_id,p_details:(input.details||{}) as Json});if(error)fail(error,'Could not create job');return data as string}
 
 export async function getPipeline(job:Job){if(!job.pipeline_id)return {stages:[],items:[]};const [stageResult,itemResult]=await Promise.all([supabase.from('pipeline_stages').select('*').eq('pipeline_id',job.pipeline_id).order('position'),supabase.from('job_candidates').select('id,job_id,candidate_id,current_stage_id,updated_at,candidates(id,organization_id,full_name,current_company,current_position,location,linkedin_url,status,source,availability,owner_member_id,created_at),pipeline_stages(id,pipeline_id,name,stage_key,stage_type,phase_key,position,color),stage_history(occurred_at,note,to_stage_id)').eq('job_id',job.id).order('occurred_at',{referencedTable:'stage_history',ascending:false})]);if(stageResult.error)fail(stageResult.error,'Could not load pipeline');if(itemResult.error)fail(itemResult.error,'Could not load pipeline candidates');return {stages:rows(stageResult.data,pipelineStageSchema,'Pipeline stage rows did not match the expected shape') as PipelineStage[],items:rows(itemResult.data,jobCandidateSchema,'Job candidate rows did not match the expected shape') as JobCandidate[]}}
 export async function addCandidateToJob(organizationId:string,userId:string,job:Job,candidateId:string){if(!job.pipeline_id)throw new AppError('This job has no pipeline.');const {data:stage,error:stageError}=await supabase.from('pipeline_stages').select('id').eq('pipeline_id',job.pipeline_id).order('position').limit(1).single();if(stageError)fail(stageError,'Could not find the first stage');const {error}=await supabase.from('job_candidates').insert({organization_id:organizationId,job_id:job.id,candidate_id:candidateId,current_stage_id:stage.id,added_by:userId});if(error)fail(error,error.code==='23505'?'Candidate is already in this job.':'Could not add candidate')}
@@ -120,8 +121,9 @@ export async function moveCandidate(jobCandidateId:string,stageId:string,options
 }
 
 export async function listTasks(organizationId:string){const {data,error}=await supabase.from('tasks').select('*,organization_members:owner_member_id(profiles:user_id(full_name,email)),task_links(candidate_id,company_id,contact_id,job_id,candidates(full_name),companies(name),contacts(full_name),jobs(title))').eq('organization_id',organizationId).is('deleted_at',null).order('due_at',{ascending:true,nullsFirst:false});if(error)fail(error,'Could not load tasks');return rows(data,taskSchema,'Task rows did not match the expected shape') as Task[]}
-export async function createTask(organizationId:string,userId:string,input:{title:string;description?:string;priority:string;due_at?:string;owner_member_id?:string;link?:{type:'candidate'|'company'|'contact'|'job';id:string}}){const {link,...task}=input;const {data,error}=await supabase.from('tasks').insert({...task,owner_member_id:task.owner_member_id||null,due_at:task.due_at||null,organization_id:organizationId,created_by:userId}).select('id').single();if(error)fail(error,'Could not create task');if(link){const linkRow:TablesInsert<'task_links'>={organization_id:organizationId,task_id:data.id,candidate_id:null,company_id:null,contact_id:null,job_id:null};linkRow[`${link.type}_id`]=link.id;const {error:linkError}=await supabase.from('task_links').insert(linkRow);if(linkError){await supabase.from('tasks').delete().eq('id',data.id);fail(linkError,'Could not link task')}}return data.id as string}
-export async function completeTask(id:string){const {error}=await supabase.from('tasks').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',id);if(error)fail(error,'Could not complete task')}
+export async function createTask(organizationId:string,_userId:string,input:{title:string;description?:string;priority:string;due_at?:string;owner_member_id?:string;link?:{type:'candidate'|'company'|'contact'|'job';id:string}}){const {data,error}=await supabase.rpc('create_task_with_link',{p_organization_id:organizationId,p_title:input.title,p_description:input.description,p_priority:input.priority,p_due_at:input.due_at,p_owner_member_id:input.owner_member_id,p_link_type:input.link?.type,p_link_id:input.link?.id});if(error)fail(error,'Could not create task');return data as string}
+export async function completeTask(organizationId:string,id:string){const {error}=await supabase.from('tasks').update({status:'completed',completed_at:new Date().toISOString()}).eq('organization_id',organizationId).eq('id',id);if(error)fail(error,'Could not complete task')}
+export async function snoozeTask(organizationId:string,id:string,dueAt:string){const {error}=await supabase.from('tasks').update({status:'open',completed_at:null,due_at:dueAt}).eq('organization_id',organizationId).eq('id',id);if(error)fail(error,'Could not snooze task')}
 
 // An activity carries one activity_links row per record it touches, so a single stage move surfaces
 // on both the candidate and the vacancy. Callers name the record whose feed they are reading.
@@ -253,8 +255,8 @@ export async function completeInterview(organizationId:string,interviewId:string
 export type PlacementFeeSource='account_agreement'|'job_override'|'manual'
 export async function convertOfferToPlacement(offerId:string,fee:number,guaranteeDays=90,feeSource:PlacementFeeSource='manual'){const {data,error}=await supabase.rpc('create_placement_from_offer',{p_offer_id:offerId,p_fee:fee,p_guarantee_days:guaranteeDays,p_fee_source:feeSource});if(error)fail(error,'Could not convert accepted offer to placement');return data as string}
 
-export async function listSubmissionPackages(organizationId:string){const {data,error}=await supabase.from('submission_packages').select('id,job_id,title,message,status,created_at,jobs(id,title,companies(name)),candidate_submissions(id,job_candidate_id,status),public_submission_links(id,recipient_email,expires_at,revoked_at,last_accessed_at)').eq('organization_id',organizationId).order('created_at',{ascending:false});if(error)fail(error,'Could not load submissions');return data??[]}
-export async function listEmailDeliveryIssues(organizationId:string){const {data,error}=await supabase.from('email_deliveries').select('id,status,email_type,related_entity_type,related_entity_id,error_code,error_message,updated_at').eq('organization_id',organizationId).in('status',['failed','bounced','suppressed']).order('updated_at',{ascending:false});if(error)fail(error,'Could not load delivery issues');return data??[]}
+export async function listSubmissionPackages(organizationId:string){const [packages,deliveries]=await Promise.all([supabase.from('submission_packages').select('id,job_id,title,message,status,created_at,jobs(id,title,companies(name)),candidate_submissions(id,job_candidate_id,status),public_submission_links(id,recipient_email,expires_at,revoked_at,last_accessed_at)').eq('organization_id',organizationId).order('created_at',{ascending:false}),supabase.from('email_deliveries').select('id,status,error_message,related_entity_id').eq('organization_id',organizationId).eq('email_type','client_submission')]);if(packages.error)fail(packages.error,'Could not load submissions');if(deliveries.error)fail(deliveries.error,'Could not load submission delivery status');const deliveryByPackage=new Map((deliveries.data||[]).map((delivery)=>[delivery.related_entity_id,delivery]));return (packages.data??[]).map((pack)=>({...pack,email_delivery:deliveryByPackage.get(pack.id)||null}))}
+export async function listEmailDeliveryIssues(organizationId:string){const {data,error}=await supabase.from('email_deliveries').select('id,status,email_type,related_entity_type,related_entity_id,error_code,error_message,updated_at').eq('organization_id',organizationId).in('status',['pending','failed','bounced','suppressed']).order('updated_at',{ascending:false});if(error)fail(error,'Could not load delivery issues');return data??[]}
 export async function createSubmission(organizationId:string,input:{job_id:string;contact_id?:string;title:string;message?:string;items:Array<{job_candidate_id:string;candidate_summary:string;recruiter_comments?:string}>;recipient_name?:string;recipient_email?:string}){const {data,error}=await supabase.rpc('create_submission_package',{p_organization_id:organizationId,p_job_id:input.job_id,p_contact_id:input.contact_id,p_title:input.title,p_message:input.message,p_items:input.items as Json,p_recipient_name:input.recipient_name,p_recipient_email:input.recipient_email,p_expiry_days:7});if(error)fail(error,'Could not create submission');return data as {package_id:string;link_id:string;token:string;expires_at:string}}
 
 export async function resolveReview(token:string){const {data,error}=await supabase.functions.invoke('public-review',{body:{action:'resolve',token},timeout:10_000});if(error)fail(error,'This review link is unavailable.');if((data as {error?:{message?:string}})?.error)throw new AppError((data as {error:{message?:string}}).error.message||'This review link is unavailable.','link_unavailable',data);return row(data,publicReviewSchema,'Public review response did not match the expected shape') as PublicReview}

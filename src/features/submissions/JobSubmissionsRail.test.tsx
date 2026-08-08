@@ -4,8 +4,8 @@ import {JobSubmissionsRail,linkState,type SubmissionPackageRow} from './JobSubmi
 import {ToastProvider} from '../../shared/ui/Toast'
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query'
 
-const {revokeSubmissionLink}=vi.hoisted(()=>({revokeSubmissionLink:vi.fn()}))
-vi.mock('../core/commercialRepository',()=>({revokeSubmissionLink}))
+const {retryClientSubmission,revokeSubmissionLink}=vi.hoisted(()=>({retryClientSubmission:vi.fn(),revokeSubmissionLink:vi.fn()}))
+vi.mock('../core/commercialRepository',()=>({retryClientSubmission,revokeSubmissionLink}))
 
 const now=new Date('2026-07-27T12:00:00Z')
 const link=(overrides:Partial<{id:string;expires_at:string;revoked_at:string|null;last_accessed_at:string|null;recipient_email:string|null}>={})=>({
@@ -21,7 +21,7 @@ function renderRail(packages:SubmissionPackageRow[],canSubmit=true){
   const onResend=vi.fn()
   const cache=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})
   render(<QueryClientProvider client={cache}><ToastProvider>
-    <JobSubmissionsRail packages={packages} jobId="job-1" canSubmit={canSubmit} onChanged={vi.fn().mockResolvedValue(undefined)} onResend={onResend}/>
+    <JobSubmissionsRail packages={packages} jobId="job-1" organizationId="org-1" canSubmit={canSubmit} onChanged={vi.fn().mockResolvedValue(undefined)} onResend={onResend}/>
   </ToastProvider></QueryClientProvider>)
   return onResend
 }

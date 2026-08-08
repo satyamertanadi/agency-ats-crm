@@ -1710,6 +1710,45 @@ export type Database = {
           },
         ]
       }
+      email_delivery_payloads: {
+        Row: {
+          created_at: string
+          delivery_id: string
+          expires_at: string
+          organization_id: string
+          secret_token: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_id: string
+          expires_at: string
+          organization_id: string
+          secret_token: string
+        }
+        Update: {
+          created_at?: string
+          delivery_id?: string
+          expires_at?: string
+          organization_id?: string
+          secret_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_delivery_payloads_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: true
+            referencedRelation: "email_deliveries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_delivery_payloads_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_deliveries: {
         Row: {
           created_at: string
@@ -1721,6 +1760,7 @@ export type Database = {
           provider: string
           provider_message_id: string | null
           recipient_email: string
+          request_key: string | null
           related_entity_id: string | null
           related_entity_type: string | null
           requested_by: string | null
@@ -1737,6 +1777,7 @@ export type Database = {
           provider?: string
           provider_message_id?: string | null
           recipient_email: string
+          request_key?: string | null
           related_entity_id?: string | null
           related_entity_type?: string | null
           requested_by?: string | null
@@ -1753,6 +1794,7 @@ export type Database = {
           provider?: string
           provider_message_id?: string | null
           recipient_email?: string
+          request_key?: string | null
           related_entity_id?: string | null
           related_entity_type?: string | null
           requested_by?: string | null
@@ -4664,6 +4706,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      anonymize_candidate_for_retention: {
+        Args: {
+          p_candidate_id: string
+          p_removed_storage_paths?: string[]
+          p_as_of?: string
+        }
+        Returns: boolean
+      }
       accept_candidate_cv_parse: {
         Args: {
           p_organization_id: string
@@ -4723,6 +4773,14 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: number
       }
+      candidate_is_due_for_retention: {
+        Args: { p_as_of?: string; p_candidate_id: string }
+        Returns: boolean
+      }
+      candidate_retention_storage_paths: {
+        Args: { p_candidate_id: string }
+        Returns: string[]
+      }
       capture_prospect: {
         Args: {
           p_job_id?: string
@@ -4744,6 +4802,38 @@ export type Database = {
       configure_founding_partner: {
         Args: { p_enabled?: boolean; p_organization_id: string }
         Returns: undefined
+      }
+      create_candidate_with_profile: {
+        Args: {
+          p_candidate: Json
+          p_education?: Json
+          p_employment?: Json
+          p_languages?: Json
+          p_organization_id: string
+          p_private?: Json
+          p_skills?: Json
+        }
+        Returns: string
+      }
+      create_invitation_delivery: {
+        Args: {
+          p_email: string
+          p_expiry_days?: number
+          p_organization_id: string
+          p_request_key: string
+          p_role_id: string
+        }
+        Returns: Json
+      }
+      create_job_with_details: {
+        Args: {
+          p_company_id: string
+          p_details?: Json
+          p_organization_id: string
+          p_owner_member_id?: string
+          p_title: string
+        }
+        Returns: string
       }
       create_job_with_pipeline: {
         Args: {
@@ -4771,6 +4861,34 @@ export type Database = {
           p_role_id: string
         }
         Returns: Json
+      }
+      create_submission_delivery: {
+        Args: {
+          p_contact_id?: string
+          p_expiry_days?: number
+          p_items: Json
+          p_job_id: string
+          p_message?: string
+          p_organization_id: string
+          p_recipient_email?: string
+          p_recipient_name?: string
+          p_request_key: string
+          p_title: string
+        }
+        Returns: Json
+      }
+      create_task_with_link: {
+        Args: {
+          p_description?: string
+          p_due_at?: string
+          p_link_id?: string
+          p_link_type?: string
+          p_organization_id: string
+          p_owner_member_id?: string
+          p_priority?: string
+          p_title: string
+        }
+        Returns: string
       }
       create_placement_from_offer: {
         Args: {
@@ -4842,6 +4960,13 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: {
           name: string
+        }[]
+      }
+      list_candidates_due_for_retention: {
+        Args: { p_as_of?: string; p_limit?: number }
+        Returns: {
+          candidate_id: string
+          storage_paths: string[]
         }[]
       }
       list_candidate_tag_names: {
@@ -4978,6 +5103,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      preview_candidate_retention: {
+        Args: { p_organization_id: string }
+        Returns: {
+          due_count: number
+          legal_hold_count: number
+          oldest_due_at: string | null
+        }[]
+      }
       normalize_email: { Args: { value: string }; Returns: string }
       provision_initial_organization_owner: {
         Args: {
@@ -5085,6 +5218,15 @@ export type Database = {
           title: string
         }[]
       }
+      set_candidate_legal_hold: {
+        Args: {
+          p_candidate_id: string
+          p_legal_hold: boolean
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: undefined
+      }
       seed_organization_roles: {
         Args: { p_organization_id: string }
         Returns: {
@@ -5167,6 +5309,28 @@ export type Database = {
           p_candidate_id: string
           p_organization_id: string
           p_private: Json
+        }
+        Returns: undefined
+      }
+      update_candidate_with_profile: {
+        Args: {
+          p_candidate: Json
+          p_candidate_id: string
+          p_education?: Json
+          p_employment?: Json
+          p_languages?: Json
+          p_organization_id: string
+          p_private: Json
+          p_skills?: Json
+        }
+        Returns: undefined
+      }
+      replace_candidate_profile_section: {
+        Args: {
+          p_candidate_id: string
+          p_items: Json
+          p_organization_id: string
+          p_section: string
         }
         Returns: undefined
       }
@@ -5315,4 +5479,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

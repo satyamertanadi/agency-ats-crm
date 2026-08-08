@@ -18,7 +18,7 @@ const required=<T,>(value:T|null|undefined,what:string):T=>{if(value===null||val
 
 let ownerId=''
 let candidateId='';let jobId='';let pipelineId='';let jobCandidateId=''
-let packageId='';let submissionId=''
+let packageId='';let deliveryId='';let submissionId=''
 let feedbackId='';let offerId='';let placementId=''
 
 const stageId=async(pipeline:string,stageKey:string)=>{
@@ -50,6 +50,7 @@ afterAll(async()=>{
   if(placementId)await owner.from('placements').delete().eq('id',placementId)
   if(offerId)await owner.from('offers').delete().eq('id',offerId)
   if(feedbackId)await owner.from('submission_feedback').delete().eq('id',feedbackId)
+  if(deliveryId)await admin.from('email_deliveries').delete().eq('id',deliveryId) // cascades the service-only retry payload
   if(packageId)await owner.from('submission_packages').delete().eq('id',packageId) // cascades public_submission_links, candidate_submissions
   if(jobCandidateId)await owner.from('job_candidates').delete().eq('id',jobCandidateId) // cascades stage_history
   if(jobId)await owner.from('jobs').delete().eq('id',jobId)
@@ -66,14 +67,24 @@ afterAll(async()=>{
 describe('candidate to placement journey',()=>{
   it('moves a new candidate through the full recruitment lifecycle',async()=>{
     // 1. Candidate
-    const candidate=await owner.from('candidates').insert({organization_id:NORTHSTAR,full_name:'Journey Test Candidate',current_company:'Prior Co',current_position:'Regional Director',location:'Singapore',status:'active',source:'Journey test',created_by:ownerId}).select('id').single()
+    const failedCandidateName=`Atomic rollback ${crypto.randomUUID()}`
+    const failedCandidate=await owner.rpc('create_candidate_with_profile',{p_organization_id:NORTHSTAR,p_candidate:{full_name:failedCandidateName},p_private:{consent_status:'unknown'},p_employment:[{company_name:'Broken Co',title:'Director',started_on:'not-a-date'}],p_education:[],p_languages:[],p_skills:[]})
+    expect(failedCandidate.error).not.toBeNull()
+    const partialCandidate=await owner.from('candidates').select('id',{count:'exact',head:true}).eq('organization_id',NORTHSTAR).eq('full_name',failedCandidateName)
+    expect(partialCandidate.count).toBe(0)
+    const candidate=await owner.rpc('create_candidate_with_profile',{p_organization_id:NORTHSTAR,p_candidate:{full_name:'Journey Test Candidate',current_company:'Prior Co',current_position:'Regional Director',location:'Singapore',status:'active',source:'Journey test'},p_private:{email:`journey-${crypto.randomUUID()}@example.com`,phone:'+65 8000 0000',expected_salary:180_000,salary_currency:'USD',consent_status:'granted'},p_employment:[{company_name:'Prior Co',title:'Regional Director',is_current:true}],p_education:[],p_languages:[{language:'English',proficiency:'Fluent'}],p_skills:[{name:'Leadership',years_experience:8}]})
     expect(candidate.error).toBeNull()
-    candidateId=required(candidate.data?.id,'candidate id') as string
-    const privateDetails=await owner.from('candidate_private_details').insert({candidate_id:candidateId,organization_id:NORTHSTAR,email:`journey-${candidateId}@example.com`,phone:'+65 8000 0000',expected_salary:180_000,salary_currency:'USD',consent_status:'granted'})
-    expect(privateDetails.error).toBeNull()
+    candidateId=required(candidate.data,'candidate id') as string
+    const profileRows=await owner.from('candidate_employment').select('id').eq('candidate_id',candidateId)
+    expect(profileRows.data).toHaveLength(1)
 
     // 2. Job, cloned from the org's default pipeline
-    const job=await owner.rpc('create_job_with_pipeline',{p_organization_id:NORTHSTAR,p_company_id:ATLAS,p_title:'Journey Test Role'})
+    const failedJobTitle=`Atomic rollback ${crypto.randomUUID()}`
+    const failedJob=await owner.rpc('create_job_with_details',{p_organization_id:NORTHSTAR,p_company_id:ATLAS,p_title:failedJobTitle,p_details:{salary_min:220_000,salary_max:180_000}})
+    expect(failedJob.error).not.toBeNull()
+    const partialJob=await owner.from('jobs').select('id',{count:'exact',head:true}).eq('organization_id',NORTHSTAR).eq('title',failedJobTitle)
+    expect(partialJob.count).toBe(0)
+    const job=await owner.rpc('create_job_with_details',{p_organization_id:NORTHSTAR,p_company_id:ATLAS,p_title:'Journey Test Role',p_details:{priority:'high',location:'Singapore',currency:'USD',salary_min:180_000,salary_max:220_000}})
     expect(job.error).toBeNull()
     jobId=required(job.data,'job id') as string
     const jobRow=await owner.from('jobs').select('pipeline_id').eq('id',jobId).single()
@@ -93,11 +104,17 @@ describe('candidate to placement journey',()=>{
     expect((moved.data as {current_stage_id:string}|null)?.current_stage_id).toBe(submittedStage)
 
     // 5. Submission package + client-facing link/token
-    const submission=await owner.rpc('create_submission_package',{p_organization_id:NORTHSTAR,p_job_id:jobId,p_title:'Journey Test Role - shortlist',p_items:[{job_candidate_id:jobCandidateId,candidate_summary:'Strong regional leadership background.'}],p_contact_id:ATLAS_CONTACT,p_recipient_email:'client@example.com',p_expiry_days:7})
+    const requestKey=crypto.randomUUID()
+    const submission=await owner.rpc('create_submission_delivery',{p_organization_id:NORTHSTAR,p_job_id:jobId,p_request_key:requestKey,p_title:'Journey Test Role - shortlist',p_items:[{job_candidate_id:jobCandidateId,candidate_summary:'Strong regional leadership background.'}],p_contact_id:ATLAS_CONTACT,p_recipient_email:'client@example.com',p_expiry_days:7})
     expect(submission.error).toBeNull()
-    const submissionResult=submission.data as {package_id:string;token:string}
+    const submissionResult=submission.data as {package_id:string;delivery_id:string;token:string}
     packageId=required(submissionResult.package_id,'package id')
+    deliveryId=required(submissionResult.delivery_id,'delivery id')
     const token=required(submissionResult.token,'submission token')
+    const repeated=await owner.rpc('create_submission_delivery',{p_organization_id:NORTHSTAR,p_job_id:jobId,p_request_key:requestKey,p_title:'Journey Test Role - shortlist',p_items:[{job_candidate_id:jobCandidateId,candidate_summary:'Strong regional leadership background.'}],p_contact_id:ATLAS_CONTACT,p_recipient_email:'client@example.com',p_expiry_days:7})
+    expect(repeated.error).toBeNull()
+    expect((repeated.data as {package_id:string;delivery_id:string}).package_id).toBe(packageId)
+    expect((repeated.data as {package_id:string;delivery_id:string}).delivery_id).toBe(deliveryId)
 
     // 6. An authenticated client cannot resolve the link directly -- only the hardened Edge Function path (service_role) can
     const blocked=await owner.rpc('resolve_submission_link',{p_token:token})
@@ -135,6 +152,8 @@ describe('candidate to placement journey',()=>{
     const placement=await owner.rpc('create_placement_from_offer',{p_offer_id:offerId,p_fee:38_000,p_guarantee_days:90,p_fee_source:'manual'})
     expect(placement.error).toBeNull()
     placementId=required(placement.data,'placement id') as string
+    const duplicatePlacement=await owner.rpc('create_placement_from_offer',{p_offer_id:offerId,p_fee:38_000,p_guarantee_days:90,p_fee_source:'manual'})
+    expect(duplicatePlacement.error?.message).toContain('job_already_placed')
 
     const placementRow=await owner.from('placements').select('job_candidate_id,candidate_id,job_id,company_id,status,fee_source').eq('id',placementId).single()
     expect(placementRow.error).toBeNull()

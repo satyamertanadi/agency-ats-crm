@@ -9,18 +9,17 @@ import {ToastProvider} from '../../shared/ui/Toast'
  * exist by the time the factory runs, and it is declared here rather than imported so the component
  * and the test agree on the identity `instanceof` is checked against -- the component reads the class
  * off this same mocked module. */
-const {DuplicateCandidateError,createCandidate,updateCandidateProfile}=vi.hoisted(()=>({
+const {DuplicateCandidateError,createCandidate,updateCandidateWithProfile}=vi.hoisted(()=>({
   DuplicateCandidateError:class DuplicateCandidateError extends Error {
     constructor(public readonly candidateId:string,public readonly candidateName:string){super(`${candidateName} already has this email address.`)}
   },
   createCandidate:vi.fn(),
-  updateCandidateProfile:vi.fn().mockResolvedValue(undefined),
+  updateCandidateWithProfile:vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('../core/repository',()=>({createCandidate,DuplicateCandidateError}))
 vi.mock('../core/commercialRepository',()=>({
-  updateCandidateProfile,
-  addCandidateEmployment:vi.fn(),addCandidateEducation:vi.fn(),addCandidateLanguage:vi.fn(),addCandidateSkill:vi.fn(),
+  updateCandidateWithProfile,
 }))
 // The parser owns an upload, a poll and a mutation of its own; none of that is what these tests are about.
 vi.mock('./CandidateCvParser',()=>({CandidateCvParser:()=><div>CV upload</div>}))
@@ -49,7 +48,7 @@ function fillRequired(){
 }
 
 describe('AddCandidateModal',()=>{
-  beforeEach(()=>{createCandidate.mockReset();createCandidate.mockResolvedValue('cand-1');updateCandidateProfile.mockClear()})
+  beforeEach(()=>{createCandidate.mockReset();createCandidate.mockResolvedValue('cand-1');updateCandidateWithProfile.mockClear()})
 
   /* The whole point of the shared form: these four fields had no input on the manual path, so every
    * hand-entered candidate arrived unassigned, consent 'unknown', and -- because salary_currency was
@@ -64,7 +63,7 @@ describe('AddCandidateModal',()=>{
     expect(createCandidate).toHaveBeenCalledWith('org-1','user-1',expect.objectContaining({
       full_name:'Aisha Rahman',email:'aisha@example.com',owner_member_id:'member-1',
       status:'active',consent_status:'granted',salary_currency:'IDR',expected_salary:42000000,
-    }))
+    }),expect.objectContaining({employment:[],education:[],languages:[],skills:[]}))
   },10000)
 
   /* The team list is a query. On the first open of a session the dialog wins the race, and seeding the
@@ -78,7 +77,7 @@ describe('AddCandidateModal',()=>{
 
     fillRequired()
     fireEvent.click(screen.getByRole('button',{name:'Create candidate'}))
-    await waitFor(()=>expect(createCandidate).toHaveBeenCalledWith('org-1','user-1',expect.objectContaining({owner_member_id:'member-1'})))
+    await waitFor(()=>expect(createCandidate).toHaveBeenCalledWith('org-1','user-1',expect.objectContaining({owner_member_id:'member-1'}),expect.any(Object)))
   },10000)
 
   it('offers the colliding record and saves onto it instead of refusing the duplicate',async()=>{
@@ -92,9 +91,9 @@ describe('AddCandidateModal',()=>{
     expect(screen.getByRole('status')).toHaveTextContent('Aisha Rahman already has this email address.')
 
     fireEvent.click(screen.getByRole('button',{name:'Save as update'}))
-    await waitFor(()=>expect(updateCandidateProfile).toHaveBeenCalled())
-    expect(updateCandidateProfile).toHaveBeenCalledWith('org-1','cand-9',
+    await waitFor(()=>expect(updateCandidateWithProfile).toHaveBeenCalled())
+    expect(updateCandidateWithProfile).toHaveBeenCalledWith('org-1','cand-9',
       expect.objectContaining({full_name:'Aisha Rahman'}),
-      expect.objectContaining({email:'aisha@example.com'}))
+      expect.objectContaining({email:'aisha@example.com'}),expect.any(Object))
   },10000)
 })
