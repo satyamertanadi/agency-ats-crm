@@ -229,7 +229,7 @@ export function JobWorkspacePage(){
         * what you do next on it, and a tab would hide the expired link that is the reason nobody has
         * replied. */}
       <Panel title="Sent to this client">
-        <JobSubmissionsRail packages={(packages.data||[]) as SubmissionPackageRow[]} jobId={jobId}
+        <JobSubmissionsRail packages={(packages.data||[]) as SubmissionPackageRow[]} jobId={jobId} organizationId={organization!.id}
           canSubmit={Boolean(capabilities.data?.canSubmit)} onChanged={refresh} onResend={()=>setComposerOpen(true)}/>
       </Panel>
     </>}

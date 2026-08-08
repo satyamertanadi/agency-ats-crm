@@ -5,7 +5,7 @@ import {useMutation} from '@tanstack/react-query'
 import {Link} from 'react-router'
 import {candidateFormSchema} from '../core/schemas'
 import {DuplicateCandidateError,createCandidate,type CreateCandidateInput} from '../core/repository'
-import {addCandidateEducation,addCandidateEmployment,addCandidateLanguage,addCandidateSkill,updateCandidateProfile} from '../core/commercialRepository'
+import {updateCandidateWithProfile} from '../core/commercialRepository'
 import type {TeamMember} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
 import {Callout} from '../../shared/ui/Callout'
@@ -95,16 +95,14 @@ export function AddCandidateModal({open,onClose,organizationId,organizationSlug,
   useEffect(()=>{if(duplicate&&(email||'').trim().toLowerCase()!==duplicate.email)setDuplicate(null)},[duplicate,email])
 
   const ownerOptions=owners.filter((member)=>member.status==='active').map((member)=>({id:member.id,label:member.profiles?.full_name||member.profiles?.email||'Teammate'}))
-  /* The optional profile lists are outside the resolver -- candidateFormSchema models scalar columns,
-   * not the four child tables -- so they are written after the candidate exists, against whichever id
-   * we ended up with. Blank rows are dropped rather than rejected: an editor with one empty row left
-   * behind is the normal end state of filling one in. */
-  const writeProfileLists=(candidateId:string)=>Promise.all([
-    ...employment.filter((item)=>item.company_name.trim()&&item.title.trim()).map((item)=>addCandidateEmployment(organizationId,candidateId,item)),
-    ...education.filter((item)=>item.institution.trim()).map((item)=>addCandidateEducation(organizationId,candidateId,item)),
-    ...languages.filter((item)=>item.language.trim()).map((item)=>addCandidateLanguage(organizationId,candidateId,item.language,item.proficiency||'')),
-    ...skills.filter((item)=>item.name.trim()).map((item)=>addCandidateSkill(organizationId,candidateId,item.name,item.proficiency||'',item.years_experience??undefined)),
-  ])
+  /* Blank rows are normal in repeatable editors, so they are removed before the whole candidate and
+   * profile are handed to one transactional RPC. No child write happens after candidate creation. */
+  const profileLists=()=>({
+    employment:employment.filter((item)=>item.company_name.trim()&&item.title.trim()),
+    education:education.filter((item)=>item.institution.trim()),
+    languages:languages.filter((item)=>item.language.trim()),
+    skills:skills.filter((item)=>item.name.trim()),
+  })
 
   const toInput=(data:CandidateFormOutput):CreateCandidateInput=>({full_name:data.full_name,email:data.email,phone:data.phone,
     current_company:data.current_company,current_position:data.current_position,location:data.location,source:data.source,
@@ -114,9 +112,7 @@ export function AddCandidateModal({open,onClose,organizationId,organizationSlug,
     work_authorization:data.work_authorization,consent_status:data.consent_status,consent_expires_at:data.consent_expires_at})
 
   const create=useMutation({mutationFn:async(data:CandidateFormOutput)=>{
-    const id=await createCandidate(organizationId,userId,toInput(data))
-    await writeProfileLists(id)
-    return id
+    return createCandidate(organizationId,userId,toInput(data),profileLists())
   },onSuccess:async(id,data)=>{toast.success(`${data.full_name} was added to the talent database.`);resetAll();await onSaved(id)},
     /* A collision is not a failure the consultant caused, and it has an obvious next step, so it is
      * handled in the form rather than thrown at them as a red toast. Everything else is. */
@@ -130,14 +126,13 @@ export function AddCandidateModal({open,onClose,organizationId,organizationSlug,
    * everything in this form was just typed by hand on purpose. */
   const update=useMutation({mutationFn:async(data:CandidateFormOutput)=>{
     const id=duplicate!.id
-    await updateCandidateProfile(organizationId,id,
+    await updateCandidateWithProfile(organizationId,id,
       {full_name:data.full_name,current_company:data.current_company,current_position:data.current_position,location:data.location,
         linkedin_url:data.linkedin_url,portfolio_url:data.portfolio_url,status:data.status,owner_member_id:data.owner_member_id||null,
         source:data.source,availability:data.availability,notice_period_days:data.notice_period_days??null},
       {email:data.email,phone:data.phone,current_salary:data.current_salary??null,expected_salary:data.expected_salary??null,
         salary_currency:data.salary_currency,work_authorization:data.work_authorization,
-        consent_status:data.consent_status,consent_expires_at:data.consent_expires_at||null})
-    await writeProfileLists(id)
+        consent_status:data.consent_status,consent_expires_at:data.consent_expires_at||null},profileLists())
     return id
   },onSuccess:async(id,data)=>{toast.success(`${data.full_name} was updated.`,'The existing record was kept — no duplicate was created.');resetAll();await onSaved(id)},
     onError:(error)=>toast.error(error,'The existing record was not updated.')})

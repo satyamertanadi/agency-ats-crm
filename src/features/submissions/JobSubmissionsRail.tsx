@@ -1,7 +1,7 @@
 import {useState} from 'react'
 import {useMutation} from '@tanstack/react-query'
 import {Link2Off} from 'lucide-react'
-import {revokeSubmissionLink} from '../core/commercialRepository'
+import {retryClientSubmission,revokeSubmissionLink} from '../core/commercialRepository'
 import {Button} from '../../shared/ui/Button'
 import {ConfirmDialog} from '../../shared/ui/ConfirmDialog'
 import {EmptyState} from '../../shared/ui/States'
@@ -25,6 +25,7 @@ export interface SubmissionPackageRow {
   id:string;job_id:string;title:string;status:string;created_at:string
   candidate_submissions?:Array<{id:string;job_candidate_id:string;status:string}>|null
   public_submission_links?:SubmissionLink[]|null
+  email_delivery?:{id:string;status:string;error_message:string|null}|null
 }
 
 /* Revoked beats expired beats live: a link that was pulled is pulled regardless of its expiry date,
@@ -35,9 +36,10 @@ export function linkState(link:SubmissionLink,now:Date):{label:string;tone:'good
   return {label:'Live',tone:'good'}
 }
 
-export function JobSubmissionsRail({packages,jobId,canSubmit,onChanged,onResend}:{
+export function JobSubmissionsRail({packages,jobId,organizationId,canSubmit,onChanged,onResend}:{
   packages:SubmissionPackageRow[]
   jobId:string
+  organizationId:string
   canSubmit:boolean
   onChanged:()=>Promise<unknown>
   /* Sending a replacement is the composer's job, not a second send path -- the rail hands back to it
@@ -54,6 +56,11 @@ export function JobSubmissionsRail({packages,jobId,canSubmit,onChanged,onResend}
     onSuccess:async()=>{setRevoking(null);toast.success('The review link was revoked.','Anyone opening it now sees an expired link.');await onChanged()},
     onError:(error)=>toast.error(error,'The link is still live.'),
   })
+  const retry=useMutation({
+    mutationFn:(deliveryId:string)=>retryClientSubmission(organizationId,deliveryId),
+    onSuccess:async(result)=>{if(result.deliveryStatus==='failed')toast.error(new Error(result.errorMessage||'Email delivery failed.'),'The shortlist is still saved.');else toast.success('Submission email sent.','The existing review link was reused.');await onChanged()},
+    onError:(error)=>toast.error(error,'The submission email was not retried.'),
+  })
 
   if(forJob.length===0)return <EmptyState title="Nothing sent yet" description="Shortlists you send to this client will show here, with whether the link is still live and whether they have opened it."/>
 
@@ -69,6 +76,8 @@ export function JobSubmissionsRail({packages,jobId,canSubmit,onChanged,onResend}
             <StatusBadge map={submissionPackageStatus} value={entry.status}/>
             <Badge tone="neutral">{count} candidate{count===1?'':'s'}</Badge>
             {state&&<Badge tone={state.tone==='good'?'good':state.tone==='bad'?'bad':'neutral'}>{state.label}</Badge>}
+            {entry.email_delivery?.status==='failed'&&<Badge tone="bad">Email failed</Badge>}
+            {entry.email_delivery?.status==='pending'&&<Badge tone="neutral">Email pending</Badge>}
           </span>
           <small className="muted">
             Sent {formatDate(entry.created_at)}{link?.recipient_email?` to ${link.recipient_email}`:''}
@@ -79,6 +88,7 @@ export function JobSubmissionsRail({packages,jobId,canSubmit,onChanged,onResend}
           </small>
         </div>
         {canSubmit&&<div className="lifecycle-actions">
+          {entry.email_delivery&&['failed','pending'].includes(entry.email_delivery.status)&&<Button size="sm" variant="secondary" loading={retry.isPending} onClick={()=>retry.mutate(entry.email_delivery!.id)}>Retry email</Button>}
           {link&&!link.revoked_at&&state?.label==='Live'&&<Button size="sm" variant="quiet" leadingIcon={<Link2Off size={14}/>} onClick={()=>setRevoking({link,title:entry.title})}>Revoke link</Button>}
           {link&&state?.label!=='Live'&&<Button size="sm" variant="secondary" onClick={onResend}>Send a fresh link</Button>}
         </div>}

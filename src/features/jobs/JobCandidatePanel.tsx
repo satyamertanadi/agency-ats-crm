@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState} from 'react'
+import {useEffect,useMemo,useRef,useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {BriefcaseBusiness,CalendarPlus,CheckCircle2,FileText,Handshake,Mail,MoveRight,TriangleAlert} from 'lucide-react'
 import {Link} from 'react-router'
@@ -39,6 +39,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
   const connections=useQuery({queryKey:['calendar-connections',organization?.id],queryFn:()=>listCalendarConnections(organization!.id)})
   const contacts=useQuery({queryKey:['contacts',organization?.id],queryFn:()=>listContacts(organization!.id)})
   const [recipientName,setRecipientName]=useState('');const [recipientEmail,setRecipientEmail]=useState('');const [message,setMessage]=useState('Please review this candidate for the role.');const [selectedDocuments,setSelectedDocuments]=useState<string[]>([])
+  const submissionRequestKey=useRef('');const submissionFingerprint=useRef('')
   const startDefault=useMemo(()=>{const start=new Date();start.setDate(start.getDate()+1);start.setHours(9,0,0,0);return start},[])
   const [startsAt,setStartsAt]=useState(localValue(startDefault));const [endsAt,setEndsAt]=useState(localValue(new Date(startDefault.valueOf()+60*60*1000)));const [location,setLocation]=useState('');const [attendeeEmails,setAttendeeEmails]=useState('');const [createMeet,setCreateMeet]=useState(true);const [interviewKind,setInterviewKind]=useState('client_interview')
   // Non-null only while this form is moving an existing interview rather than creating one.
@@ -68,7 +69,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
    * drawer closing because the send failed. `candidateName` leads each message because a consultant
    * working a board of twelve needs to know which card the confirmation belongs to. */
   const candidateName=item.candidates?.full_name||'The candidate'
-  const submit=useMutation({mutationFn:()=>sendClientSubmission({organizationId:organization!.id,jobId:job.id,title:`${item.candidates?.full_name} · ${job.title}`,message,recipientName:recipientName||undefined,recipientEmail,expiryDays:7,items:[{job_candidate_id:item.id,candidate_summary:`${item.candidates?.full_name} — ${item.candidates?.current_position||'Experienced candidate'}${item.candidates?.current_company?` at ${item.candidates.current_company}`:''}.`,document_ids:selectedDocuments}]}),onSuccess:async()=>{trackAction('action_completed','submit');toast.success(`${candidateName} was sent to ${recipientName||recipientEmail}.`,'The review link expires in 7 days.');onAction(null);await refresh()},onError:(error)=>toast.error(error,'The client was not emailed and no review link was created.')})
+  const submit=useMutation({mutationFn:()=>{const payload={organizationId:organization!.id,jobId:job.id,title:`${item.candidates?.full_name} · ${job.title}`,message,recipientName:recipientName||undefined,recipientEmail,expiryDays:7,items:[{job_candidate_id:item.id,candidate_summary:`${item.candidates?.full_name} — ${item.candidates?.current_position||'Experienced candidate'}${item.candidates?.current_company?` at ${item.candidates.current_company}`:''}.`,document_ids:selectedDocuments}]};const fingerprint=JSON.stringify(payload);if(fingerprint!==submissionFingerprint.current){submissionFingerprint.current=fingerprint;submissionRequestKey.current=crypto.randomUUID()}return sendClientSubmission({...payload,requestKey:submissionRequestKey.current})},onSuccess:async()=>{submissionRequestKey.current='';submissionFingerprint.current='';trackAction('action_completed','submit');toast.success(`${candidateName} was sent to ${recipientName||recipientEmail}.`,'The review link expires in 7 days.');onAction(null);await refresh()},onError:(error)=>toast.error(error,'The client was not emailed and no review link was created.')})
   /* Reschedule moves the interview that exists; it used to open this same form and call
    * createInterview, so "reschedule" quietly produced a SECOND interview -- two rows on the card, two
    * calendar events, and a client invited twice. updateInterview has existed since the initial schema

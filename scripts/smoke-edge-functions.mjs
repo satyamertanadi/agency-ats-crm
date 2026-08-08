@@ -7,14 +7,18 @@ const functions=['ai-evaluate','calendar-auth-callback','calendar-auth-start','c
 // instead of queueing. A short retry absorbs that boot race without hiding a real failure: a
 // genuine compile/import error in the function keeps failing every retry the same way.
 async function preflight(name){
-  let lastStatus
+  let lastFailure='no response'
   for(let attempt=1;attempt<=5;attempt++){
-    const response=await fetch(`${baseUrl}/functions/v1/${name}`,{method:'OPTIONS',signal:AbortSignal.timeout(30_000)})
-    if(response.ok)return response.status
-    lastStatus=response.status
-    await new Promise((resolve)=>setTimeout(resolve,attempt*500))
+    try{
+      const response=await fetch(`${baseUrl}/functions/v1/${name}`,{method:'OPTIONS',signal:AbortSignal.timeout(30_000)})
+      if(response.ok)return response.status
+      lastFailure=`HTTP ${response.status}`
+    }catch(error){
+      lastFailure=error instanceof Error?error.message:String(error)
+    }
+    if(attempt<5)await new Promise((resolve)=>setTimeout(resolve,attempt*500))
   }
-  throw new Error(`${name} preflight returned ${lastStatus}`)
+  throw new Error(`${name} preflight failed after 5 attempts: ${lastFailure}`)
 }
 
 for(const name of functions){

@@ -7,11 +7,11 @@ export type {PipelinePhaseKey,TodayWorkKind} from '../../shared/types/domain'
 export type NextActionKey='add_candidates'|'submit'|'check_feedback'|'schedule_interview'|'record_outcome'|'record_offer'|'create_placement'|'resolve_delivery'|'complete_job'
 
 export interface NextAction {key:NextActionKey;label:string;reason:string}
-export interface TodayWorkItemGroup {label:string;href:string;cta:string}
+export interface TodayWorkItemGroup {label:string;href:string;cta:string;taskId?:string}
 // `groupNoun` names what the disclosure is hiding ("6 jobs", "8 candidates"). The Today list used to
 // hardcode "jobs" in that toggle because unowned jobs were the only thing that grouped; now that
 // repeated tasks group too, the noun has to travel with the item.
-export interface TodayWorkItem {id:string;kind:TodayWorkKind;title:string;reason:string;href:string;cta:string;dueAt?:string|null;group?:TodayWorkItemGroup[];groupNoun?:string}
+export interface TodayWorkItem {id:string;kind:TodayWorkKind;title:string;reason:string;href:string;cta:string;dueAt?:string|null;taskId?:string;group?:TodayWorkItemGroup[];groupNoun?:string}
 
 /* Flattened at the call site rather than taking the nested Supabase row shape. This module is pure and
  * tested, and threading `candidate_submissions.job_candidates.jobs.owner_member_id` through it would
@@ -183,7 +183,7 @@ export function buildTodayWorkItems(input:{
     // differentiator, so it leads; the task's own title becomes the supporting line. Untethered
     // tasks have no name to lead with, so they fall back to the task's own title as before.
     const who=link?.jobs?.title||link?.candidates?.full_name||link?.companies?.name
-    taskEntries.push({task,kind,href,who,item:{id:`task-${task.id}`,kind,title:who||task.title,reason:who?task.title:(task.description||'Owned follow-up'),href,cta:'Open',dueAt:task.due_at}})
+    taskEntries.push({task,kind,href,who,item:{id:`task-${task.id}`,kind,title:who||task.title,reason:who?task.title:(task.description||'Owned follow-up'),href,cta:'Open',dueAt:task.due_at,taskId:task.id}})
   }
   /* Repeated tasks collapse the same way repeated unowned jobs already did. A batch of eight
    * "Follow up on candidate availability" tasks is one decision applied eight times, and rendering
@@ -212,7 +212,7 @@ export function buildTodayWorkItems(input:{
       title:`${first.task.title} · ${bucket.length} records`,
       reason:first.task.description||'The same follow-up is waiting on several records.',
       href:first.href,cta:'Open',dueAt,groupNoun:'records',
-      group:bucket.map((entry)=>({label:entry.who||entry.task.title,href:entry.href,cta:'Open'})),
+      group:bucket.map((entry)=>({label:entry.who||entry.task.title,href:entry.href,cta:'Open',taskId:entry.task.id})),
     })
   }
   for(const interview of input.interviews){

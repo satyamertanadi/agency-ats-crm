@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState} from 'react'
+import {useEffect,useMemo,useRef,useState} from 'react'
 import {useMutation,useQuery} from '@tanstack/react-query'
 import {FileText} from 'lucide-react'
 import {listContacts} from '../core/repository'
@@ -58,6 +58,7 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
   const [message,setMessage]=useState('Please review these candidates for the role.')
   const [recipientName,setRecipientName]=useState('');const [recipientEmail,setRecipientEmail]=useState('')
   const [expiryDays,setExpiryDays]=useState(7)
+  const requestKey=useRef('');const requestFingerprint=useRef('')
 
   const rows=useQuery({queryKey:['submission-candidates',organizationId,job.id],enabled:open,queryFn:()=>listSubmissionCandidateDocuments(organizationId,job.id)})
   const contacts=useQuery({queryKey:['contacts',organizationId],enabled:open,queryFn:()=>listContacts(organizationId)})
@@ -69,6 +70,7 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
     if(!open)return
     setTitle(`${candidates.length} candidate${candidates.length===1?'':'s'} · ${job.title}`)
     setDrafts(Object.fromEntries(candidates.map((candidate)=>[candidate.jobCandidateId,emptyDraft()])))
+    requestKey.current='';requestFingerprint.current=''
   },[open,candidates,job.title])
 
   const resolved=useMemo(()=>candidates.map((candidate)=>{
@@ -95,7 +97,7 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
   })
 
   const send=useMutation({
-    mutationFn:()=>sendClientSubmission({organizationId,jobId:job.id,title,message,
+    mutationFn:()=>{const payload={organizationId,jobId:job.id,title,message,
       recipientName:recipientName||undefined,recipientEmail,expiryDays,
       contactId:clientContacts.find((contact)=>contact.email===recipientEmail)?.id,
       items:sendable.map((entry)=>{
@@ -114,12 +116,13 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
           motivation:draft.motivation.trim()||undefined,
           relocation_willingness:draft.relocation_willingness.trim()||undefined,
           document_ids:draft.document_ids}
-      })}),
-    onSuccess:async()=>{
-      toast.success(`${sendable.length} candidate${sendable.length===1?'':'s'} sent to ${recipientName||recipientEmail}.`,`One review link, expiring in ${expiryDays} days.`)
-      onClose();await onSent()
+      })};const fingerprint=JSON.stringify(payload);if(fingerprint!==requestFingerprint.current){requestFingerprint.current=fingerprint;requestKey.current=crypto.randomUUID()}return sendClientSubmission({...payload,requestKey:requestKey.current})},
+    onSuccess:async(result)=>{
+      if(result.deliveryStatus==='failed')toast.error(new Error(result.errorMessage||'Email delivery failed.'),'The shortlist is saved. Retry the email from this job.')
+      else toast.success(`${sendable.length} candidate${sendable.length===1?'':'s'} sent to ${recipientName||recipientEmail}.`,`One review link, expiring in ${expiryDays} days.`)
+      requestKey.current='';requestFingerprint.current='';onClose();await onSent()
     },
-    onError:(error)=>toast.error(error,'The client was not emailed and no review link was created.'),
+    onError:(error)=>toast.error(error,'The submission was not created.'),
   })
 
   const dirty=Object.values(drafts).some((draft)=>draft.candidate_summary||draft.recruiter_comments||draft.document_ids.length>0)||Boolean(recipientEmail)

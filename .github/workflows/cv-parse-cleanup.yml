@@ -20,9 +20,10 @@ jobs:
     # every other workflow reads PRODUCTION_SUPABASE_URL from this environment.
     environment: production
     steps:
-      - name: Remove expired CV parse drafts
+      - name: Enforce candidate-data retention
         env:
           SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}
           CV_PARSE_WORKER_SECRET: ${{ secrets.CV_PARSE_WORKER_SECRET }}
         run: |
           # This job deletes expired CV drafts and the uploaded files behind them, which hold
@@ -31,16 +32,22 @@ jobs:
           # hourly failures said nothing about the cause.
           missing=()
           [ -n "$SUPABASE_URL" ] || missing+=("PRODUCTION_SUPABASE_URL (production environment secret)")
-          [ -n "$CV_PARSE_WORKER_SECRET" ] || missing+=("CV_PARSE_WORKER_SECRET (must match the WORKER_SECRET env var set on the production Supabase project's parse-candidate-cv function)")
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && [ -z "$CV_PARSE_WORKER_SECRET" ]; then
+            missing+=("PRODUCTION_SUPABASE_SERVICE_ROLE_KEY or CV_PARSE_WORKER_SECRET")
+          fi
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::CV parse cleanup is not configured. Missing:"
             printf '::error::  - %s\n' "${missing[@]}"
             echo "::error::Expired CV drafts and their uploaded files are NOT being removed until these are set."
             exit 1
           fi
+          auth_header="x-worker-secret: $CV_PARSE_WORKER_SECRET"
+          if [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            auth_header="authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
+          fi
           curl --fail --silent --show-error \
             --request POST \
             --header "content-type: application/json" \
-            --header "x-worker-secret: $CV_PARSE_WORKER_SECRET" \
+            --header "$auth_header" \
             --data '{"action":"cleanup"}' \
             "$SUPABASE_URL/functions/v1/parse-candidate-cv"

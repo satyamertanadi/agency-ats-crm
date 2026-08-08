@@ -1723,6 +1723,7 @@ export type Database = {
           recipient_email: string
           related_entity_id: string | null
           related_entity_type: string | null
+          request_key: string | null
           requested_by: string | null
           status: string
           updated_at: string
@@ -1739,6 +1740,7 @@ export type Database = {
           recipient_email: string
           related_entity_id?: string | null
           related_entity_type?: string | null
+          request_key?: string | null
           requested_by?: string | null
           status?: string
           updated_at?: string
@@ -1755,6 +1757,7 @@ export type Database = {
           recipient_email?: string
           related_entity_id?: string | null
           related_entity_type?: string | null
+          request_key?: string | null
           requested_by?: string | null
           status?: string
           updated_at?: string
@@ -1762,6 +1765,45 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "email_deliveries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_delivery_payloads: {
+        Row: {
+          created_at: string
+          delivery_id: string
+          expires_at: string
+          organization_id: string
+          secret_token: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_id: string
+          expires_at: string
+          organization_id: string
+          secret_token: string
+        }
+        Update: {
+          created_at?: string
+          delivery_id?: string
+          expires_at?: string
+          organization_id?: string
+          secret_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_delivery_payloads_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: true
+            referencedRelation: "email_deliveries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_delivery_payloads_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -4708,6 +4750,14 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      anonymize_candidate_for_retention: {
+        Args: {
+          p_as_of?: string
+          p_candidate_id: string
+          p_removed_storage_paths?: string[]
+        }
+        Returns: boolean
+      }
       archive_candidate_profile_template: {
         Args: { p_organization_id: string; p_template_id: string }
         Returns: undefined
@@ -4719,9 +4769,17 @@ export type Database = {
           granted_roles: string[]
         }[]
       }
+      candidate_is_due_for_retention: {
+        Args: { p_as_of?: string; p_candidate_id: string }
+        Returns: boolean
+      }
       candidate_profile_token_spend_this_month: {
         Args: { p_organization_id: string }
         Returns: number
+      }
+      candidate_retention_storage_paths: {
+        Args: { p_candidate_id: string }
+        Returns: string[]
       }
       capture_prospect: {
         Args: {
@@ -4744,6 +4802,38 @@ export type Database = {
       configure_founding_partner: {
         Args: { p_enabled?: boolean; p_organization_id: string }
         Returns: undefined
+      }
+      create_candidate_with_profile: {
+        Args: {
+          p_candidate: Json
+          p_education?: Json
+          p_employment?: Json
+          p_languages?: Json
+          p_organization_id: string
+          p_private?: Json
+          p_skills?: Json
+        }
+        Returns: string
+      }
+      create_invitation_delivery: {
+        Args: {
+          p_email: string
+          p_expiry_days?: number
+          p_organization_id: string
+          p_request_key: string
+          p_role_id: string
+        }
+        Returns: Json
+      }
+      create_job_with_details: {
+        Args: {
+          p_company_id: string
+          p_details?: Json
+          p_organization_id: string
+          p_owner_member_id?: string
+          p_title: string
+        }
+        Returns: string
       }
       create_job_with_pipeline: {
         Args: {
@@ -4799,6 +4889,21 @@ export type Database = {
         }
         Returns: Json
       }
+      create_submission_delivery: {
+        Args: {
+          p_contact_id?: string
+          p_expiry_days?: number
+          p_items: Json
+          p_job_id: string
+          p_message?: string
+          p_organization_id: string
+          p_recipient_email?: string
+          p_recipient_name?: string
+          p_request_key: string
+          p_title: string
+        }
+        Returns: Json
+      }
       create_submission_package: {
         Args: {
           p_contact_id?: string
@@ -4813,6 +4918,19 @@ export type Database = {
         }
         Returns: Json
       }
+      create_task_with_link: {
+        Args: {
+          p_description?: string
+          p_due_at?: string
+          p_link_id?: string
+          p_link_type?: string
+          p_organization_id: string
+          p_owner_member_id?: string
+          p_priority?: string
+          p_title: string
+        }
+        Returns: string
+      }
       default_candidate_profile_configuration: {
         Args: { p_language?: string }
         Returns: Json
@@ -4826,6 +4944,16 @@ export type Database = {
           p_pdf_document_id?: string
           p_profile_version_id: string
           p_reviewed_content: Json
+        }
+        Returns: string
+      }
+      finalize_email_delivery: {
+        Args: {
+          p_delivery_id: string
+          p_error_code?: string
+          p_error_message?: string
+          p_provider_message_id?: string
+          p_status: string
         }
         Returns: string
       }
@@ -4848,6 +4976,13 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: {
           name: string
+        }[]
+      }
+      list_candidates_due_for_retention: {
+        Args: { p_as_of?: string; p_limit?: number }
+        Returns: {
+          candidate_id: string
+          storage_paths: string[]
         }[]
       }
       list_company_pipeline: {
@@ -4979,6 +5114,14 @@ export type Database = {
         }
       }
       normalize_email: { Args: { value: string }; Returns: string }
+      preview_candidate_retention: {
+        Args: { p_organization_id: string }
+        Returns: {
+          due_count: number
+          legal_hold_count: number
+          oldest_due_at: string
+        }[]
+      }
       provision_initial_organization_owner: {
         Args: {
           p_currency?: string
@@ -5004,6 +5147,19 @@ export type Database = {
           p_organization_id: string
           p_profile_version_id: string
           p_reason: string
+        }
+        Returns: undefined
+      }
+      redact_expired_import_payloads: {
+        Args: { p_before?: string }
+        Returns: number
+      }
+      replace_candidate_profile_section: {
+        Args: {
+          p_candidate_id: string
+          p_items: Json
+          p_organization_id: string
+          p_section: string
         }
         Returns: undefined
       }
@@ -5092,6 +5248,15 @@ export type Database = {
           role_key: string
         }[]
       }
+      set_candidate_legal_hold: {
+        Args: {
+          p_candidate_id: string
+          p_legal_hold: boolean
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: undefined
+      }
       set_company_bd_stage: {
         Args: {
           p_company_id: string
@@ -5167,6 +5332,19 @@ export type Database = {
           p_candidate_id: string
           p_organization_id: string
           p_private: Json
+        }
+        Returns: undefined
+      }
+      update_candidate_with_profile: {
+        Args: {
+          p_candidate: Json
+          p_candidate_id: string
+          p_education?: Json
+          p_employment?: Json
+          p_languages?: Json
+          p_organization_id: string
+          p_private: Json
+          p_skills?: Json
         }
         Returns: undefined
       }

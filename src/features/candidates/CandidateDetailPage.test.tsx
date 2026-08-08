@@ -14,7 +14,7 @@ const {getCandidateDetail,listCandidateDocuments,listCandidateProfileVersions,li
 vi.mock('../core/commercialRepository',()=>({getCandidateDetail,listCandidateDocuments,listCandidateProfileVersions,listTeamMembers,
   addCandidateEducation:vi.fn(),addCandidateEmployment:vi.fn(),addCandidateLanguage:vi.fn(),addCandidateSkill:vi.fn(),addCandidateTag:vi.fn(),
   deleteCandidateDocument:vi.fn(),deleteCandidateProfileItem:vi.fn(),removeCandidateSkill:vi.fn(),removeCandidateTag:vi.fn(),
-  setCandidateArchived:vi.fn(),updateCandidateProfile:vi.fn()}))
+  replaceCandidateProfileSection:vi.fn(),setCandidateArchived:vi.fn(),updateCandidateProfile:vi.fn()}))
 vi.mock('../core/repository',()=>({listCandidatePipelineAssignments,createActivity:vi.fn()}))
 vi.mock('../../app/useWorkspaceCapabilities',()=>({useWorkspaceCapabilities:()=>({data:capabilities()})}))
 vi.mock('../../app/AuthProvider',()=>({useAuth:()=>({user:{id:'user-1'}})}))

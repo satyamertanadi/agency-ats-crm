@@ -1,11 +1,11 @@
 import {useState} from 'react'
-import {useQuery} from '@tanstack/react-query'
+import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ArrowRight,BriefcaseBusiness,CalendarClock,CheckCircle2,ChevronDown,ListChecks,OctagonAlert,Plus,TriangleAlert} from 'lucide-react'
 import {Link} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {dashboardSummary,listEmailDeliveryIssues,listExpiringConsent,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listRecentSubmissionFeedback,listSubmissionPackages,listTasks} from '../core/repository'
+import {completeTask,dashboardSummary,listEmailDeliveryIssues,listExpiringConsent,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listRecentSubmissionFeedback,listSubmissionPackages,listTasks,snoozeTask} from '../core/repository'
 import {ErrorState,TableSkeleton} from '../../shared/ui/States'
 import {Page,Panel} from '../../shared/ui/Page'
 import {formatTime} from '../../shared/lib/format'
@@ -13,6 +13,8 @@ import {lookup,todayWorkKind} from '../../shared/lib/status'
 import {buildTodayWorkItems,type TodayConsent,type TodayFeedback,type TodayWorkItem} from '../workflow/workflow'
 import {phaseSegments} from '../jobs/jobHealth'
 import {SetupChecklist,buildSetupSteps} from './SetupChecklist'
+import {Button} from '../../shared/ui/Button'
+import {useToast} from '../../shared/ui/Toast'
 
 /* Both windows are deliberately short. This is a work queue: a client response from three weeks ago
  * has either been actioned or turned into a different problem, and consent lapsing next quarter is not
@@ -56,14 +58,19 @@ function WorkQueueBadge({item,now}:{item:TodayWorkItem;now:Date}){
   return null
 }
 
-function WorkQueueRow({item,now}:{item:TodayWorkItem;now:Date}){
-  if(item.group)return <li key={item.id} className={`work-queue-row work-queue-group kind-${item.kind}`}><details><summary><div className="work-queue-main"><WorkQueueBadge item={item} now={now}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><span className="work-queue-group-toggle">{item.group.length} {item.groupNoun||'items'}<ChevronDown size={14}/></span></summary><ul className="work-queue-group-list">{item.group.map((sub)=><li key={sub.href}><span>{sub.label}</span><Link className="button button-secondary button-sm" to={sub.href}>{sub.cta}<ArrowRight size={13}/></Link></li>)}</ul></details></li>
-  if(item.kind==='upcoming'||item.kind==='recommended')return <li key={item.id} className="work-queue-later-row"><span className="work-queue-dot" aria-hidden="true"/><span className="work-queue-later-main"><strong>{item.title}</strong><span>{item.reason}</span></span><Link className="icon-button" to={item.href} aria-label={item.cta}><ArrowRight size={14}/></Link></li>
-  return <li key={item.id} className={`work-queue-row kind-${item.kind}`}><div className="work-queue-main"><WorkQueueBadge item={item} now={now}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><Link className="button button-secondary button-sm" to={item.href}>{item.cta}<ArrowRight size={13}/></Link></li>
+function TaskActions({taskId,working,onAction}:{taskId?:string;working:boolean;onAction:(taskId:string,action:'complete'|'snooze')=>void}){
+  if(!taskId)return null
+  return <><Button size="sm" variant="quiet" leadingIcon={<CheckCircle2 size={13}/>} disabled={working} onClick={()=>onAction(taskId,'complete')}>Done</Button><Button size="sm" variant="quiet" disabled={working} onClick={()=>onAction(taskId,'snooze')}>Tomorrow</Button></>
+}
+
+function WorkQueueRow({item,now,working,onTaskAction}:{item:TodayWorkItem;now:Date;working:boolean;onTaskAction:(taskId:string,action:'complete'|'snooze')=>void}){
+  if(item.group)return <li key={item.id} className={`work-queue-row work-queue-group kind-${item.kind}`}><details><summary><div className="work-queue-main"><WorkQueueBadge item={item} now={now}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><span className="work-queue-group-toggle">{item.group.length} {item.groupNoun||'items'}<ChevronDown size={14}/></span></summary><ul className="work-queue-group-list">{item.group.map((sub)=><li key={`${sub.href}-${sub.taskId||sub.label}`}><span>{sub.label}</span><div className="lifecycle-actions"><TaskActions taskId={sub.taskId} working={working} onAction={onTaskAction}/><Link className="button button-secondary button-sm" to={sub.href}>{sub.cta}<ArrowRight size={13}/></Link></div></li>)}</ul></details></li>
+  if(item.kind==='upcoming'||item.kind==='recommended')return <li key={item.id} className="work-queue-later-row"><span className="work-queue-dot" aria-hidden="true"/><span className="work-queue-later-main"><strong>{item.title}</strong><span>{item.reason}</span></span><div className="lifecycle-actions"><TaskActions taskId={item.taskId} working={working} onAction={onTaskAction}/><Link className="icon-button" to={item.href} aria-label={item.cta}><ArrowRight size={14}/></Link></div></li>
+  return <li key={item.id} className={`work-queue-row kind-${item.kind}`}><div className="work-queue-main"><WorkQueueBadge item={item} now={now}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><div className="lifecycle-actions"><TaskActions taskId={item.taskId} working={working} onAction={onTaskAction}/><Link className="button button-secondary button-sm" to={item.href}>{item.cta}<ArrowRight size={13}/></Link></div></li>
 }
 
 export function TodayPage(){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const [scope,setScope]=useState<'mine'|'team'>('mine')
+  const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [scope,setScope]=useState<'mine'|'team'>('mine')
   const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
   const [setupHidden,setSetupHidden]=useState(()=>readSetupDismissed(organization?.id))
   const query=useQuery({queryKey:['today',organization?.id],enabled:Boolean(organization),queryFn:async()=>{
@@ -75,6 +82,8 @@ export function TodayPage(){
     const [tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth,feedback,consent]=await Promise.all([listTasks(organization!.id),listInterviews(organization!.id),listOffers(organization!.id),listPlacements(organization!.id),listJobs(organization!.id),dashboardSummary(organization!.id),listEmailDeliveryIssues(organization!.id),listSubmissionPackages(organization!.id),listJobHealth(organization!.id),listRecentSubmissionFeedback(organization!.id,feedbackSince),listExpiringConsent(organization!.id,consentBefore)])
     return {tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth,feedback,consent}
   }})
+  const taskAction=useMutation({mutationFn:({taskId,action}:{taskId:string;action:'complete'|'snooze'})=>{if(action==='complete')return completeTask(organization!.id,taskId);const due=new Date();due.setDate(due.getDate()+1);due.setHours(9,0,0,0);return snoozeTask(organization!.id,taskId,due.toISOString())},onSuccess:async(_result,variables)=>{toast.success(variables.action==='complete'?'Follow-up completed.':'Follow-up moved to tomorrow.');await Promise.all([cache.invalidateQueries({queryKey:['today',organization?.id]}),cache.invalidateQueries({queryKey:['tasks',organization?.id]}),cache.invalidateQueries({queryKey:['agency-performance',organization?.id]})])},onError:(error)=>toast.error(error,'The follow-up was not changed.')})
+  const actOnTask=(taskId:string,action:'complete'|'snooze')=>taskAction.mutate({taskId,action})
   const name=(user?.user_metadata.full_name as string|undefined)?.split(' ')[0]
   if(query.isLoading||capabilities.isLoading)return <Page title={name?`Today, ${name}`:'Today'} eyebrow={organization?.name} description="Your next recruitment actions, in the order they need attention." className="today-page"><Panel><TableSkeleton rows={6} columns={2} label="Preparing your work for today…"/></Panel></Page>
   if(query.error||!query.data)return <ErrorState error={query.error} retry={()=>void query.refetch()}/>
@@ -101,9 +110,9 @@ export function TodayPage(){
     <div className="today-layout">
       <Panel title="Next actions" subtitle="One click opens the right record with its context preserved." icon={<ListChecks size={16}/>} elevation="raised">
         {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<>
-          {doNow.length>0&&<div className="work-queue-band"><p className="work-queue-band-label work-queue-band-label-bad">Do now · {doNow.length}</p><ol className="work-queue">{doNow.map((item)=><WorkQueueRow item={item} now={now} key={item.id}/>)}</ol></div>}
-          {todayItems.length>0&&<div className="work-queue-band"><p className="work-queue-band-label work-queue-band-label-warn">Today · {todayItems.length}</p><ol className="work-queue">{todayItems.map((item)=><WorkQueueRow item={item} now={now} key={item.id}/>)}</ol></div>}
-          {later.length>0&&<div className="work-queue-band"><p className="work-queue-band-label work-queue-band-label-faint">Later · {later.length}</p><ol className="work-queue work-queue-later">{later.map((item)=><WorkQueueRow item={item} now={now} key={item.id}/>)}</ol></div>}
+          {doNow.length>0&&<div className="work-queue-band"><p className="work-queue-band-label work-queue-band-label-bad">Do now · {doNow.length}</p><ol className="work-queue">{doNow.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
+          {todayItems.length>0&&<div className="work-queue-band"><p className="work-queue-band-label work-queue-band-label-warn">Today · {todayItems.length}</p><ol className="work-queue">{todayItems.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
+          {later.length>0&&<div className="work-queue-band"><p className="work-queue-band-label work-queue-band-label-faint">Later · {later.length}</p><ol className="work-queue work-queue-later">{later.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
         </>}
       </Panel>
       <Panel title={scope==='mine'?'My active jobs':'Active jobs'} subtitle="Pipeline health at a glance." icon={<BriefcaseBusiness size={16}/>}>

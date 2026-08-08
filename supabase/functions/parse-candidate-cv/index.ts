@@ -111,21 +111,34 @@ async function retry(request:Request,context:Context,input:ScopedInput,requestID
 async function cancel(request:Request,context:Context,input:ScopedInput,requestID:string){
   const row=await ownParse(context,input.organizationId,input.parseId)
   if(row.status==='accepted')throw new FunctionError(409,'parse_already_accepted','An accepted CV parse cannot be cancelled.')
-  await context.admin.storage.from(bucket).remove([row.storage_path])
-  await context.admin.from('candidate_cv_parses').update({status:'cancelled',extracted_data:null,field_evidence:{},uncertainties:[],error_code:null,error_message:null}).eq('id',row.id)
+  const removed=await context.admin.storage.from(bucket).remove([row.storage_path])
+  if(removed.error)throw new FunctionError(503,'cv_storage_delete_failed','The CV file could not be removed. Try cancelling again.')
+  const cancelled=await context.admin.from('candidate_cv_parses').update({status:'cancelled',original_filename:`cancelled-${row.id}`,storage_path:`cancelled/${input.organizationId}/${row.id}`,extracted_data:null,field_evidence:{},uncertainties:[],error_code:null,error_message:null}).eq('id',row.id)
+  if(cancelled.error)throw new FunctionError(500,'cv_cancel_failed','The CV cancellation could not be finalized. Try again safely.')
   log('info','candidate_cv_parse_cancelled',{requestId:requestID,parseId:row.id,organizationId:input.organizationId})
   return json(request,{parseId:row.id,status:'cancelled',requestId:requestID})
 }
 
 async function cleanup(request:Request,requestID:string){
   const secret=Deno.env.get('WORKER_SECRET')
-  if(!secret||request.headers.get('x-worker-secret')!==secret)throw new FunctionError(401,'worker_authentication_required','Worker authentication required.')
+  const serviceRole=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  const bearer=request.headers.get('authorization')?.replace(/^Bearer\s+/i,'')||null
+  const workerAuthorized=Boolean(secret&&request.headers.get('x-worker-secret')===secret)
+  const serviceAuthorized=Boolean(serviceRole&&bearer===serviceRole)
+  if(!workerAuthorized&&!serviceAuthorized)throw new FunctionError(401,'worker_authentication_required','Worker authentication required.')
   const {admin}=await import('../_shared/auth.ts').then((module)=>module.clients(request))
-  const {data,error}=await admin.from('candidate_cv_parses').select('id,storage_path').lt('expires_at',new Date().toISOString()).not('status','in','(accepted,cancelled,expired)').limit(100)
+  const {data,error}=await admin.from('candidate_cv_parses').select('id,organization_id,storage_path').lt('expires_at',new Date().toISOString()).not('status','in','(accepted,cancelled,expired)').limit(100)
   if(error)throw error
   const paths=(data||[]).map((row)=>row.storage_path)
-  if(paths.length)await admin.storage.from(bucket).remove(paths)
-  if(data?.length)await admin.from('candidate_cv_parses').update({status:'expired',extracted_data:null,field_evidence:{},uncertainties:[],error_code:null,error_message:null}).in('id',data.map((row)=>row.id))
+  if(paths.length){
+    const removed=await admin.storage.from(bucket).remove(paths)
+    if(removed.error)throw removed.error
+  }
+  if(data?.length){
+    const expired=await Promise.all(data.map((row)=>admin.from('candidate_cv_parses').update({status:'expired',original_filename:`expired-${row.id}`,storage_path:`expired/${row.organization_id}/${row.id}`,extracted_data:null,field_evidence:{},uncertainties:[],error_code:null,error_message:null}).eq('id',row.id)))
+    const failure=expired.find((result)=>result.error)?.error
+    if(failure)throw failure
+  }
 
   // submission_link_events / referral_link_events back the public rate limiters in
   // resolve_submission_link, submit_submission_feedback, resolve_referral_link, and submit_referral,
@@ -143,8 +156,41 @@ async function cleanup(request:Request,requestID:string){
   if(submissionEvents.error)throw submissionEvents.error
   if(referralEvents.error)throw referralEvents.error
 
-  log('info','candidate_cv_parse_cleanup_completed',{requestId:requestID,count:data?.length||0,submissionEventsDeleted:submissionEvents.count||0,referralEventsDeleted:referralEvents.count||0})
-  return json(request,{expired:data?.length||0,submissionEventsDeleted:submissionEvents.count||0,referralEventsDeleted:referralEvents.count||0,requestId:requestID})
+  // Retention is deliberately two phase: remove every storage object first, then
+  // ask the database to re-check inactivity/legal hold and anonymize. The RPC
+  // rejects the finalization if a new document appeared between those steps.
+  const due=await admin.rpc('list_candidates_due_for_retention',{p_limit:100})
+  if(due.error)throw due.error
+  let candidatesRetained=0
+  let retentionFailures=0
+  for(const candidate of due.data||[]){
+    const storagePaths=Array.isArray(candidate.storage_paths)?candidate.storage_paths.filter((path:unknown):path is string=>typeof path==='string'&&path.length>0):[]
+    if(storagePaths.length){
+      const removed=await admin.storage.from(bucket).remove(storagePaths)
+      if(removed.error){
+        retentionFailures+=1
+        log('error','candidate_retention_storage_failed',{requestId:requestID,candidateId:candidate.candidate_id,code:removed.error.name})
+        continue
+      }
+    }
+    const retained=await admin.rpc('anonymize_candidate_for_retention',{p_candidate_id:candidate.candidate_id,p_removed_storage_paths:storagePaths})
+    if(retained.error){
+      retentionFailures+=1
+      log('error','candidate_retention_finalize_failed',{requestId:requestID,candidateId:candidate.candidate_id,code:retained.error.code})
+      continue
+    }
+    candidatesRetained+=1
+  }
+
+  const payloads=await admin.from('email_delivery_payloads').delete({count:'exact'}).lt('expires_at',new Date().toISOString())
+  if(payloads.error)throw payloads.error
+
+  const imports=await admin.rpc('redact_expired_import_payloads')
+  if(imports.error)throw imports.error
+  const importRowsRedacted=Number(imports.data||0)
+
+  log('info','candidate_cv_parse_cleanup_completed',{requestId:requestID,count:data?.length||0,submissionEventsDeleted:submissionEvents.count||0,referralEventsDeleted:referralEvents.count||0,candidatesRetained,retentionFailures,emailPayloadsDeleted:payloads.count||0,importRowsRedacted})
+  return json(request,{expired:data?.length||0,submissionEventsDeleted:submissionEvents.count||0,referralEventsDeleted:referralEvents.count||0,candidatesRetained,retentionFailures,emailPayloadsDeleted:payloads.count||0,importRowsRedacted,requestId:requestID})
 }
 
 async function ownParse(context:Context,organizationId:string,parseId:string){
