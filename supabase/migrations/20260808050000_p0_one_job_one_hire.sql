@@ -2,6 +2,59 @@ begin;
 
 -- A job record is one vacancy/seat. This both documents that commercial rule and
 -- closes the race where two accepted offers could create two live placements.
+-- Reconcile only unambiguous legacy race artifacts: no offer on either row and
+-- creation within five seconds. Anything less certain still fails below and
+-- requires an explicit recruitment-data decision instead of silent data loss.
+with ranked as (
+  select
+    placement.id,
+    placement.organization_id,
+    placement.job_id,
+    placement.offer_id,
+    placement.created_at,
+    row_number() over(partition by placement.job_id order by placement.created_at,placement.id) as row_number,
+    first_value(placement.id) over(partition by placement.job_id order by placement.created_at,placement.id) as kept_placement_id,
+    first_value(placement.offer_id) over(partition by placement.job_id order by placement.created_at,placement.id) as kept_offer_id,
+    first_value(placement.created_at) over(partition by placement.job_id order by placement.created_at,placement.id) as kept_created_at
+  from public.placements placement
+  where placement.status<>'cancelled'
+), reconciled as (
+  update public.placements placement
+  set status='cancelled',updated_at=now()
+  from ranked duplicate
+  where placement.id=duplicate.id
+    and duplicate.row_number>1
+    and duplicate.offer_id is null
+    and duplicate.kept_offer_id is null
+    and duplicate.created_at<=duplicate.kept_created_at+interval '5 seconds'
+  returning placement.id,placement.organization_id,placement.job_id,duplicate.kept_placement_id
+)
+insert into public.audit_logs(organization_id,action,entity_type,entity_id,metadata)
+select
+  organization_id,
+  'placement.duplicate_race_reconciled',
+  'placement',
+  id,
+  jsonb_build_object(
+    'job_id',job_id,
+    'kept_placement_id',kept_placement_id,
+    'reason','no_offer_rows_created_within_five_seconds'
+  )
+from reconciled;
+
+do $$
+begin
+  if exists(
+    select 1
+    from public.placements placement
+    where placement.status<>'cancelled'
+    group by placement.job_id
+    having count(*)>1
+  ) then
+    raise exception 'manual_placement_reconciliation_required' using errcode='23505';
+  end if;
+end $$;
+
 create unique index if not exists placements_one_active_hire_per_job
   on public.placements(job_id)
   where status<>'cancelled';
