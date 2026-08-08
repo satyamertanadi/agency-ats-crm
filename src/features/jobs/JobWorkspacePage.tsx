@@ -1,25 +1,25 @@
-import {useRef,useState} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import {DndContext,PointerSensor,useDraggable,useDroppable,useSensor,useSensors,type DragEndEvent} from '@dnd-kit/core'
-import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
+import {useQuery,useQueryClient} from '@tanstack/react-query'
 import {ArrowLeft,Clock,GripVertical,Info,Layers3,Plus,Send} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {addCandidateToJob,getPipeline,listCandidatesPage,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
+import {getPipeline,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
 import {useStageMove} from '../core/useStageMove'
-import {listTeamMembers,updateJob} from '../core/commercialRepository'
+import {listTeamMembers} from '../core/commercialRepository'
 import type {Job,JobCandidate,JobHealth,PipelineStage,TeamMember} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
-import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
-import {Modal} from '../../shared/ui/Modal'
+import {Select} from '../../shared/ui/Field'
 import {Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {jobPriority,jobStatus,lookup} from '../../shared/lib/status'
 import {BoardSkeleton,ErrorState} from '../../shared/ui/States'
-import {useToast} from '../../shared/ui/Toast'
 import {ActivityFeed} from '../activities/ActivityFeed'
 import {buildPipelineColumns,columnStageStats,daysInStage,isOutcomeStage,jobNeedsCandidateAction,phaseForStage,phaseRampColor,pipelinePhases,resolveStageForColumn,slaTargetDays,stageUrgency,type PipelineColumn} from '../workflow/workflow'
 import {JobCandidatePanel} from './JobCandidatePanel'
+import {JobEditModal} from './JobEditModal'
+import {AddCandidateToJobModal} from '../candidates/AddCandidateToJobModal'
 import {CandidateCardMenu} from './CandidateCardMenu'
 import {OutcomePrompt} from './OutcomePrompt'
 import {OutcomesDrawer} from './OutcomesDrawer'
@@ -80,12 +80,21 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
 }
 
 export function JobWorkspacePage(){
-  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [candidateId,setCandidateId]=useState('');const [detailed,setDetailed]=useState(false);const [editOpen,setEditOpen]=useState(false);const [density,setDensity]=useState<Density>('compact');const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerOpen,setComposerOpen]=useState(false)
+  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [detailed,setDetailed]=useState(false);const [editOpen,setEditOpen]=useState(false);const [density,setDensity]=useState<Density>('compact');const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerOpen,setComposerOpen]=useState(false)
+  /* The jobs list's next_action column used to link every CTA -- "Assign an owner", "Add candidates",
+   * "Review waiting candidates" -- to the exact same bare board URL, so the CTA promised a specific
+   * act the page then made you go find yourself. These two open straight onto the surface named.
+   * Consumed once, like ?new= elsewhere, so a reload or back-navigation does not reopen the modal. */
+  useEffect(()=>{
+    if(params.get('editJob')!=='1'&&params.get('addCandidates')!=='1')return
+    if(params.get('editJob')==='1')setEditOpen(true)
+    if(params.get('addCandidates')==='1')setAddOpen(true)
+    const next=new URLSearchParams(params);next.delete('editJob');next.delete('addCandidates');setParams(next,{replace:true})
+  },[params,setParams])
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)});const job=jobs.data?.find((item)=>item.id===jobId)
-  const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const candidates=useQuery({queryKey:['job-add-candidates',organization?.id],enabled:Boolean(organization&&addOpen),queryFn:()=>listCandidatesPage(organization!.id,{},0,100)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
+  const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
   const interviews=useQuery({queryKey:['interviews',organization?.id],enabled:Boolean(organization),queryFn:()=>listInterviews(organization!.id)});const offers=useQuery({queryKey:['offers',organization?.id],enabled:Boolean(organization),queryFn:()=>listOffers(organization!.id)});const placements=useQuery({queryKey:['placements',organization?.id],enabled:Boolean(organization),queryFn:()=>listPlacements(organization!.id)});const packages=useQuery({queryKey:['submissions',organization?.id],enabled:Boolean(organization),queryFn:()=>listSubmissionPackages(organization!.id)});const members=useQuery({queryKey:['members',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
   const refresh=()=>Promise.all([cache.invalidateQueries({queryKey:['pipeline',jobId]}),cache.invalidateQueries({queryKey:['jobs',organization?.id]}),cache.invalidateQueries({queryKey:['today',organization?.id]})])
-  const add=useMutation({mutationFn:()=>addCandidateToJob(organization!.id,user!.id,job!,candidateId),onSuccess:async()=>{const name=candidates.data?.rows.find((row)=>row.id===candidateId)?.full_name;setAddOpen(false);setCandidateId('');await refresh();toast.success(`${name||'Candidate'} was added to ${job!.title}.`)},onError:(error)=>toast.error(error,'No candidate was added.')})
   const move=useStageMove(jobId,refresh)
   const sensors=useSensors(useSensor(PointerSensor,{activationConstraint:{distance:8}}));const canRecruit=job?.status==='open'&&Boolean(capabilities.data?.canMovePipeline)
   // The board is the thing worth holding space for: it is the tallest, slowest part of this screen
@@ -183,7 +192,13 @@ export function JobWorkspacePage(){
     </>}
     {view==='activity'&&<ActivityFeed links={[{job_id:jobId}]} title="Job activity" subtitle="Calls, client updates, submissions, feedback, and stage movement in one history." readOnly={capabilities.data?.readOnly}/>}
     {view==='details'&&<JobDetails job={job} health={jobHealth} members={members.data||[]} phases={buildPipelineColumns(pipeline.data!.stages,false)} items={pipeline.data!.items} onEdit={capabilities.data?.canWriteJobs?()=>setEditOpen(true):undefined}/>}
-    <Modal title="Add candidate to job" open={addOpen} onClose={()=>setAddOpen(false)}><div className="stack"><Field label="Candidate"><Select value={candidateId} onChange={(event)=>setCandidateId(event.target.value)}><option value="">Select candidate</option>{candidates.data?.rows.filter((candidate)=>!pipeline.data!.items.some((item)=>item.candidate_id===candidate.id)).map((candidate)=><option value={candidate.id} key={candidate.id}>{candidate.full_name} · {candidate.current_position||'Profile'}</option>)}</Select></Field>{add.error&&<p className="form-error" role="alert">{add.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={()=>setAddOpen(false)}>Cancel</Button><Button loading={add.isPending} disabled={!candidateId} onClick={()=>add.mutate()}>Add candidate</Button></div></div></Modal>
+    {/* Replaces a bare 100-row `<Select>` with no search, no consent warning, and no already-in-job
+      * filtering. This is the same modal CandidatesPage and the candidate detail page use for the
+      * opposite direction (candidate known, job unknown) -- fixedJob flips it to job known, candidates
+      * unknown, so the two entry points share one implementation rather than drifting apart. */}
+    <AddCandidateToJobModal open={addOpen} onClose={()=>setAddOpen(false)}
+      fixedJob={{id:job.id,title:job.title,companyName:job.companies?.name}}
+      excludeCandidateIds={pipeline.data!.items.map((item)=>item.candidate_id)}/>
     {capabilities.data?.canWriteJobs&&<JobEditModal job={job} members={members.data||[]} open={editOpen} onClose={()=>setEditOpen(false)} onSaved={async()=>{setEditOpen(false);await refresh()}}/>}
     {selected&&<JobCandidatePanel job={job} item={selected} stage={pipeline.data!.stages.find((stage)=>stage.id===selected.current_stage_id)!} stages={pipeline.data!.stages} currentMemberId={currentMember?.id} interviews={(interviews.data||[]).filter((item)=>item.job_candidate_id===selected.id)} offers={(offers.data||[]).filter((item)=>item.job_candidate_id===selected.id)} placement={(placements.data||[]).find((item)=>item.job_id===job.id&&item.candidate_id===selected.candidate_id)||null} hasSubmission={(packages.data||[]).some((pack)=>Array.isArray(pack.candidate_submissions)&&pack.candidate_submissions.some((submission)=>submission.job_candidate_id===selected.id))} action={params.get('action')} readOnly={job.status!=='open'} onAction={(action)=>{const nextParams=new URLSearchParams(params);if(action)nextParams.set('action',action);else nextParams.delete('action');setParams(nextParams)}} onClose={()=>{const nextParams=new URLSearchParams(params);nextParams.delete('candidate');nextParams.delete('action');setParams(nextParams)}} onUpdated={refresh} onMove={move.mutate} moving={move.isPending} detailLoading={detailLoading} detailError={detailError}/>}
     <SubmissionComposerDrawer open={composerOpen} onClose={()=>setComposerOpen(false)} job={job} organizationId={organization!.id}
@@ -206,8 +221,3 @@ function JobDetails({job,health,members,phases,items,onEdit}:{job:Job;health?:Jo
   return <div className="record-overview-grid"><Panel title="Job overview" action={onEdit&&<Button variant="secondary" onClick={onEdit}>Edit job</Button>}><dl className="record-summary"><div><dt>Client</dt><dd>{job.companies?.name||'—'}</dd></div><div><dt>Owner</dt><dd>{owner?.profiles?.full_name||owner?.profiles?.email||'Unassigned'}</dd></div><div><dt>Location</dt><dd>{job.location||'Not set'}</dd></div><div><dt>Status</dt><dd>{lookup(jobStatus,job.status).label}</dd></div><div><dt>Priority</dt><dd>{lookup(jobPriority,job.priority).label}</dd></div><div><dt>Currency</dt><dd>{job.currency||'Not set'}</dd></div></dl></Panel><Panel title="Where candidates are" subtitle={items.length>0?`${items.length} in this pipeline.`:undefined}>{counts.length>0?<ol className="phase-progress">{counts.map((phase,index)=><li key={phase.key} className={phase.count>0?'phase-progress-live':index<furthest?'phase-progress-cleared':''}><span>{phase.label}</span><strong>{phase.count}</strong></li>)}</ol>:<p className="muted">This job has no pipeline stages configured yet.</p>}</Panel></div>
 }
 
-function JobEditModal({job,members,open,onClose,onSaved}:{job:Job;members:Array<{id:string;status:string;profiles?:{full_name?:string;email?:string}|null}>;open:boolean;onClose:()=>void;onSaved:()=>Promise<void>}){
-  const [title,setTitle]=useState(job.title);const [location,setLocation]=useState(job.location||'');const [priority,setPriority]=useState(job.priority);const [status,setStatus]=useState(job.status);const [owner,setOwner]=useState(job.owner_member_id||'');const [description,setDescription]=useState(job.description||'')
-  const mutation=useMutation({mutationFn:()=>updateJob(job.organization_id,job.id,{title,location:location||null,priority,status,owner_member_id:owner||null,description:description||null}),onSuccess:onSaved})
-  return <Modal title="Edit job" open={open} onClose={onClose}><div className="stack"><Field label="Job title"><Input value={title} onChange={(event)=>setTitle(event.target.value)}/></Field><div className="form-grid"><Field label="Owner"><Select value={owner} onChange={(event)=>setOwner(event.target.value)}><option value="">Unassigned</option>{members.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><Field label="Location"><Input value={location} onChange={(event)=>setLocation(event.target.value)}/></Field><Field label="Priority"><Select value={priority} onChange={(event)=>setPriority(event.target.value as Job['priority'])}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></Select></Field><Field label="Status"><Select value={status} onChange={(event)=>setStatus(event.target.value as Job['status'])}><option value="draft">Draft</option><option value="open">Open</option><option value="on_hold">On hold</option><option value="filled">Filled</option><option value="closed">Closed</option><option value="cancelled">Cancelled</option></Select></Field></div><details className="advanced-fields"><summary>Advanced details</summary><Field label="Description"><Textarea value={description} onChange={(event)=>setDescription(event.target.value)}/></Field></details>{mutation.error&&<p className="form-error" role="alert">{mutation.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={onClose}>Cancel</Button><Button loading={mutation.isPending} disabled={title.trim().length<2} onClick={()=>mutation.mutate()}>Save job</Button></div></div></Modal>
-}

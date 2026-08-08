@@ -20,7 +20,7 @@ function renderModal(){
 }
 
 describe('AddCandidateToJobModal',()=>{
-  beforeEach(()=>{addCandidatesToJob.mockClear()})
+  beforeEach(()=>{addCandidatesToJob.mockClear();listCandidatesPage.mockClear()})
 
   it('calls addCandidatesToJob when Add to job is clicked',async()=>{
     renderModal()
@@ -31,4 +31,48 @@ describe('AddCandidateToJobModal',()=>{
     fireEvent.click(screen.getByRole('button',{name:'Add to job'}))
     await waitFor(()=>expect(addCandidatesToJob).toHaveBeenCalledWith('org-1','job-1',['cand-1'],undefined))
   },10000)
+
+  /* fixedJob is what replaced the job workspace's bare 100-row `<Select>` -- the job step must not
+   * reappear once the caller already knows the job, or this is just the old picker with extra steps. */
+  describe('opened from a job (fixedJob)',()=>{
+    const searchResults=[
+      {id:'cand-2',full_name:'Ana Chen',current_position:'Marketing Lead',status:'active',consent_status:'granted'},
+      {id:'cand-3',full_name:'Budi Hartono',current_position:'Brand Manager',status:'active',consent_status:'granted'},
+    ]
+
+    function renderFixed(excludeCandidateIds:string[]=[]){
+      listCandidatesPage.mockResolvedValue({rows:searchResults,count:searchResults.length})
+      const cache=new QueryClient({defaultOptions:{queries:{retry:false}}})
+      return render(<QueryClientProvider client={cache}><ToastProvider>
+        <AddCandidateToJobModal open onClose={vi.fn()} fixedJob={{id:'job-1',title:'Head of Brand Marketing',companyName:'Sembada Pangan Indonesia'}} excludeCandidateIds={excludeCandidateIds}/>
+      </ToastProvider></QueryClientProvider>)
+    }
+
+    it('skips the Job field entirely and never renders it',async()=>{
+      renderFixed()
+      await screen.findByText('Ana Chen · Marketing Lead')
+      expect(screen.queryByLabelText('Job')).not.toBeInTheDocument()
+    })
+
+    it('sends every checked candidate to the known job in one call',async()=>{
+      renderFixed()
+      fireEvent.click(await screen.findByLabelText('Ana Chen · Marketing Lead'))
+      fireEvent.click(screen.getByLabelText('Budi Hartono · Brand Manager'))
+      // jobId is known from the first render here (no "choose a job" step to wait through), so the
+      // stages query has already settled and stage-1 is the auto-selected starting stage by the time
+      // this fires -- unlike the fixed-candidates test above, which clicks before that effect runs.
+      await waitFor(()=>expect(screen.getByLabelText('Starting stage')).toHaveValue('stage-1'))
+      fireEvent.click(screen.getByRole('button',{name:'Add 2 to job'}))
+      await waitFor(()=>expect(addCandidatesToJob).toHaveBeenCalledWith('org-1','job-1',['cand-2','cand-3'],'stage-1'))
+    },10000)
+
+    /* add_candidates_to_job already refuses a duplicate server-side -- this is the earlier failure,
+     * so the consultant never sees an already-added candidate as an option to begin with. */
+    it('filters out candidates already on this job pipeline',async()=>{
+      renderFixed(['cand-2'])
+      await waitFor(()=>expect(listCandidatesPage).toHaveBeenCalled())
+      expect(screen.queryByText('Ana Chen · Marketing Lead')).not.toBeInTheDocument()
+      expect(await screen.findByText('Budi Hartono · Brand Manager')).toBeInTheDocument()
+    })
+  })
 })
