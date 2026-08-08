@@ -48,6 +48,7 @@ const rpcMessages:Record<string,string>={
   // Workflow state
   job_not_open:'This job is not open, so recruitment actions are read-only.',
   job_already_placed:'This vacancy already has a placement. Create a separate job record for another hire.',
+  manual_placement_reconciliation_required:'Existing placement records need an administrator to resolve them before this change can continue.',
   candidate_not_due_for_retention:'This candidate does not yet meet the retention policy rules.',
   retention_storage_changed:'Candidate files changed during retention. The safe cleanup will retry.',
   audit_logs_are_immutable:'Audit history cannot be changed or deleted.',
