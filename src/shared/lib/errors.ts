@@ -39,6 +39,8 @@ const rpcMessages:Record<string,string>={
   member_not_found:'That team member could not be found.',
   placement_not_found:'That placement could not be found.',
   delivery_not_found:'That email delivery could not be found.',
+  interview_not_found:'That interview could not be found in this workspace.',
+  default_pipeline_not_found:'This workspace has no default recruitment pipeline.',
   invitation_not_found:'That invitation could not be found.',
   referral_not_found:'That referral could not be found.',
   template_not_found:'That template could not be found.',
@@ -48,6 +50,8 @@ const rpcMessages:Record<string,string>={
   // Workflow state
   job_not_open:'This job is not open, so recruitment actions are read-only.',
   job_already_placed:'This vacancy already has a placement. Create a separate job record for another hire.',
+  interview_not_cancellable:'Only a scheduled or already-cancelled interview can be cancelled.',
+  default_pipeline_stage_in_use:'The default pipeline could not be simplified because one of its stages is already in use.',
   manual_placement_reconciliation_required:'Existing placement records need an administrator to resolve them before this change can continue.',
   candidate_not_due_for_retention:'This candidate does not yet meet the retention policy rules.',
   retention_storage_changed:'Candidate files changed during retention. The safe cleanup will retry.',

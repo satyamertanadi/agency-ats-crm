@@ -3,7 +3,7 @@ import {useEffect} from 'react'
 /* True when the keystroke belongs to whatever the user is typing into.
  *
  * Single-letter shortcuts and text entry share the whole alphabet, so this is not a nicety: without
- * it, typing a candidate's name into a search box would toggle detailed stages on the "d". Modals and
+ * it, typing a candidate's name into a search box could trigger a single-key page shortcut. Modals and
  * dialogs are excluded wholesale -- a shortcut that fires behind an open dialog acts on a surface the
  * user cannot see. */
 export function isTypingTarget(target:EventTarget|null){

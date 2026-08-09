@@ -33,7 +33,7 @@ const item={id:'jc-1',job_id:'job-1',candidate_id:'cand-1',current_stage_id:'s1'
 const renderPanel=(extra:Partial<React.ComponentProps<typeof JobCandidatePanel>>)=>render(
   <MemoryRouter><JobCandidatePanel job={job} item={item} stage={stage} stages={[stage]} interviews={[]} offers={[]} placement={null}
     hasSubmission={false} action={null} readOnly={false} onAction={vi.fn()} onClose={vi.fn()} onUpdated={vi.fn()}
-    onMove={vi.fn()} moving={false} {...extra}/></MemoryRouter>)
+    onMove={vi.fn()} moving={false} onComposeSubmission={vi.fn()} {...extra}/></MemoryRouter>)
 
 beforeEach(()=>Object.assign(capabilityState,{canManageInterviews:true,canManageOffers:true,canManagePlacements:true,canMovePipeline:true,canSubmit:true}))
 

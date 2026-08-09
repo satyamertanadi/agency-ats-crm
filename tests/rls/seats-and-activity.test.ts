@@ -96,9 +96,9 @@ describe('activity feed',()=>{
   it('records one activity per stage move, filed against both the candidate and the vacancy',async()=>{
     const before=await consultant.from('activities').select('id').eq('organization_id',NORTHSTAR)
     expect(before.error).toBeNull()
-    const stage=await consultant.from('pipeline_stages').select('id').eq('pipeline_id',JOB_PIPELINE).eq('stage_key','longlisted').single()
+    const stage=await consultant.from('pipeline_stages').select('id').eq('pipeline_id',JOB_PIPELINE).eq('stage_key','screening').single()
     expect(stage.error).toBeNull()
-    const move=await consultant.rpc('move_job_candidate_stage',{p_job_candidate_id:JOB_CANDIDATE,p_stage_id:required(stage.data?.id,'longlisted stage'),p_note:'Strong commercial fit',p_source:'manual'})
+    const move=await consultant.rpc('move_job_candidate_stage',{p_job_candidate_id:JOB_CANDIDATE,p_stage_id:required(stage.data?.id,'screening stage'),p_note:'Strong commercial fit',p_source:'manual'})
     expect(move.error).toBeNull()
 
     const after=await consultant.from('activities').select('id,activity_type,summary,actor_name_snapshot').eq('organization_id',NORTHSTAR)

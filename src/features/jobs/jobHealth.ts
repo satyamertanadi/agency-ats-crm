@@ -1,4 +1,5 @@
 import type {JobHealth} from '../../shared/types/domain'
+import {recommendedRecruitmentAction} from '../workflow/workflow'
 
 export type JobHealthFilter='all'|'unowned'|'empty'|'stale'|'interview'|'offer'|'high_value'|'urgent'
 
@@ -16,29 +17,23 @@ export function filterJobStatus(jobs:JobHealth[],filter:JobStatusFilter){
   return jobs.filter((job)=>allowed.includes(job.status))
 }
 
-/* next_action is computed by list_job_health, so it is a fixed vocabulary rather than free text -- and
- * one model of it serves both readers. The jobs list turns it into a link; the workspace's details tab
- * turns it into a button. Mapping the same four phrases twice is how the list would come to promise an
- * action the workspace does not offer.
- *
- * Naming an action without carrying it is the friction this closes: a CTA reading "Assign an owner"
- * that lands on a board with no owner field anywhere on it is a label, not an action. */
+/* Job actions use the same resolver as candidate actions and Today. `list_job_health.next_action` is
+ * retained for database compatibility, but it is no longer a competing source of workflow truth. */
 export type NextActionSurface='edit'|'add'|'activity'|'board'
-const nextActions:Record<string,{suffix:string;surface:NextActionSurface;explain:(job:JobHealth)=>string}>={
-  'Assign an owner':{suffix:'?open=edit',surface:'edit',explain:()=>'Nobody is accountable for this job yet.'},
-  'Add candidates':{suffix:'?open=add',surface:'add',explain:()=>'This pipeline is empty.'},
-  // Both of these already land where the work is, so they add no suffix.
-  'Review waiting candidates':{suffix:'',surface:'board',explain:(job)=>`${job.waiting_count} ${job.waiting_count===1?'candidate has':'candidates have'} sat in the same stage for over a week.`},
-  'Log first activity':{suffix:'?view=activity',surface:'activity',explain:()=>'No call, note or client update has been recorded against this job.'},
+const actionSurfaces:Record<string,{suffix:string;surface:NextActionSurface}>={
+  assign_owner:{suffix:'?open=edit',surface:'edit'},
+  add_candidates:{suffix:'?open=add',surface:'add'},
 }
 
-export function nextActionHref(base:string,job:Pick<JobHealth,'next_action'>){
-  return `${base}${(job.next_action&&nextActions[job.next_action]?.suffix)||''}`
+export function nextActionHref(base:string,job:Pick<JobHealth,'status'|'owner_member_id'|'candidate_count'>){
+  const action=recommendedRecruitmentAction({scope:'job',status:job.status,ownerMemberId:job.owner_member_id,candidateCount:job.candidate_count})
+  return `${base}${(action&&actionSurfaces[action.key]?.suffix)||''}`
 }
 
 export function nextActionDetail(job:JobHealth){
-  const model=job.next_action?nextActions[job.next_action]:undefined
-  return model?{label:job.next_action!,surface:model.surface,explain:model.explain(job)}:null
+  const action=recommendedRecruitmentAction({scope:'job',status:job.status,ownerMemberId:job.owner_member_id,candidateCount:job.candidate_count})
+  const model=action?actionSurfaces[action.key]:undefined
+  return action&&model?{label:action.label,surface:model.surface,explain:action.reason}:null
 }
 
 export function filterJobHealth(jobs:JobHealth[],filter:JobHealthFilter,now=Date.now()){

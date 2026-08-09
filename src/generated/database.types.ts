@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -7,6 +7,36 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       activities: {
@@ -981,6 +1011,45 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      candidate_search_documents: {
+        Row: {
+          candidate_id: string
+          extracted_content: Json
+          organization_id: string
+          search_vector: unknown
+          updated_at: string
+        }
+        Insert: {
+          candidate_id: string
+          extracted_content?: Json
+          organization_id: string
+          search_vector?: unknown
+          updated_at?: string
+        }
+        Update: {
+          candidate_id?: string
+          extracted_content?: Json
+          organization_id?: string
+          search_vector?: unknown
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_search_documents_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: true
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_search_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -5132,6 +5201,14 @@ export type Database = {
         }
         Returns: string
       }
+      queue_interview_cancellation: {
+        Args: { p_interview_id: string; p_organization_id: string }
+        Returns: {
+          delivery_id: string
+          delivery_status: string
+          recipient_email: string
+        }[]
+      }
       record_audit_event: {
         Args: {
           p_action: string
@@ -5489,8 +5566,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
-

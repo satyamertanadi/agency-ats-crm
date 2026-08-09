@@ -1,7 +1,8 @@
 import {useState} from 'react'
 import {useMutation,useQuery} from '@tanstack/react-query'
 import {BriefcaseBusiness,CalendarPlus,History,MessageSquare} from 'lucide-react'
-import {cancelInterview,completeInterview,listStageHistory,listSubmissionFeedback,updateOfferStatus} from '../core/repository'
+import {completeInterview,listStageHistory,listSubmissionFeedback,updateOfferStatus} from '../core/repository'
+import {cancelInterviewWithNotifications} from '../core/commercialRepository'
 import type {Interview,Offer} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
 import {Callout} from '../../shared/ui/Callout'
@@ -29,6 +30,8 @@ export interface JobCandidateLifecycleProps {
   canManageInterviews:boolean
   canManageOffers:boolean
   readOnly:boolean
+  openOutcome?:boolean
+  onOutcomeClose?:()=>void
   onUpdated:()=>Promise<unknown>
   /* Reschedule reuses the panel's existing interview form rather than growing a second one that can
    * drift from it -- the panel owns that form, so it owns reopening it. */
@@ -40,7 +43,7 @@ const offerDecisions:Array<{value:OfferDecision;label:string}>=[
   {value:'accepted',label:'Accepted'},{value:'declined',label:'Declined'},{value:'withdrawn',label:'Withdrawn'},
 ]
 
-export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateName,interviews,offers,canManageInterviews,canManageOffers,readOnly,onUpdated,onReschedule}:JobCandidateLifecycleProps){
+export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateName,interviews,offers,canManageInterviews,canManageOffers,readOnly,openOutcome=false,onOutcomeClose,onUpdated,onReschedule}:JobCandidateLifecycleProps){
   const toast=useToast()
   const [offerDecision,setOfferDecision]=useState<{offer:Offer;decision:OfferDecision}|null>(null)
   const [offerNote,setOfferNote]=useState('')
@@ -65,18 +68,22 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
   })
   const finishInterview=useMutation({
     mutationFn:(interview:Interview)=>completeInterview(organizationId,interview.id,{outcome,notes:outcomeNotes}),
-    onSuccess:async()=>{setCompleting(null);setOutcomeNotes('');setOutcome('completed');toast.success(`Interview outcome recorded for ${candidateName}.`);await onUpdated()},
+    onSuccess:async()=>{setCompleting(null);setOutcomeNotes('');setOutcome('completed');onOutcomeClose?.();toast.success(`Interview outcome recorded for ${candidateName}.`);await onUpdated()},
     onError:(error)=>toast.error(error,'The interview outcome was not recorded.'),
   })
   const dropInterview=useMutation({
-    mutationFn:(interview:Interview)=>cancelInterview(organizationId,interview.id),
-    onSuccess:async()=>{setCancelling(null);toast.success(`Interview cancelled for ${candidateName}.`);await onUpdated()},
+    mutationFn:(interview:Interview)=>cancelInterviewWithNotifications(organizationId,interview.id),
+    onSuccess:async(result,interview)=>{setCancelling(null);const retry=interview.status==='cancelled';const calendarFailed=['failed','not_connected'].includes(result.calendarStatus);if(result.failedRecipientCount>0||calendarFailed)toast.error(new Error([result.failedRecipientCount>0?`${result.failedRecipientCount} cancellation notice${result.failedRecipientCount===1?'':'s'} could not be sent.`:'',calendarFailed?'The existing Google Calendar event could not be removed.':''].filter(Boolean).join(' ')),`Interview cancelled for ${candidateName}, but external notification needs attention.`);else toast.success(retry?`Cancellation notifications retried for ${candidateName}.`:`Interview cancelled for ${candidateName}.`,result.recipientCount>0?(result.notificationStatus==='pending'?'Attendee notices are queued.':'Attendees were notified automatically.'):'No attendee email addresses were recorded.');await onUpdated()},
     onError:(error)=>toast.error(error,'The interview was not cancelled.'),
   })
 
   const latestOffer=offers[0]
   const offersActive=canManageOffers&&!readOnly
   const interviewsActive=canManageInterviews&&!readOnly
+  // listInterviews is ordered by start time, so the first still-scheduled row is the deterministic
+  // target when Today deep-links here to record an outcome.
+  const suggestedOutcome=interviews.find((entry)=>entry.status==='scheduled')||null
+  const outcomeTarget=completing||(openOutcome?suggestedOutcome:null)
 
   return <div className="lifecycle-cards">
     <section className="lifecycle-card">
@@ -104,6 +111,9 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
             <Button size="sm" variant="secondary" onClick={()=>{setOutcome('completed');setOutcomeNotes('');setCompleting(entry)}}>Complete</Button>
             <Button size="sm" variant="quiet" onClick={()=>onReschedule(entry)}>Reschedule</Button>
             <Button size="sm" variant="quiet" onClick={()=>setCancelling(entry)}>Cancel</Button>
+          </div>}
+          {entry.status==='cancelled'&&interviewsActive&&((entry.cancellation_delivery_issues||0)>0||entry.calendar_sync_status==='failed')&&<div className="lifecycle-actions">
+            <Button size="sm" variant="secondary" onClick={()=>setCancelling(entry)}>Retry cancellation</Button>
           </div>}
         </li>)}
       </ul>}
@@ -143,8 +153,8 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
         <Field label="Note (optional)"><Textarea value={offerNote} onChange={(event)=>setOfferNote(event.target.value)} placeholder="What did they say?"/></Field>
       </div>}/>
 
-    <ConfirmDialog open={Boolean(completing)} title="Record interview outcome" confirmLabel="Record outcome"
-      loading={finishInterview.isPending} onClose={()=>setCompleting(null)} onConfirm={()=>completing&&finishInterview.mutate(completing)}
+    <ConfirmDialog open={Boolean(outcomeTarget)} title="Record interview outcome" confirmLabel="Record outcome"
+      loading={finishInterview.isPending} onClose={()=>{setCompleting(null);onOutcomeClose?.()}} onConfirm={()=>outcomeTarget&&finishInterview.mutate(outcomeTarget)}
       body={<div className="stack">
         <Field label="What happened"><Select value={outcome} onChange={(event)=>setOutcome(event.target.value as 'completed'|'no_show')}>
           <option value="completed">The interview went ahead</option><option value="no_show">The candidate did not attend</option>
@@ -152,8 +162,8 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
         <Field label="Notes (optional)"><Textarea value={outcomeNotes} onChange={(event)=>setOutcomeNotes(event.target.value)} placeholder="How did it go?"/></Field>
       </div>}/>
 
-    <ConfirmDialog open={Boolean(cancelling)} title="Cancel this interview?" confirmLabel="Cancel interview"
+    <ConfirmDialog open={Boolean(cancelling)} title={cancelling?.status==='cancelled'?"Retry this cancellation?":"Cancel this interview?"} confirmLabel={cancelling?.status==='cancelled'?"Retry cancellation":"Cancel interview"}
       loading={dropInterview.isPending} onClose={()=>setCancelling(null)} onConfirm={()=>cancelling&&dropInterview.mutate(cancelling)}
-      body={<p>The interview on {formatDateTime(cancelling?.starts_at)} will be marked cancelled. Attendees are not emailed automatically — tell them yourself.</p>}/>
+      body={<p>{cancelling?.status==='cancelled'?`Failed or pending notifications for the interview on ${formatDateTime(cancelling?.starts_at)} will be attempted again.`:`The interview on ${formatDateTime(cancelling?.starts_at)} will be marked cancelled. Every recorded attendee will be notified automatically.`}</p>}/>
   </div>
 }

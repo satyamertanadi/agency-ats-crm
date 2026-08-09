@@ -53,11 +53,9 @@ insert into public.pipelines(id,organization_id,name,kind,is_default) values
 ('50000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000002','Agency recruitment','template',true)
 on conflict do nothing;
 with stages(name,stage_key,stage_type,position,visible) as (values
-('Sourced','sourced','active',0,false),('Contacted','contacted','active',1,false),('Interested','interested','active',2,false),('Screening','screening','active',3,false),
-('Longlisted','longlisted','active',4,false),('Shortlisted','shortlisted','active',5,false),('Submitted to Client','submitted_to_client','active',6,true),
-('Client Reviewing','client_reviewing','active',7,true),('Interview Scheduled','interview_scheduled','active',8,true),('Interview Completed','interview_completed','active',9,true),
-('Assessment','assessment','active',10,false),('Reference Check','reference_check','active',11,false),('Offer','offer','active',12,true),('Placed','placed','placed',13,true),
-('Rejected','rejected','rejected',14,false),('Withdrawn','withdrawn','withdrawn',15,false),('On Hold','on_hold','on_hold',16,false))
+('Sourcing','sourced','active',0,false),('Screening','screening','active',1,false),('Shortlist','shortlisted','active',2,false),
+('Client review','submitted_to_client','active',3,true),('Interview','interview_scheduled','active',4,true),('Offer','offer','active',5,true),
+('Placed','placed','placed',6,true),('Rejected','rejected','rejected',7,false),('Withdrawn','withdrawn','withdrawn',8,false),('On hold','on_hold','on_hold',9,false))
 insert into public.pipeline_stages(organization_id,pipeline_id,name,stage_key,stage_type,position,is_client_visible)
 select p.organization_id,p.id,s.name,s.stage_key,s.stage_type,s.position,s.visible from public.pipelines p cross join stages s where p.id in ('50000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000002') on conflict do nothing;
 
