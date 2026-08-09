@@ -2713,6 +2713,7 @@ export type Database = {
           default_submission_expiry_days: number
           document_migration_completed: boolean
           logo_path: string | null
+          migration_complete: boolean
           organization_id: string
           primary_color: string
           require_invitation: boolean
@@ -2728,6 +2729,7 @@ export type Database = {
           default_submission_expiry_days?: number
           document_migration_completed?: boolean
           logo_path?: string | null
+          migration_complete?: boolean
           organization_id: string
           primary_color?: string
           require_invitation?: boolean
@@ -2743,6 +2745,7 @@ export type Database = {
           default_submission_expiry_days?: number
           document_migration_completed?: boolean
           logo_path?: string | null
+          migration_complete?: boolean
           organization_id?: string
           primary_color?: string
           require_invitation?: boolean
@@ -3352,7 +3355,6 @@ export type Database = {
       }
       saved_views: {
         Row: {
-          columns: Json
           created_at: string
           filters: Json
           id: string
@@ -3365,7 +3367,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          columns?: Json
           created_at?: string
           filters?: Json
           id?: string
@@ -3378,7 +3379,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          columns?: Json
           created_at?: string
           filters?: Json
           id?: string

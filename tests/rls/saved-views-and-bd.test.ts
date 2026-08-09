@@ -37,7 +37,7 @@ beforeAll(async()=>{
 afterAll(async()=>{if(created.length)await owner.from('saved_views').delete().in('id',created)})
 
 const makeView=async(client:typeof owner,member:string,name:string,shared:boolean)=>{
-  const result=await client.from('saved_views').insert({organization_id:NORTHSTAR,owner_member_id:member,resource:'candidates',name,filters:{status:'active'},columns:[],is_shared:shared}).select('id').single()
+  const result=await client.from('saved_views').insert({organization_id:NORTHSTAR,owner_member_id:member,resource:'candidates',name,filters:{status:'active'},is_shared:shared}).select('id').single()
   expect(result.error).toBeNull()
   const id=required(result.data?.id,'saved view id') as string
   created.push(id)
@@ -80,7 +80,7 @@ describe('saved view ownership',()=>{
   })
 
   it('refuses a view saved under someone else’s name',async()=>{
-    const result=await consultant.from('saved_views').insert({organization_id:NORTHSTAR,owner_member_id:ownerMember,resource:'candidates',name:'Forged owner',filters:{},columns:[],is_shared:false})
+    const result=await consultant.from('saved_views').insert({organization_id:NORTHSTAR,owner_member_id:ownerMember,resource:'candidates',name:'Forged owner',filters:{},is_shared:false})
     expect(result.error).not.toBeNull()
   })
 

@@ -37,7 +37,6 @@ import {formatMoney,formatSalary} from '../../shared/lib/format'
 import {useShortcut} from '../../shared/lib/useShortcut'
 
 type WorkspaceView='pipeline'|'activity'|'details'
-type Density='compact'|'roomy'
 
 const memberInitials=(member?:Pick<TeamMember,'profiles'>|null)=>{
   const name=member?.profiles?.full_name||member?.profiles?.email||''
@@ -111,7 +110,7 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
 }
 
 export function JobWorkspacePage(){
-  const {jobId=''}=useParams();const {organization,membership}=useOrganization();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [editOpen,setEditOpen]=useState(false);const [density,setDensity]=useState<Density>('compact');const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerCandidates,setComposerCandidates]=useState<ComposerCandidate[]|null>(null)
+  const {jobId=''}=useParams();const {organization,membership}=useOrganization();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [editOpen,setEditOpen]=useState(false);const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerCandidates,setComposerCandidates]=useState<ComposerCandidate[]|null>(null)
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)});const job=jobs.data?.find((item)=>item.id===jobId)
   const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
   /* Scoped to this job, not to the organization. These four decorate the candidate panel for
@@ -204,14 +203,13 @@ export function JobWorkspacePage(){
             {placedCount>0&&<span className="outcome-chip outcome-chip-good">Placed <strong>{placedCount}</strong></span>}
           </div>}
           {capabilities.data?.canSubmit&&shortlisted.length>0&&job.status==='open'&&<Button size="sm" variant="secondary" leadingIcon={<Send size={14}/>} onClick={()=>setComposerCandidates(shortlisted)}>Send {shortlisted.length} to client</Button>}
-          <div className="segmented-control" role="group" aria-label="Card density"><button type="button" className={density==='compact'?'active':''} onClick={()=>setDensity('compact')}>Compact</button><button type="button" className={density==='roomy'?'active':''} onClick={()=>setDensity('roomy')}>Roomy</button></div>
           {canRecruit&&<Button variant="secondary" leadingIcon={<Plus size={14}/>} onClick={()=>setAddOpen(true)}>Add candidates</Button>}
         </div>
       </div>
       <Panel padding="sm">
         <PhaseJump containerRef={boardRef} columns={boardColumns.map((column)=>({key:column.key,label:column.label,count:pipeline.data!.items.filter((item)=>column.stages.some((stage)=>stage.id===item.current_stage_id)).length}))}/>
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-          <div ref={boardRef} className={`kanban workflow-kanban workflow-kanban-${density}`} style={{'--kanban-columns':boardColumns.length} as React.CSSProperties}>
+          <div ref={boardRef} className="kanban workflow-kanban" style={{'--kanban-columns':boardColumns.length} as React.CSSProperties}>
             {boardColumns.map((column)=>{
               const stageIds=new Set(column.stages.map((stage)=>stage.id));const items=pipeline.data!.items.filter((item)=>stageIds.has(item.current_stage_id))
               const color=column.stages[0]?phaseRampColor[phaseForStage(column.stages[0])]:'var(--color-faint)'

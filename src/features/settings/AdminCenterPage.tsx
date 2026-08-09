@@ -40,7 +40,11 @@ export function AdminCenterPage(){
      * not record one directly at all. The tile follows placements.write; the revenue splits and
      * invoices inside the page keep their own finance check. */
     capabilities.data.canManagePlacements&&{href:`${base}/finance`,title:'Placements',description:capabilities.data.canManageFinance?'Placements, revenue credits, invoices, and guarantees.':'Placements, starts, and guarantees.',icon:Landmark},
-    capabilities.data.canImport&&{href:`${base}/imports`,title:'Data imports',description:'Controlled migration, validation, and rollback.',icon:FileUp},
+    /* Hidden once the migration is signed off. The page is correct and necessary for the Vincere
+     * cutover and stays reachable at its route for correction and re-migration runs -- but its
+     * rollback button deletes committed records and anything edited since, which is not a control
+     * to leave sitting in a nav for years to serve one week of work. */
+    capabilities.data.canImport&&!organization?.migration_complete&&{href:`${base}/imports`,title:'Data imports',description:'Controlled migration, validation, and rollback.',icon:FileUp},
     capabilities.data.canManageTemplates&&{href:`${base}/templates`,title:'Profile templates',description:'Client-facing candidate profile formats.',icon:FileSignature},
     capabilities.data.canManageWorkspace&&{href:`${base}/workspace`,title:'Team & workspace',description:'Access, branding, roles, and organization settings.',icon:UsersRound},
   ].filter(Boolean) as Array<{href:string;title:string;description:string;icon:typeof Settings}>

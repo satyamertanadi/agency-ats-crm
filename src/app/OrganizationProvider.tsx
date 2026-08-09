@@ -25,7 +25,7 @@ const Context=createContext<Value|null>(null)
 export function OrganizationProvider({children}:{children:ReactNode}){
   const {user}=useAuth()
   const query=useQuery({queryKey:['memberships',user?.id],enabled:Boolean(user),queryFn:async()=>{
-    const {data,error}=await supabase.from('organization_members').select('id, organization_id, user_id, status, organizations!inner(id,name,slug,base_currency,salary_period,timezone,pilot_status,organization_settings(primary_color,logo_path,settings))').eq('status','active')
+    const {data,error}=await supabase.from('organization_members').select('id, organization_id, user_id, status, organizations!inner(id,name,slug,base_currency,salary_period,timezone,pilot_status,organization_settings(primary_color,logo_path,settings,migration_complete))').eq('status','active')
     if(error)throw error
     const validated=rows(data,membershipRowSchema,'Membership rows did not match the expected shape')
     return validated.map((membership)=>{
@@ -36,7 +36,7 @@ export function OrganizationProvider({children}:{children:ReactNode}){
       // The mandatory client template prints a banner across the footer of every page. It lives in
       // the settings blob rather than its own column so it needs no schema change.
       const footerBannerPath=typeof settings?.settings?.profile_footer_banner_path==='string'?settings.settings.profile_footer_banner_path as string:null
-      return {...membership,organizations:{id:raw.id,name:raw.name,slug:raw.slug,base_currency:raw.base_currency,salary_period:raw.salary_period,timezone:raw.timezone,pilot_status:raw.pilot_status,primary_color:settings?.primary_color,logo_path:settings?.logo_path,logo_url:logoUrl,profile_footer_banner_path:footerBannerPath,profile_footer_banner_url:publicUrl(footerBannerPath),profile_enabled:settings?.settings?.profile_v1===true,whatsapp_country_code:typeof settings?.settings?.whatsapp_country_code==='string'?settings.settings.whatsapp_country_code as string:null,whatsapp_template:typeof settings?.settings?.whatsapp_template==='string'?settings.settings.whatsapp_template as string:null}} as Membership
+      return {...membership,organizations:{id:raw.id,name:raw.name,slug:raw.slug,base_currency:raw.base_currency,salary_period:raw.salary_period,timezone:raw.timezone,pilot_status:raw.pilot_status,primary_color:settings?.primary_color,logo_path:settings?.logo_path,logo_url:logoUrl,migration_complete:settings?.migration_complete===true,profile_footer_banner_path:footerBannerPath,profile_footer_banner_url:publicUrl(footerBannerPath),profile_enabled:settings?.settings?.profile_v1===true,whatsapp_country_code:typeof settings?.settings?.whatsapp_country_code==='string'?settings.settings.whatsapp_country_code as string:null,whatsapp_template:typeof settings?.settings?.whatsapp_template==='string'?settings.settings.whatsapp_template as string:null}} as Membership
     })
   }})
   /* RLS already restricts this query to the caller's own active memberships, and a dedicated
