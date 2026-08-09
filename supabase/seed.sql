@@ -52,12 +52,12 @@ insert into public.pipelines(id,organization_id,name,kind,is_default) values
 ('50000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','Agency recruitment','template',true),
 ('50000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000002','Agency recruitment','template',true)
 on conflict do nothing;
-with stages(name,stage_key,stage_type,position,visible) as (values
-('Sourcing','sourced','active',0,false),('Screening','screening','active',1,false),('Shortlist','shortlisted','active',2,false),
-('Client review','submitted_to_client','active',3,true),('Interview','interview_scheduled','active',4,true),('Offer','offer','active',5,true),
-('Placed','placed','placed',6,true),('Rejected','rejected','rejected',7,false),('Withdrawn','withdrawn','withdrawn',8,false),('On hold','on_hold','on_hold',9,false))
-insert into public.pipeline_stages(organization_id,pipeline_id,name,stage_key,stage_type,position,is_client_visible)
-select p.organization_id,p.id,s.name,s.stage_key,s.stage_type,s.position,s.visible from public.pipelines p cross join stages s where p.id in ('50000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000002') on conflict do nothing;
+with stages(name,stage_key,stage_type,phase_key,position,visible) as (values
+('Sourcing','sourced','active','sourcing',0,false),('Screening','screening','active','screening',1,false),('Shortlist','shortlisted','active','shortlist',2,false),
+('Client review','submitted_to_client','active','client_review',3,true),('Interview','interview_scheduled','active','interview',4,true),('Offer','offer','active','offer',5,true),
+('Placed','placed','placed','placed',6,true),('Rejected','rejected','rejected','other',7,false),('Withdrawn','withdrawn','withdrawn','other',8,false),('On hold','on_hold','on_hold','other',9,false))
+insert into public.pipeline_stages(organization_id,pipeline_id,name,stage_key,stage_type,phase_key,position,is_client_visible)
+select p.organization_id,p.id,s.name,s.stage_key,s.stage_type,s.phase_key,s.position,s.visible from public.pipelines p cross join stages s where p.id in ('50000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000002') on conflict do nothing;
 
 insert into public.companies(id,organization_id,name,industry,website,location,account_status,business_development_stage,owner_member_id,created_by) values
 ('60000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','Atlas Renewable Energy','energy_utilities','https://example.com','Singapore','active_client','won','40000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000001'),
