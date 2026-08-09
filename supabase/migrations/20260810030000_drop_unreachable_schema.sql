@@ -182,6 +182,40 @@ end $$;
 revoke all on function public.anonymize_candidate_for_retention(uuid,text[],timestamptz) from public, anon, authenticated;
 grant execute on function public.anonymize_candidate_for_retention(uuid,text[],timestamptz) to service_role;
 
+-- candidate_retention_storage_paths unions in referral resume paths. It is `language sql` with a
+-- string body, so Postgres tracks no dependency on the table and the drop would leave it to fail at
+-- call time -- inside the hourly retention worker, which is the worst place for it. Same function
+-- without that branch; referral resumes cease to exist along with the table.
+create or replace function public.candidate_retention_storage_paths(p_candidate_id uuid)
+returns text[] language sql stable security definer set search_path=public as $$
+  select coalesce(array_agg(distinct paths.storage_path order by paths.storage_path),'{}'::text[])
+  from (
+    select document.storage_path
+    from public.document_links link
+    join public.documents document on document.id=link.document_id and document.deleted_at is null
+    where link.candidate_id=p_candidate_id
+    union
+    select document.storage_path
+    from public.job_candidates jc
+    join public.candidate_submissions submission on submission.job_candidate_id=jc.id
+    join public.submission_documents attached on attached.candidate_submission_id=submission.id
+    join public.documents document on document.id=attached.document_id and document.deleted_at is null
+    where jc.candidate_id=p_candidate_id
+    union
+    select document.storage_path
+    from public.candidate_profile_versions profile
+    join public.documents document on document.id in (profile.docx_document_id,profile.pdf_document_id)
+      and document.deleted_at is null
+    where profile.candidate_id=p_candidate_id
+    union
+    select parse.storage_path
+    from public.candidate_cv_parses parse
+    where parse.target_candidate_id=p_candidate_id and parse.status not in ('cancelled','expired')
+  ) paths
+$$;
+
+revoke all on function public.candidate_retention_storage_paths(uuid) from public, anon, authenticated;
+
 -- Referrals: a whole page, public link minting with revocation, an inbox with four status filters,
 -- an accept/reject flow, three tables, five RPCs and a public route -- for an activity a six-person
 -- headhunting desk does over WhatsApp. "Add candidate" with source 'referral' records the same fact

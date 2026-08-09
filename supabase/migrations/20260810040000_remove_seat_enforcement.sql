@@ -35,6 +35,28 @@ end$$;
 revoke all on function public.create_organization_invitation(uuid,text,uuid,integer) from public,anon;
 grant execute on function public.create_organization_invitation(uuid,text,uuid,integer) to authenticated;
 
+-- configure_founding_partner raised the seat cap to 10 as part of enabling the profile feature, so
+-- it would fail at call time the moment the column goes. It is service_role only and exercised by
+-- the staging gate (tests/staging/cv-parse-flow.test.ts), which is where that failure would have
+-- surfaced -- after CI had already passed. With no cap to raise, it is purely the profile_v1 switch.
+create or replace function public.configure_founding_partner(p_organization_id uuid,p_enabled boolean default true)
+returns void language plpgsql security definer set search_path=public as $$
+begin
+  if current_user not in ('postgres','supabase_admin','service_role')
+     and coalesce(current_setting('request.jwt.claim.role',true),'')<>'service_role' then
+    raise exception 'service_role_required' using errcode='42501';
+  end if;
+  update public.organization_settings
+  set settings=jsonb_set(settings,'{profile_v1}',to_jsonb(p_enabled),true),updated_at=now()
+  where organization_id=p_organization_id;
+  if not found then raise exception 'organization_not_found' using errcode='P0002'; end if;
+  insert into public.audit_logs(organization_id,action,entity_type,entity_id,metadata)
+  values(p_organization_id,'organization.founding_partner_configured','organization',p_organization_id,jsonb_build_object('profile_v1',p_enabled));
+end $$;
+
+revoke all on function public.configure_founding_partner(uuid,boolean) from public,anon,authenticated;
+grant execute on function public.configure_founding_partner(uuid,boolean) to service_role;
+
 alter table public.organizations drop column if exists seat_limit;
 
 commit;
