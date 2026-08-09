@@ -117,13 +117,24 @@ jobs:
         # 60 days of repo inactivity and take the client's data-deletion guarantee down with it
         # silently. schedule_maintenance_cron is idempotent, so running it on every promotion is
         # exactly the intended usage; the secret is passed as an argument and never committed.
+        #
+        # CV_PARSE_WORKER_SECRET is optional and is NOT configured for this environment -- the first
+        # run of this step posted an empty string, the RPC rejected it, and the failed step skipped
+        # promote-production. Falling back to the service role key is not a downgrade: the function
+        # accepts either credential, and the service role key is the one guaranteed to be present in
+        # the Edge Function's own environment.
         run: |
+          worker_secret="${{ secrets.CV_PARSE_WORKER_SECRET || secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}"
+          if [ -z "$worker_secret" ]; then
+            echo "::error::Neither CV_PARSE_WORKER_SECRET nor PRODUCTION_SUPABASE_SERVICE_ROLE_KEY is set; the maintenance cron cannot authenticate."
+            exit 1
+          fi
           response="$(curl --fail --silent --show-error \
             --request POST \
             --header "apikey: ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}" \
             --header "authorization: Bearer ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}" \
             --header "content-type: application/json" \
-            --data "{\"p_function_url\":\"${{ secrets.PRODUCTION_SUPABASE_URL }}/functions/v1/scheduled-maintenance\",\"p_worker_secret\":\"${{ secrets.CV_PARSE_WORKER_SECRET }}\"}" \
+            --data "$(printf '{"p_function_url":"%s/functions/v1/scheduled-maintenance","p_worker_secret":"%s"}' "${{ secrets.PRODUCTION_SUPABASE_URL }}" "$worker_secret")" \
             "${{ secrets.PRODUCTION_SUPABASE_URL }}/rest/v1/rpc/schedule_maintenance_cron")"
           echo "schedule_maintenance_cron -> $response"
           # The function returns a diagnostic string instead of raising when pg_cron/pg_net are
