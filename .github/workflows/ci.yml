@@ -92,7 +92,7 @@ jobs:
           # --frozen fails the build if deno.lock doesn't already cover the resolved dependency
           # graph exactly, rather than silently rewriting it -- a deployment must be reproducible
           # from what's committed, not from whatever the CI runner happened to resolve this time.
-          deno check --frozen ai-evaluate/index.ts calendar-auth-callback/index.ts calendar-auth-start/index.ts calendar-disconnect/index.ts calendar-sync/index.ts execute-import/index.ts generate-candidate-profile/index.ts location-autocomplete/index.ts parse-candidate-cv/index.ts parse-linkedin-profile/index.ts public-review/index.ts refer/index.ts send-invitation/index.ts send-submission/index.ts
+          deno check --frozen ai-evaluate/index.ts calendar-auth-callback/index.ts calendar-auth-start/index.ts calendar-disconnect/index.ts calendar-sync/index.ts execute-import/index.ts generate-candidate-profile/index.ts location-autocomplete/index.ts parse-candidate-cv/index.ts parse-linkedin-profile/index.ts public-review/index.ts refer/index.ts scheduled-maintenance/index.ts send-invitation/index.ts send-submission/index.ts
       - run: supabase start
       - run: supabase db reset
       - run: supabase db lint --level warning

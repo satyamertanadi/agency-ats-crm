@@ -2900,6 +2900,39 @@ export type Database = {
           },
         ]
       }
+      maintenance_heartbeats: {
+        Row: {
+          job_key: string
+          last_detail: Json
+          last_error: string | null
+          last_run_at: string | null
+          last_status: string
+          last_successful_run_at: string | null
+          stale_after_hours: number
+          updated_at: string
+        }
+        Insert: {
+          job_key: string
+          last_detail?: Json
+          last_error?: string | null
+          last_run_at?: string | null
+          last_status?: string
+          last_successful_run_at?: string | null
+          stale_after_hours?: number
+          updated_at?: string
+        }
+        Update: {
+          job_key?: string
+          last_detail?: Json
+          last_error?: string | null
+          last_run_at?: string | null
+          last_status?: string
+          last_successful_run_at?: string | null
+          stale_after_hours?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       member_roles: {
         Row: {
           member_id: string
@@ -4996,7 +5029,42 @@ export type Database = {
         }
         Returns: string
       }
+      get_maintenance_health: {
+        Args: { p_organization_id: string }
+        Returns: {
+          is_stale: boolean
+          job_key: string
+          last_error: string
+          last_run_at: string
+          last_status: string
+          last_successful_run_at: string
+          stale_after_hours: number
+        }[]
+      }
       get_my_access_state: { Args: never; Returns: Json }
+      get_my_workspace_capabilities: {
+        Args: { p_organization_id: string }
+        Returns: {
+          can_import: boolean
+          can_manage_commercial_terms: boolean
+          can_manage_finance: boolean
+          can_manage_interviews: boolean
+          can_manage_offers: boolean
+          can_manage_organization: boolean
+          can_manage_placements: boolean
+          can_manage_templates: boolean
+          can_manage_workspace: boolean
+          can_move_pipeline: boolean
+          can_submit: boolean
+          can_view_admin: boolean
+          can_view_team_reports: boolean
+          can_write_candidates: boolean
+          can_write_clients: boolean
+          can_write_jobs: boolean
+          read_only: boolean
+          role_keys: string[]
+        }[]
+      }
       has_permission: {
         Args: { p_organization_id: string; p_permission: string }
         Returns: boolean
@@ -5238,6 +5306,10 @@ export type Database = {
           p_organization_id: string
           p_template_id: string
         }
+        Returns: string
+      }
+      schedule_maintenance_cron: {
+        Args: { p_function_url: string; p_worker_secret: string }
         Returns: string
       }
       search_candidates_page: {

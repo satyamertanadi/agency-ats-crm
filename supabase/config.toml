@@ -102,6 +102,12 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# Called by pg_cron inside the project, not by a browser session: it authenticates with
+# WORKER_SECRET or the service role key in its own handler rather than with a user JWT.
+[functions.scheduled-maintenance]
+enabled = true
+verify_jwt = false
+
 [functions.generate-candidate-profile]
 enabled = true
 verify_jwt = false

@@ -1,38 +1,21 @@
 import {useQuery} from '@tanstack/react-query'
-import {hasOrganizationPermission,listTeamMembers} from '../features/core/commercialRepository'
+import {getWorkspaceCapabilities} from '../features/core/commercialRepository'
 import type {WorkspaceCapabilities} from '../shared/types/domain'
 import {useAuth} from './AuthProvider'
 import {useOrganization} from './OrganizationProvider'
 
-const permissionKeys=[
-  'candidates.write','companies.write','jobs.write','pipeline.move','submissions.write','interviews.write','offers.write','placements.write',
-  'reports.read','reports.team','finance.write','imports.manage','organization.manage','roles.manage',
-  'commercial_terms.write',
-] as const
-
 const empty:WorkspaceCapabilities={roleKeys:[],canWriteCandidates:false,canWriteClients:false,canWriteJobs:false,canMovePipeline:false,canSubmit:false,canManageInterviews:false,canManageOffers:false,canManagePlacements:false,canManageCommercialTerms:false,canViewTeamReports:false,canManageFinance:false,canImport:false,canManageOrganization:false,canManageWorkspace:false,canManageTemplates:false,canViewAdmin:false,readOnly:true}
 
+/* One RPC, not sixteen. This used to fan out 15 has_permission() calls plus listTeamMembers on every
+ * mount, with CapabilityRoute gating most routes behind the result -- see
+ * get_my_workspace_capabilities in 20260810010000_workspace_capabilities_rpc.sql, which also owns
+ * the derivation of canViewTeamReports / canViewAdmin / readOnly so those rules live next to the
+ * permissions that enforce them rather than being re-implemented here. */
 export function useWorkspaceCapabilities(){
   const {organization}=useOrganization();const {user}=useAuth()
   return useQuery({
     queryKey:['workspace-capabilities',organization?.id,user?.id],enabled:Boolean(organization&&user),
-    queryFn:async():Promise<WorkspaceCapabilities>=>{
-      const [members,permissionValues]=await Promise.all([
-        listTeamMembers(organization!.id),
-        Promise.all(permissionKeys.map(async(key)=>[key,await hasOrganizationPermission(organization!.id,key)] as const)),
-      ])
-      const current=members.find((member)=>member.user_id===user!.id)
-      const roleKeys=(current?.member_roles||[]).map((item)=>item.roles?.role_key).filter((value):value is string=>Boolean(value))
-      const permissions=Object.fromEntries(permissionValues) as Record<(typeof permissionKeys)[number],boolean>
-      const managementRole=roleKeys.some((role)=>['owner','admin','manager','finance'].includes(role))
-      const canViewTeamReports=permissions['reports.team']||(permissions['reports.read']&&managementRole)
-      const canManageOrganization=permissions['organization.manage']
-      const canManageWorkspace=canManageOrganization||permissions['roles.manage']
-      const canManageTemplates=canManageWorkspace
-      const canViewAdmin=canViewTeamReports||permissions['finance.write']||permissions['imports.manage']||canManageWorkspace||canManageTemplates
-      const canWriteCandidates=permissions['candidates.write'];const canWriteClients=permissions['companies.write'];const canWriteJobs=permissions['jobs.write']
-      return {roleKeys,canWriteCandidates,canWriteClients,canWriteJobs,canMovePipeline:permissions['pipeline.move'],canSubmit:permissions['submissions.write'],canManageInterviews:permissions['interviews.write'],canManageOffers:permissions['offers.write'],canManagePlacements:permissions['placements.write'],canManageCommercialTerms:permissions['commercial_terms.write'],canViewTeamReports,canManageFinance:permissions['finance.write'],canImport:permissions['imports.manage'],canManageOrganization,canManageWorkspace,canManageTemplates,canViewAdmin,readOnly:![canWriteCandidates,canWriteClients,canWriteJobs,permissions['pipeline.move'],permissions['submissions.write'],permissions['interviews.write'],permissions['offers.write'],permissions['placements.write']].some(Boolean)}
-    },
+    queryFn:()=>getWorkspaceCapabilities(organization!.id),
     placeholderData:empty,
   })
 }
