@@ -18,8 +18,8 @@ env:
   # build this project successfully (verified by hand: `vercel build --prod` completes clean).
   VERCEL_CLI_VERSION: 56.2.1
   # 2.75.0 pulls ghcr.io/supabase/edge-runtime:v1.70.0 to bundle functions, and that pairing has failed
-  # `deploy-production-supabase` on its first function (alphabetically ai-evaluate, not anything
-  # specific to it) with "Error: No such file or directory (os error 2)" / "error running container:
+  # `deploy-production-supabase` on its first function (whichever sorts first alphabetically, not
+  # anything specific to it) with "Error: No such file or directory (os error 2)" / "error running container:
   # exit 1" on two consecutive production promotions (2026-07-26, 2026-07-27) -- both recovered on a
   # bare re-run, so it is a startup race in that CLI/runtime pairing, not a broken image or a bad
   # function. staging never hits it because `supabase functions deploy` reports "No change found" and

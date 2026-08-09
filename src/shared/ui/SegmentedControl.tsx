@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 /* The two-or-three-way "which view am I in" switch, hand-written in five places (pipeline density,
- * Clients list/board, Today my-work/team, referral status filter, candidate add mode) against the
+ * Clients list/board, Today my-work/team, candidate add mode) against the
  * shared `.segmented-control` CSS.
  *
  * It is a radiogroup, not a toolbar of buttons: the options are mutually exclusive views of one

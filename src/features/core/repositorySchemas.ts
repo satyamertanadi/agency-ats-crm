@@ -199,23 +199,6 @@ export const publicReviewSchema=z.object({
   documents:z.array(z.object({id:z.string(),filename:z.string(),mimeType:z.string(),url:z.string()})).optional(),
 })
 
-export const referralLinkSchema=z.object({
-  id:z.string(),label:z.string().nullable(),token_prefix:z.string(),member_id:z.string().nullable(),
-  expires_at:z.string().nullable(),revoked_at:z.string().nullable(),created_at:z.string(),
-})
-export const referralLinkCreationSchema=z.object({link_id:z.string(),token:z.string(),expires_at:z.string().nullable()})
-export const acceptReferralResultSchema=z.object({candidate_id:z.string(),deduped:z.boolean()})
-
-export const referralSchema=z.object({
-  id:z.string(),organization_id:z.string(),referrer_member_id:z.string().nullable(),
-  referrer_name:z.string().nullable(),referrer_email:z.string().nullable(),candidate_full_name:z.string(),
-  candidate_email:z.string().nullable(),candidate_linkedin_url:z.string().nullable(),candidate_note:z.string().nullable(),
-  resume_path:z.string().nullable(),target_job_id:z.string().nullable(),
-  status:z.enum(['new','accepted','rejected','duplicate']),created_candidate_id:z.string().nullable(),created_at:z.string(),
-  jobs:z.object({id:z.string(),title:z.string()}).nullable().optional(),
-  organization_members:z.object({profiles:z.object({full_name:z.string().nullable().optional()}).nullable().optional()}).nullable().optional(),
-})
-
 // jobs(id,title,companies(name)) / organization_members(profiles(full_name,email)) are all forward-FK
 // singular embeds; stage_history is the backward direction (many stage_history rows per job_candidate)
 // so it stays an array, matching CandidatePipelineAssignment.

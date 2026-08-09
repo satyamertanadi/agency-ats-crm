@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BarChart3, BriefcaseBusiness, Building2, CheckSquare, LayoutDashboard, Plus, Receipt, Search, Settings, UserPlus, UserRoundSearch, X } from 'lucide-react'
+import { BarChart3, BriefcaseBusiness, Building2, CheckSquare, LayoutDashboard, Plus, Receipt, Search, Settings, UserRoundSearch, X } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { searchWorkspace } from '../features/core/repository'
 import { Input } from '../shared/ui/Field'
@@ -18,7 +18,6 @@ const routeItems=[
    * exactly as typing the URL does, and hiding them would need the palette to duplicate the route
    * guards it sits above. */
   {path:'scorecard',label:'Open my scorecard',hint:'Your placements, offers, and activity',icon:BarChart3},
-  {path:'referrals',label:'Open referrals',hint:'Inbound candidate referrals',icon:UserPlus},
   {path:'admin/reports',label:'Open reports',hint:'Team performance and delivery',icon:BarChart3},
   {path:'admin/finance',label:'Open finance',hint:'Placements, fees, and invoices',icon:Receipt},
   {path:'admin/personal',label:'Open my settings',hint:'Calendar connection',icon:Settings},

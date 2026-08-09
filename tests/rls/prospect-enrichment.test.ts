@@ -40,7 +40,10 @@ describe('capture_prospect rich payload',()=>{
       owner.from('candidate_employment').select('id').eq('candidate_id',candidateId),
       owner.from('candidate_skills').select('skill_id').eq('candidate_id',candidateId),
       owner.from('candidate_tags').select('tag_id').eq('candidate_id',candidateId),
-      owner.from('note_links').select('id').eq('candidate_id',candidateId),
+      /* The capture note used to land in notes/note_links, which no screen ever read. It is now an
+       * activity of type 'note', which ActivityFeed renders on the candidate record -- this asserts
+       * the note is reachable, not merely stored. */
+      owner.from('activity_links').select('id,activities!inner(activity_type)').eq('candidate_id',candidateId).eq('activities.activity_type','note'),
       owner.from('candidate_private_details').select('expected_salary,salary_currency').eq('candidate_id',candidateId).single(),
     ])
     expect(employment.data?.length).toBe(2)

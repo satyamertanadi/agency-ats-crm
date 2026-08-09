@@ -54,10 +54,6 @@ policy = "per_worker"
 enabled = false
 port = 55329
 
-[functions.ai-evaluate]
-enabled = true
-verify_jwt = false
-
 [functions.send-invitation]
 enabled = true
 verify_jwt = false
@@ -67,10 +63,6 @@ enabled = true
 verify_jwt = false
 
 [functions.public-review]
-enabled = true
-verify_jwt = false
-
-[functions.refer]
 enabled = true
 verify_jwt = false
 

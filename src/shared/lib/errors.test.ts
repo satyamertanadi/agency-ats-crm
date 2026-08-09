@@ -54,7 +54,14 @@ describe('every identifier the migrations raise has a human sentence',()=>{
       }
     })
     expect(raised.size).toBeGreaterThan(30)
-    const unmapped=[...raised].filter((token)=>humanizeRpcError(token)===null).sort()
+    /* Tokens raised only by functions that have since been dropped. The migration that created them
+     * is still on disk (already applied everywhere; deleting an applied migration file is what
+     * breaks `supabase db push`), so the scan above still finds their text -- but
+     * 20260810030000_drop_unreachable_schema.sql removed the functions, so no code path can raise
+     * them and a user-facing sentence for each would be a message that can never be shown.
+     * Anything NOT on this list still has to be mapped. */
+    const retired=new Set(['referral_not_found','referral_not_pending'])
+    const unmapped=[...raised].filter((token)=>!retired.has(token)&&humanizeRpcError(token)===null).sort()
     expect(unmapped,`These identifiers are raised by a migration but would reach the user verbatim. Add a sentence for each in rpcMessages (src/shared/lib/errors.ts):\n${unmapped.join('\n')}`).toEqual([])
   })
 })
