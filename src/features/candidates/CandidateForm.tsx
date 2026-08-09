@@ -39,7 +39,8 @@ export type CandidateFormProps={
   disabled?:boolean
 }
 
-/* Every candidate form in the product, in four named sections.
+/* Every candidate form in the product, in four named sections -- except at creation, which gets a
+ * fifth shape of its own.
  *
  * There were three forms over this record with three different field sets (9 / ~20 / 19 fields), and
  * the richest one was the one you reached by having a CV parse fail. Consolidating them is mostly
@@ -49,7 +50,13 @@ export type CandidateFormProps={
  *
  * The sections are not decoration. Nineteen fields in one grid is a wall; grouped as who they are,
  * how you reach them, how you will work them, and money, it is four short lists in the order a
- * consultant actually learns these facts. */
+ * consultant actually learns these facts.
+ *
+ * Creation is a different moment from completion, and asking seventeen questions of someone who has
+ * a name and a phone number is how records get abandoned half-filled. What a consultant actually
+ * holds when adding someone is: who they are, how to reach them, what they do now, and whose
+ * candidate this is. Everything else stays on edit, where the record is being completed
+ * deliberately -- and the CV-parse path already fills most of it without anyone typing. */
 export function CandidateForm({form,mode='create',owners=[],salaryPeriod,baseCurrency,lowConfidence,disabled=false}:CandidateFormProps){
   const {register,control,formState:{errors}}=form
   const periodLabel=salaryPeriod==='monthly'?'month':'year'
@@ -62,14 +69,37 @@ export function CandidateForm({form,mode='create',owners=[],salaryPeriod,baseCur
   const showsOwnership=mode!=='cv-review'
   const currencies=currencyOptions(baseCurrency)
 
+  /* The five fields a consultant has at the moment of adding someone. Unrendered fields keep the
+   * host's defaults (see AddCandidateModal), so the record is created valid and completed on edit. */
+  if(mode==='create')return <div className="candidate-form">
+    <section className="candidate-form-section">
+      <div className="form-grid">
+        <FormField label="Full name" error={errors.full_name?.message} className="full">
+          <Input autoFocus disabled={disabled} {...register('full_name')}/>
+        </FormField>
+        <FormField label="Email" error={errors.email?.message}><Input type="email" disabled={disabled} {...register('email')}/></FormField>
+        <FormField label="Phone"><Input type="tel" disabled={disabled} {...register('phone')}/></FormField>
+        <FormField label="Current company"><Input disabled={disabled} {...register('current_company')}/></FormField>
+        <FormField label="Current position"><Input disabled={disabled} {...register('current_position')}/></FormField>
+        <FormField label="Owner">
+          <Select disabled={disabled} {...register('owner_member_id')}>
+            <option value="">Unassigned</option>
+            {owners.map((owner)=><option key={owner.id} value={owner.id}>{owner.label}</option>)}
+          </Select>
+        </FormField>
+        <p className="candidate-form-note muted full">Email and phone stay behind the candidate-private permission boundary. Consent, salary, source and the rest are on the candidate record once it exists.</p>
+      </div>
+    </section>
+  </div>
+
   return <div className="candidate-form">
     <section className="candidate-form-section">
       <h3>Who they are</h3>
       <div className="form-grid">
         <FormField label="Full name" error={errors.full_name?.message} low={lowConfidence?.('full_name')} className="full">
-          {/* Autofocused only when this form is the reason the dialog opened. In CV review the eye
-            * belongs on the flagged values, and on the detail page focus has already been placed. */}
-          <Input autoFocus={mode==='create'} disabled={disabled} {...register('full_name')}/>
+          {/* Not autofocused: in CV review the eye belongs on the flagged values, and on the detail
+            * page focus has already been placed. The create form above focuses its own first field. */}
+          <Input disabled={disabled} {...register('full_name')}/>
         </FormField>
         <FormField label="Current company" low={lowConfidence?.('current_company')}><Input disabled={disabled} {...register('current_company')}/></FormField>
         <FormField label="Current position" low={lowConfidence?.('current_position')}><Input disabled={disabled} {...register('current_position')}/></FormField>

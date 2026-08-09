@@ -50,19 +50,25 @@ function fillRequired(){
 describe('AddCandidateModal',()=>{
   beforeEach(()=>{createCandidate.mockReset();createCandidate.mockResolvedValue('cand-1');updateCandidateWithProfile.mockClear()})
 
-  /* The whole point of the shared form: these four fields had no input on the manual path, so every
-   * hand-entered candidate arrived unassigned, consent 'unknown', and -- because salary_currency was
-   * submitted without ever being rendered -- with its expected salary silently denominated wrong. */
-  it('writes owner, status, consent and currency that manual entry could not previously set',async()=>{
+  /* Creation asks only what a consultant holds at that moment: who they are, how to reach them,
+   * what they do now, and whose candidate this is. Consent, salary, source and the rest belong on
+   * edit, where the record is being completed deliberately -- and the CV path fills most of them.
+   *
+   * Owner and currency still travel with the create, because those were the two the old manual form
+   * dropped silently: every hand-entered candidate arrived unassigned, and expected salary was
+   * denominated in whatever the default happened to be. */
+  it('asks only the five creation fields and still writes owner, status and currency',async()=>{
     renderModal()
+    for(const later of ['Consent status','Expected salary (per month)','Source','Notice period (days)','LinkedIn','Location']){
+      expect(screen.queryByLabelText(later)).toBeNull()
+    }
     fillRequired()
-    fireEvent.change(screen.getByLabelText('Consent status'),{target:{value:'granted'}})
-    fireEvent.change(screen.getByLabelText('Expected salary (per month)'),{target:{value:'42000000'}})
+    fireEvent.change(screen.getByLabelText('Current position'),{target:{value:'Commercial Director'}})
     fireEvent.click(screen.getByRole('button',{name:'Create candidate'}))
     await waitFor(()=>expect(createCandidate).toHaveBeenCalled())
     expect(createCandidate).toHaveBeenCalledWith('org-1','user-1',expect.objectContaining({
-      full_name:'Aisha Rahman',email:'aisha@example.com',owner_member_id:'member-1',
-      status:'active',consent_status:'granted',salary_currency:'IDR',expected_salary:42000000,
+      full_name:'Aisha Rahman',email:'aisha@example.com',current_position:'Commercial Director',
+      owner_member_id:'member-1',status:'active',salary_currency:'IDR',
     }),expect.objectContaining({employment:[],education:[],languages:[],skills:[]}))
   },10000)
 
