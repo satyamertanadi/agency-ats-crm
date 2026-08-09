@@ -23,24 +23,21 @@ describe('job status filter',()=>{
 
 describe('next action links',()=>{
   it('routes each action to the surface that performs it',()=>{
-    expect(nextActionHref('/jobs/1',{next_action:'Assign an owner'})).toBe('/jobs/1?open=edit')
-    expect(nextActionHref('/jobs/1',{next_action:'Add candidates'})).toBe('/jobs/1?open=add')
-    expect(nextActionHref('/jobs/1',{next_action:'Log first activity'})).toBe('/jobs/1?view=activity')
+    expect(nextActionHref('/jobs/1',job({owner_member_id:null}))).toBe('/jobs/1?open=edit')
+    expect(nextActionHref('/jobs/1',job({candidate_count:0}))).toBe('/jobs/1?open=add')
   })
-  it('falls back to the board when the action is already there or absent',()=>{
-    expect(nextActionHref('/jobs/1',{next_action:'Review waiting candidates'})).toBe('/jobs/1')
-    expect(nextActionHref('/jobs/1',{next_action:null})).toBe('/jobs/1')
+  it('falls back to the board when setup is complete',()=>{
+    expect(nextActionHref('/jobs/1',job())).toBe('/jobs/1')
   })
 
   /* The list's link and the workspace's button read the same model, so a phrase can never route one
    * way in the list and another in the workspace. */
   it('gives the workspace the same surface it gives the list a link to',()=>{
-    expect(nextActionDetail(job({next_action:'Assign an owner'}))?.surface).toBe('edit')
-    expect(nextActionDetail(job({next_action:'Add candidates'}))?.surface).toBe('add')
-    expect(nextActionDetail(job({next_action:null}))).toBeNull()
+    expect(nextActionDetail(job({owner_member_id:null}))?.surface).toBe('edit')
+    expect(nextActionDetail(job({candidate_count:0}))?.surface).toBe('add')
+    expect(nextActionDetail(job())).toBeNull()
   })
-  it('explains a waiting count in the plural it actually is',()=>{
-    expect(nextActionDetail(job({next_action:'Review waiting candidates',waiting_count:1}))?.explain).toContain('1 candidate has')
-    expect(nextActionDetail(job({next_action:'Review waiting candidates',waiting_count:3}))?.explain).toContain('3 candidates have')
+  it('ignores the database next_action field so it cannot compete with the shared resolver',()=>{
+    expect(nextActionDetail(job({next_action:'Assign an owner'}))).toBeNull()
   })
 })

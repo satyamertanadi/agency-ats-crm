@@ -132,8 +132,11 @@ export const submissionCandidateDocumentRowSchema=z.object({
     /* Consent and status ride along so the composer can refuse to send a candidate who has not
      * agreed to be represented, without an N-query fan-out over getCandidateDetail. The embed is
      * to-many for the same reason documented on candidatePrivateEmbed, so it accepts both shapes. */
-    status:z.string().optional(),
-    candidate_private_details:z.union([z.object({consent_status:z.string()}),z.array(z.object({consent_status:z.string()}))]).nullable().optional(),
+    status:z.string().optional(),availability:z.string().nullable().optional(),notice_period_days:z.number().nullable().optional(),
+    candidate_private_details:z.union([
+      z.object({consent_status:z.string(),expected_salary:z.number().nullable(),salary_currency:z.string().nullable()}),
+      z.array(z.object({consent_status:z.string(),expected_salary:z.number().nullable(),salary_currency:z.string().nullable()})),
+    ]).nullable().optional(),
     document_links:z.array(z.object({documents:z.union([submissionDocumentSchema,z.array(submissionDocumentSchema)]).nullable()})).optional(),
   }).nullable(),
 })

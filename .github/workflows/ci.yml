@@ -122,21 +122,3 @@ jobs:
       - name: Print Edge Function logs on failure
         if: failure()
         run: cat /tmp/edge-functions.log || true
-
-  # Advisory-only. The action needs Dependency graph + GitHub Advanced Security on the repo, and without
-  # them it fails every PR with "Dependency review is not supported on this repository" regardless of
-  # what the PR contains -- a check that is always red is a check nobody reads, which is how the
-  # `npm audit` failure below went unnoticed on main from 2026-07-26 until it was finally cleared.
-  # `npm audit --audit-level=high` in the `app` job is the real gate and covers the same advisories.
-  # Drop continue-on-error once the repo settings are enabled and this reports properly.
-  dependency-review:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high

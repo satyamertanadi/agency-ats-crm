@@ -29,8 +29,8 @@ export function PhaseJump({containerRef,columns}:{containerRef:RefObject<HTMLDiv
     },{root:container,threshold:[0.5,0.75]})
     for(const node of container.querySelectorAll('[data-phase-key]'))observer.observe(node)
     return()=>observer.disconnect()
-    // Re-observes when the column set changes -- toggling detailed stages replaces every node, and
-    // an observer still holding the old ones would freeze the indicator.
+    // Re-observes when the column set changes after pipeline data refreshes; an observer still
+    // holding removed nodes would freeze the indicator.
   },[containerRef,columns])
 
   const jump=(key:string)=>{

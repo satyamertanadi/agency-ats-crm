@@ -5,10 +5,9 @@ import {SubmissionComposerDrawer} from './SubmissionComposerDrawer'
 import {ToastProvider} from '../../shared/ui/Toast'
 import type {Job} from '../../shared/types/domain'
 
-/* create_submission_package has taken a jsonb ARRAY since the initial schema and the UI sent exactly
- * one candidate, so putting three people in front of a client meant three packages, three emails and
- * three links. These pin the two things that makes true: that N candidates leave as ONE package, and
- * that the nine long-dead candidate_submissions columns are actually written. */
+/* One composer handles both a single candidate and a shortlist. These tests pin the commercial
+ * outcome: one client package, useful defaults from the candidate record, and no mandatory admin
+ * wall before a consultant can send it. */
 
 const {sendClientSubmission,listSubmissionCandidateDocuments,listContacts}=vi.hoisted(()=>({
   sendClientSubmission:vi.fn(),listSubmissionCandidateDocuments:vi.fn(),listContacts:vi.fn(),
@@ -22,7 +21,8 @@ const job={id:'job-1',title:'Head of Brand',company_id:'co-1',currency:'IDR',sta
 const candidateRow=(id:string,name:string,consent='granted',status='active')=>({
   id,candidate_id:`cand-${id}`,
   candidates:{id:`cand-${id}`,full_name:name,current_company:'Acme',current_position:'Brand Manager',status,
-    candidate_private_details:{consent_status:consent},
+    availability:'Within 2 weeks',notice_period_days:30,
+    candidate_private_details:{consent_status:consent,expected_salary:45_000_000,salary_currency:'IDR'},
     document_links:[{documents:{id:`doc-${id}`,file_name:'cv.pdf',original_filename:`${name}-cv.pdf`,mime_type:'application/pdf',storage_path:'p',size_bytes:1024,created_at:'2026-07-01T00:00:00Z',deleted_at:null}}]},
 })
 
@@ -91,6 +91,21 @@ describe('SubmissionComposerDrawer',()=>{
     fireEvent.click(screen.getByRole('button',{name:'Send 1 candidate'}))
     await waitFor(()=>expect(sendClientSubmission).toHaveBeenCalled())
     expect(sentItems()[0]!.candidate_summary).toBe('Ana Chen — Brand Manager at Acme.')
+  })
+
+  it('opens the essential single-candidate pitch and sends existing terms without retyping them',async()=>{
+    renderComposer([{jobCandidateId:'jc-1',name:'Ana Chen'}])
+    await waitFor(()=>expect(screen.getByLabelText('Recipient email')).toBeInTheDocument())
+    const candidateSection=screen.getByText('Ana Chen').closest('details') as HTMLDetailsElement
+    const optionalSection=screen.getByText('Add detail (optional)').closest('details') as HTMLDetailsElement
+    expect(candidateSection.open).toBe(true)
+    expect(optionalSection.open).toBe(false)
+    await waitFor(()=>expect(screen.getByLabelText('Summary the client sees first')).toHaveValue('Ana Chen — Brand Manager at Acme.'))
+
+    fireEvent.change(screen.getByLabelText('Recipient email'),{target:{value:'rani@sembada.example'}})
+    fireEvent.click(screen.getByRole('button',{name:'Send 1 candidate'}))
+    await waitFor(()=>expect(sendClientSubmission).toHaveBeenCalled())
+    expect(sentItems()[0]).toMatchObject({expected_salary:'45000000',currency:'IDR',notice_period:'30 days',availability:'Within 2 weeks'})
   })
 
   /* Consent is per candidate, so it has to gate per candidate. Silently dropping someone from a

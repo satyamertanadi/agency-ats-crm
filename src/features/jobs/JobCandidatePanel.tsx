@@ -1,12 +1,12 @@
-import {useEffect,useMemo,useRef,useState} from 'react'
+import {useEffect,useMemo,useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {BriefcaseBusiness,CalendarPlus,CheckCircle2,FileText,Handshake,Mail,MoveRight,TriangleAlert} from 'lucide-react'
+import {BriefcaseBusiness,CalendarPlus,CheckCircle2,Handshake,Mail,MoveRight,TriangleAlert} from 'lucide-react'
 import {Link} from 'react-router'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {convertOfferToPlacement,createInterview,createOffer,listContacts,listJobHealth,updateInterview,type PlacementFeeSource} from '../core/repository'
-import {getCandidateDetail,listCalendarConnections,listSubmissionCandidateDocuments,sendClientSubmission,syncInterviewCalendar} from '../core/commercialRepository'
+import {convertOfferToPlacement,createInterview,createOffer,listJobHealth,updateInterview,type PlacementFeeSource} from '../core/repository'
+import {getCandidateDetail,listCalendarConnections,syncInterviewCalendar} from '../core/commercialRepository'
 import type {Interview,Job,JobCandidate,Offer,PipelineStage,Placement} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
 import {Callout} from '../../shared/ui/Callout'
@@ -23,23 +23,20 @@ import type {StageMoveInput} from '../core/useStageMove'
 import {JobCandidateLifecycle} from './JobCandidateLifecycle'
 import {recordWorkflowEvent} from '../../shared/lib/productAnalytics'
 
-type ActionName='submit'|'check_feedback'|'interview'|'offer'|'placement'|'move'
+type ActionName='check_feedback'|'check_offer'|'outcome'|'retry_cancel'|'interview'|'offer'|'placement'|'move'
 
 export interface JobCandidatePanelProps {job:Job;item:JobCandidate;stage:PipelineStage;stages:PipelineStage[];currentMemberId?:string;interviews:Interview[];offers:Offer[];placement:Placement|null;hasSubmission:boolean;action:string|null;readOnly:boolean;onAction:(action:string|null)=>void;onClose:()=>void;onUpdated:()=>Promise<unknown>;onMove:(input:StageMoveInput)=>void;moving:boolean;
+  onComposeSubmission:()=>void;
   /* The org-wide lists no longer gate the board, so this panel can open before they land -- or after
    * they failed. Empty and not-yet-known are different claims and the panel must not confuse them. */
   detailLoading?:boolean;detailError?:unknown}
 
 const localValue=(date:Date)=>{const offset=date.getTimezoneOffset()*60_000;return new Date(date.valueOf()-offset).toISOString().slice(0,16)}
 
-export function JobCandidatePanel({job,item,stage,stages,currentMemberId,interviews,offers,placement,hasSubmission,action:requestedAction,readOnly,onAction,onClose,onUpdated,onMove,moving,detailLoading=false,detailError}:JobCandidatePanelProps){
+export function JobCandidatePanel({job,item,stage,stages,currentMemberId,interviews,offers,placement,hasSubmission,action:requestedAction,readOnly,onAction,onClose,onUpdated,onMove,moving,onComposeSubmission,detailLoading=false,detailError}:JobCandidatePanelProps){
   const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast()
   const details=useQuery({queryKey:['candidate-detail',organization?.id,item.candidate_id],queryFn:()=>getCandidateDetail(organization!.id,item.candidate_id)})
-  const submissionRows=useQuery({queryKey:['submission-candidates',organization?.id,job.id],queryFn:()=>listSubmissionCandidateDocuments(organization!.id,job.id)})
   const connections=useQuery({queryKey:['calendar-connections',organization?.id],queryFn:()=>listCalendarConnections(organization!.id)})
-  const contacts=useQuery({queryKey:['contacts',organization?.id],queryFn:()=>listContacts(organization!.id)})
-  const [recipientName,setRecipientName]=useState('');const [recipientEmail,setRecipientEmail]=useState('');const [message,setMessage]=useState('Please review this candidate for the role.');const [selectedDocuments,setSelectedDocuments]=useState<string[]>([])
-  const submissionRequestKey=useRef('');const submissionFingerprint=useRef('')
   const startDefault=useMemo(()=>{const start=new Date();start.setDate(start.getDate()+1);start.setHours(9,0,0,0);return start},[])
   const [startsAt,setStartsAt]=useState(localValue(startDefault));const [endsAt,setEndsAt]=useState(localValue(new Date(startDefault.valueOf()+60*60*1000)));const [location,setLocation]=useState('');const [attendeeEmails,setAttendeeEmails]=useState('');const [createMeet,setCreateMeet]=useState(true);const [interviewKind,setInterviewKind]=useState('client_interview')
   // Non-null only while this form is moving an existing interview rather than creating one.
@@ -51,25 +48,16 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
   const [feeSource,setFeeSource]=useState<PlacementFeeSource>('manual')
   const privateData=Array.isArray(details.data?.candidate_private_details)?details.data.candidate_private_details[0]:details.data?.candidate_private_details
   useEffect(()=>{if(privateData?.email&&!attendeeEmails)setAttendeeEmails(privateData.email)},[privateData?.email,attendeeEmails])
-  const documents=useMemo(()=>{const row=(submissionRows.data||[]).find((candidate)=>candidate.id===item.id);return (row?.candidates?.document_links||[]).flatMap((link)=>Array.isArray(link.documents)?link.documents:link.documents?[link.documents]:[]).filter((document)=>!document.deleted_at)},[item.id,submissionRows.data])
   const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
   const jobHealth=health.data?.find((entry)=>entry.id===job.id)
   const expectedFee=jobHealth?.expected_fee!=null?Number(jobHealth.expected_fee):null
   const expectedSource:PlacementFeeSource|null=jobHealth?.fee_source==='Job override'?'job_override':jobHealth?.fee_source==='Account agreement'?'account_agreement':null
   const acceptedOffer=offers.find((offer)=>offer.status==='accepted');const recommendation=recommendedCandidateAction({stage,hasSubmission,interviews,offers,hasPlacement:Boolean(placement)})
   const calendarConnected=connections.data?.some((connection)=>connection.member_id===currentMemberId&&connection.status==='connected')||false
-  const clientContacts=(contacts.data||[]).filter((contact)=>contact.company_id===job.company_id&&contact.contact_status!=='do_not_contact')
   const compliant=details.isSuccess&&item.candidates?.status!=='do_not_contact'&&privateData?.consent_status==='granted'
-  const selectContact=(contactId:string)=>{const contact=clientContacts.find((entry)=>entry.id===contactId);setRecipientName(contact?.full_name||'');setRecipientEmail(contact?.email||'')}
   const trackAction=(eventName:'action_started'|'action_completed'|'action_abandoned',actionKey:string)=>recordWorkflowEvent({organizationId:organization!.id,eventName,surface:'job_candidate_panel',actionKey})
   const refresh=async()=>{await Promise.all([cache.invalidateQueries({queryKey:['interviews',organization?.id]}),cache.invalidateQueries({queryKey:['offers',organization?.id]}),cache.invalidateQueries({queryKey:['placements',organization?.id]}),cache.invalidateQueries({queryKey:['submissions',organization?.id]}),onUpdated()])}
-  /* Every mutation on this panel confirms and every failure says what did NOT happen. Sending a
-   * shortlist to a client is the most consequential action in the product and it used to report
-   * nothing at all on either path -- the drawer simply closed, which is indistinguishable from the
-   * drawer closing because the send failed. `candidateName` leads each message because a consultant
-   * working a board of twelve needs to know which card the confirmation belongs to. */
   const candidateName=item.candidates?.full_name||'The candidate'
-  const submit=useMutation({mutationFn:()=>{const payload={organizationId:organization!.id,jobId:job.id,title:`${item.candidates?.full_name} · ${job.title}`,message,recipientName:recipientName||undefined,recipientEmail,expiryDays:7,items:[{job_candidate_id:item.id,candidate_summary:`${item.candidates?.full_name} — ${item.candidates?.current_position||'Experienced candidate'}${item.candidates?.current_company?` at ${item.candidates.current_company}`:''}.`,document_ids:selectedDocuments}]};const fingerprint=JSON.stringify(payload);if(fingerprint!==submissionFingerprint.current){submissionFingerprint.current=fingerprint;submissionRequestKey.current=crypto.randomUUID()}return sendClientSubmission({...payload,requestKey:submissionRequestKey.current})},onSuccess:async()=>{submissionRequestKey.current='';submissionFingerprint.current='';trackAction('action_completed','submit');toast.success(`${candidateName} was sent to ${recipientName||recipientEmail}.`,'The review link expires in 7 days.');onAction(null);await refresh()},onError:(error)=>toast.error(error,'The client was not emailed and no review link was created.')})
   /* Reschedule moves the interview that exists; it used to open this same form and call
    * createInterview, so "reschedule" quietly produced a SECOND interview -- two rows on the card, two
    * calendar events, and a client invited twice. updateInterview has existed since the initial schema
@@ -104,6 +92,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
     trackAction('action_completed','move');onAction(null)
   }
   const chooseAction=(value:ActionName)=>{trackAction('action_started',value);setRescheduling(null);onAction(value)};const action=readOnly?null:requestedAction
+  const composeSubmission=()=>{trackAction('action_started','submit');onComposeSubmission()}
   /* Pre-filled with the interview's current time, because a reschedule is an edit of a known value --
    * making the consultant retype a slot the card is displaying beside them is how a wrong date gets
    * typed. Retains the same form, in reschedule mode. */
@@ -114,11 +103,11 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
     trackAction('action_started','interview');onAction('interview')
   }
   const closePanel=()=>{if(action)trackAction('action_abandoned',action);onClose()}
+  const showLifecycle=!action||['check_feedback','check_offer','outcome','retry_cancel'].includes(action)
   return <Drawer title={item.candidates?.full_name||'Candidate'} description={`${stage.name} · ${job.title}`} eyebrow="Candidate action" open onClose={closePanel}>
     <div className="candidate-context"><div className="candidate-context-summary"><span className="candidate-context-avatar">{item.candidates?.full_name?.split(/\s+/).slice(0,2).map((part)=>part[0]).join('')}</span><div><strong>{item.candidates?.current_position||'Role not recorded'}</strong><p>{[item.candidates?.current_company,item.candidates?.location].filter(Boolean).join(' · ')||'Profile details need review'}</p></div></div><div className="context-badges"><Badge tone="info">{stage.name}</Badge>{privateData&&<StatusBadge map={consentStatus} value={privateData.consent_status}/>}</div><Link className="record-link" to={`/app/${organization!.slug}/candidates/${item.candidate_id}`}>Open full candidate profile</Link></div>
-    <section className="next-action-card"><span><MoveRight size={18}/></span><div><p className="eyebrow">Recommended next action</p><strong>{readOnly?'Waiting':recommendation.label}</strong><p>{readOnly?'This job is closed to recruitment actions. Its history remains available.':recommendation.reason}</p></div>{!readOnly&&<>{recommendation.key==='submit'&&capabilities.data?.canSubmit&&<Button disabled={!compliant} onClick={()=>chooseAction('submit')}>Submit to client</Button>}{recommendation.key==='schedule_interview'&&capabilities.data?.canManageInterviews&&<Button onClick={()=>chooseAction('interview')}>Schedule interview</Button>}{['record_outcome','record_offer'].includes(recommendation.key)&&capabilities.data?.canManageOffers&&<Button onClick={()=>chooseAction('offer')}>Record offer</Button>}{recommendation.key==='create_placement'&&capabilities.data?.canManagePlacements&&<Button onClick={()=>chooseAction('placement')}>Create placement</Button>}{recommendation.key==='check_feedback'&&<Button onClick={()=>chooseAction('check_feedback')}>Check feedback</Button>}</>}</section>
+    <section className="next-action-card"><span><MoveRight size={18}/></span><div><p className="eyebrow">Recommended next action</p><strong>{readOnly?'Waiting':recommendation.label}</strong><p>{readOnly?'This job is closed to recruitment actions. Its history remains available.':recommendation.reason}</p></div>{!readOnly&&<>{recommendation.key==='submit'&&capabilities.data?.canSubmit&&<Button disabled={!compliant} onClick={composeSubmission}>Submit to client</Button>}{recommendation.key==='schedule_interview'&&capabilities.data?.canManageInterviews&&<Button onClick={()=>chooseAction('interview')}>Schedule interview</Button>}{recommendation.key==='record_outcome'&&capabilities.data?.canManageInterviews&&<Button onClick={()=>chooseAction('outcome')}>Record outcome</Button>}{recommendation.key==='record_offer'&&capabilities.data?.canManageOffers&&<Button onClick={()=>chooseAction('offer')}>Record offer</Button>}{recommendation.key==='check_offer'&&capabilities.data?.canManageOffers&&<Button onClick={()=>chooseAction('check_offer')}>Open offer</Button>}{recommendation.key==='create_placement'&&capabilities.data?.canManagePlacements&&<Button onClick={()=>chooseAction('placement')}>Create placement</Button>}{recommendation.key==='check_feedback'&&<Button onClick={()=>chooseAction('check_feedback')}>Check feedback</Button>}</>}</section>
     {!compliant&&<p className="warning-box">Submission is unavailable because consent is not granted or the candidate is marked do not contact. Update the candidate record before sharing information.</p>}
-    {action==='submit'&&<section className="context-action-form"><h3>Submit to client</h3>{clientContacts.length>0&&<Field label="Client contact"><Select defaultValue="" onChange={(event)=>selectContact(event.target.value)}><option value="">Select a suggested contact</option>{clientContacts.map((contact)=><option key={contact.id} value={contact.id}>{contact.full_name}{contact.position?` · ${contact.position}`:''}</option>)}</Select></Field>}<Field label="Recipient name"><Input value={recipientName} onChange={(event)=>setRecipientName(event.target.value)}/></Field><Field label="Recipient email"><Input type="email" value={recipientEmail} onChange={(event)=>setRecipientEmail(event.target.value)}/></Field><Field label="Message"><Textarea value={message} onChange={(event)=>setMessage(event.target.value)}/></Field><fieldset><legend>Documents to share</legend><div className="checkbox-list">{documents.map((document)=><label key={document.id}><input type="checkbox" checked={selectedDocuments.includes(document.id)} onChange={(event)=>setSelectedDocuments((current)=>event.target.checked?[...current,document.id]:current.filter((id)=>id!==document.id))}/><span><FileText size={14}/>{document.original_filename||document.file_name}</span></label>)}{documents.length===0&&<p className="muted">No candidate documents are available. You can still send the written summary.</p>}</div></fieldset>{submit.error&&<p className="form-error" role="alert">{submit.error.message}</p>}<ActionButtons onCancel={()=>onAction(null)} label="Send secure submission" loading={submit.isPending} disabled={!recipientEmail||!compliant} onSave={()=>submit.mutate()}/></section>}
     {/* 'check_feedback' no longer needs a step of its own -- the feedback is on the lifecycle cards
       * below, so choosing it just returns to them rather than opening a screen that restated the
       * question instead of answering it. */}
@@ -127,9 +116,8 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
     {action==='placement'&&<section className="context-action-form"><h3>Create placement</h3>{acceptedOffer?<><p className="success-box"><CheckCircle2 size={15}/>Accepted offer · {formatMoney(acceptedOffer.salary,acceptedOffer.currency)}</p>{expectedFee!=null&&expectedSource
       ?<p className="fee-suggestion"><span>Expected fee <strong>{formatMoney(expectedFee,jobHealth?.currency||job.currency||undefined)}</strong> · {jobHealth?.fee_source}</span><Button size="sm" variant="secondary" type="button" onClick={()=>{setFee(String(expectedFee));setFeeSource(expectedSource)}}>Use this fee</Button></p>
       :<p className="warning-box"><TriangleAlert size={15}/>This job has no agreed fee terms, so the placement fee will be recorded as manually priced.</p>}<Field label="Placement fee"><Input type="number" min="0" value={fee} onChange={(event)=>{setFee(event.target.value);setFeeSource('manual')}}/></Field><p className="muted">Recorded as <strong>{feeSource==='manual'?'manually priced':feeSource==='job_override'?'the job fee override':'the account fee agreement'}</strong>. The 90-day guarantee default will be applied.</p>{place.error&&<p className="form-error" role="alert">{place.error.message}</p>}<ActionButtons onCancel={()=>onAction(null)} label="Create placement" loading={place.isPending} disabled={!fee} onSave={()=>place.mutate()}/></>:<p className="warning-box">An accepted offer is required before creating a placement.</p>}</section>}
-    {/* The flat 17-item list became phase-grouped: a consultant thinks "move them to Interview", not
-      * "move them to the ninth stage". Outcome stages are grouped last and apart, because rejecting
-      * someone and advancing them are different intentions that sat adjacent in one alphabetical run. */}
+    {/* Imported legacy stages remain phase-grouped. Outcome stages stay last and apart because
+      * rejecting someone and advancing them are different intentions. */}
     {action==='move'&&<section className="context-action-form"><h3>Move candidate</h3>
       <Field label="Stage"><Select value={moveStage} onChange={(event)=>setMoveStage(event.target.value)}>
         {groupPipelineStages(stages.filter((option)=>!isOutcomeStage(option))).map((phase)=><optgroup key={phase.key} label={phase.label}>{phase.stages.map((option)=><option value={option.id} key={option.id}>{option.name}</option>)}</optgroup>)}
@@ -141,7 +129,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
       * statements with no way to act on any of them. Submission and placement stay as one-line facts
       * because both already have their own affordances above; the other four each ended a loop that
       * had no ending. */}
-    {!action&&<section className="context-history">
+    {showLifecycle&&<section className="context-history">
       <div className="milestone-list"><article><Mail size={15}/><span><strong>Client submission</strong><small>{hasSubmission?'Sent to client':'Not yet sent'}</small></span></article><article><Handshake size={15}/><span><strong>Placement</strong><small>{placement?'Recorded':'Not recorded'}</small></span></article></div>
       {/* Says which it is. "No offer recorded" while the offers query is still in flight, or after it
         * failed, is the panel asserting something it does not know. */}
@@ -150,7 +138,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
         :detailLoading&&<p className="muted">Loading offers, interviews and placements…</p>}
       <JobCandidateLifecycle organizationId={organization!.id} jobCandidateId={item.id} candidateName={candidateName}
         interviews={interviews} offers={offers} canManageInterviews={Boolean(capabilities.data?.canManageInterviews)} canManageOffers={Boolean(capabilities.data?.canManageOffers)} readOnly={readOnly}
-        onUpdated={refresh} onReschedule={startReschedule}/>
+        openOutcome={action==='outcome'} onOutcomeClose={()=>onAction(null)} onUpdated={refresh} onReschedule={startReschedule}/>
       {!readOnly&&<div className="context-secondary-actions">{capabilities.data?.canManageInterviews&&<Button variant="secondary" leadingIcon={<CalendarPlus size={14}/>} onClick={()=>chooseAction('interview')}>Interview</Button>}{capabilities.data?.canManageOffers&&<Button variant="secondary" leadingIcon={<BriefcaseBusiness size={14}/>} onClick={()=>chooseAction('offer')}>Offer</Button>}{capabilities.data?.canMovePipeline&&<Button variant="quiet" onClick={()=>chooseAction('move')}>Move stage</Button>}</div>}
     </section>}
   </Drawer>

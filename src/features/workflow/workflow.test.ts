@@ -2,12 +2,12 @@ import {readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {describe,expect,it} from 'vitest'
 import {buildPipelineColumns,buildTodayWorkItems,columnKeyForStage,groupPipelineStages,phaseForStage,recommendedCandidateAction,resolveStageForColumn,type TodayConsent,type TodayFeedback} from './workflow'
-import type {Job,Offer,Task} from '../../shared/types/domain'
+import type {Interview,Job,Offer,Task} from '../../shared/types/domain'
 
 const stage=(stage_key:string,stage_type='active')=>({id:stage_key,pipeline_id:'p1',name:stage_key,stage_key,stage_type,position:0,color:null,phase_key:null})
 
-/* The seed's default board (supabase/seed.sql:55-60): several phases hold more than one stage, which
- * is the precondition for the bug the invariant below guards. */
+/* Legacy and imported pipelines can still hold several detailed stages inside one operating phase.
+ * The simplified default is smaller, but those existing records must continue to render safely. */
 const board=[
   stage('sourced'),stage('contacted'),stage('screening'),stage('shortlisted'),stage('assessment'),
   stage('submitted_to_client'),stage('client_reviewing'),stage('interview_scheduled'),
@@ -20,8 +20,8 @@ describe('pipeline board columns',()=>{
    * the dropdown read "Sourcing", because the column and the <select> value were derived separately
    * and the options only held each phase's first stage id. Card and column must agree for EVERY
    * stage, not just the first of each phase. */
-  it.each([false,true])('renders every stage under a column whose key the card can display (detailed=%s)',(detailed)=>{
-    const columns=buildPipelineColumns(board,detailed)
+  it('renders every active stage under a phase whose key the card can display',()=>{
+    const columns=buildPipelineColumns(board)
     const options=columns.map((column)=>column.key)
     for(const item of board.filter((entry)=>!['rejected','on_hold'].includes(entry.stage_type))){
       const key=columnKeyForStage(columns,item.id)
@@ -31,12 +31,12 @@ describe('pipeline board columns',()=>{
   })
 
   it('keeps outcome stages off the board so they cannot become columns',()=>{
-    expect(buildPipelineColumns(board,false).map((column)=>column.label)).toEqual(['Sourcing','Screening','Shortlist','Client review','Interview','Offer','Placed'])
-    expect(columnKeyForStage(buildPipelineColumns(board,false),'rejected')).toBeUndefined()
+    expect(buildPipelineColumns(board).map((column)=>column.label)).toEqual(['Sourcing','Screening','Shortlist','Client review','Interview','Offer','Placed'])
+    expect(columnKeyForStage(buildPipelineColumns(board),'rejected')).toBeUndefined()
   })
 
   it('enters a phase at its first stage but never demotes a candidate already inside it',()=>{
-    const columns=buildPipelineColumns(board,false)
+    const columns=buildPipelineColumns(board)
     // The demotion half of the bug: choosing "Interview" for someone already at interview_completed
     // used to send them back to interview_scheduled.
     expect(resolveStageForColumn(columns,'interview','interview_completed')).toBeNull()
@@ -45,11 +45,6 @@ describe('pipeline board columns',()=>{
     expect(resolveStageForColumn(columns,'nonexistent','contacted')).toBeNull()
   })
 
-  it('moves between individual stages when detailed stages are shown',()=>{
-    const columns=buildPipelineColumns(board,true)
-    expect(resolveStageForColumn(columns,'interview_completed','interview_scheduled')).toBe('interview_completed')
-    expect(resolveStageForColumn(columns,'interview_scheduled','interview_scheduled')).toBeNull()
-  })
 })
 
 /* The stage->phase mapping exists twice: once here in TS (keyPhase, read through phaseForStage) and
@@ -123,6 +118,17 @@ describe('consultant workflow model',()=>{
     expect(items[0]).toMatchObject({kind:'blocked',title:'Resolve bounced delivery',href:'/app/northstar/jobs/j1'})
   })
 
+  it('routes a failed cancellation notice back to one retry action on the candidate',()=>{
+    const cancelled:Interview={id:'i1',job_candidate_id:'jc1',interview_type:null,stage_label:null,starts_at:'2026-07-15T10:00:00Z',ends_at:'2026-07-15T11:00:00Z',timezone:'UTC',location:null,meeting_url:null,status:'cancelled',organizer_member_id:'m1',attendee_emails:['one@example.com','two@example.com'],create_google_meet:false,calendar_event_id:null,calendar_event_url:null,calendar_sync_status:'cancelled',calendar_last_error:null,calendar_last_synced_at:null,calendar_retry_count:0,calendar_sync_version:1,calendar_synced_version:0,cancellation_delivery_issues:2,job_candidates:{jobs:{id:'j1',title:'Engineering Manager',owner_member_id:'m1'}}}
+    const issues=[
+      {id:'d1',status:'failed',email_type:'interview_cancellation',related_entity_id:'i1',error_message:'Mailbox rejected the message',updated_at:'2026-07-15T10:00:00Z'},
+      {id:'d2',status:'pending',email_type:'interview_cancellation',related_entity_id:'i1',error_message:null,updated_at:'2026-07-15T10:01:00Z'},
+    ]
+    const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],tasks:[],offers:[],interviews:[cancelled],deliveryIssues:issues})
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({kind:'blocked',title:'Retry 2 cancellation notices',cta:'Retry notices',href:'/app/northstar/jobs/j1?candidate=jc1&action=retry_cancel'})
+  })
+
   const task=(id:string,overrides:Partial<Task> ={}):Task=>({id,title:'Follow up on candidate availability',description:null,status:'open',priority:'normal',due_at:null,owner_member_id:null,created_at:'2026-07-14T10:00:00Z',task_links:[],...overrides})
 
   /* Regression guard for the second half of the repetition bug: fixing the six identical "assign an
@@ -183,7 +189,7 @@ describe('consultant workflow model',()=>{
     const offer=(id:string,status:'presented'|'accepted',name:string):Offer=>({id,job_candidate_id:`jc-${id}`,salary:0,currency:'IDR',offered_at:'2026-07-14T10:00:00Z',start_date:null,status,notes:null,job_candidates:{candidates:{id:`c-${id}`,full_name:name},jobs:{id:'j1',title:'Engineering Manager',owner_member_id:null}}})
     const items=buildTodayWorkItems({base:'/app/northstar',now:new Date('2026-07-16T10:00:00Z'),jobs:[],tasks:[],interviews:[],offers:[offer('o1','accepted','Aditya Nugroho'),offer('o2','accepted','Alya Maharani')]})
     expect(items.map((item)=>item.title)).toEqual(['Aditya Nugroho · Engineering Manager','Alya Maharani · Engineering Manager'])
-    expect(items.every((item)=>item.reason==='Offer accepted — ready to record the placement.')).toBe(true)
+    expect(items.every((item)=>item.reason==='The offer is accepted and the placement is not yet recorded.')).toBe(true)
   })
 
   it('dismisses an accepted-offer recommendation as soon as a placement exists',()=>{

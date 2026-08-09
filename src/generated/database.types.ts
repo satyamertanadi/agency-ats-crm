@@ -985,6 +985,45 @@ export type Database = {
           },
         ]
       }
+      candidate_search_documents: {
+        Row: {
+          candidate_id: string
+          extracted_content: Json
+          organization_id: string
+          search_vector: unknown
+          updated_at: string
+        }
+        Insert: {
+          candidate_id: string
+          extracted_content?: Json
+          organization_id: string
+          search_vector?: unknown
+          updated_at?: string
+        }
+        Update: {
+          candidate_id?: string
+          extracted_content?: Json
+          organization_id?: string
+          search_vector?: unknown
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_search_documents_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: true
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_search_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidate_skills: {
         Row: {
           candidate_id: string
@@ -5131,6 +5170,14 @@ export type Database = {
           p_timezone?: string
         }
         Returns: string
+      }
+      queue_interview_cancellation: {
+        Args: { p_interview_id: string; p_organization_id: string }
+        Returns: {
+          delivery_id: string
+          delivery_status: string
+          recipient_email: string
+        }[]
       }
       record_audit_event: {
         Args: {

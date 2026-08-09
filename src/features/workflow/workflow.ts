@@ -4,7 +4,7 @@ import type {Interview,Job,JobCandidate,Offer,PipelinePhaseKey,PipelineStage,Tas
 import {feedbackDecision,lookup} from '../../shared/lib/status'
 
 export type {PipelinePhaseKey,TodayWorkKind} from '../../shared/types/domain'
-export type NextActionKey='add_candidates'|'submit'|'check_feedback'|'schedule_interview'|'record_outcome'|'record_offer'|'create_placement'|'resolve_delivery'|'complete_job'
+export type NextActionKey='assign_owner'|'add_candidates'|'submit'|'check_feedback'|'schedule_interview'|'record_outcome'|'record_offer'|'check_offer'|'create_placement'|'resolve_delivery'|'complete_job'
 
 export interface NextAction {key:NextActionKey;label:string;reason:string}
 export interface TodayWorkItemGroup {label:string;href:string;cta:string;taskId?:string}
@@ -61,27 +61,18 @@ export const isOutcomeStage=(stage:Pick<PipelineStage,'stage_type'>)=>outcomeSta
  * value matches no <option> falls back to showing the first one, and in phase mode the options only
  * ever held each phase's FIRST stage id, so every candidate in a non-first stage rendered a lie.
  *
- * The fix is structural: a column is keyed by its own identity (phase key, or stage id when
- * detailed), never by a stage id standing in for a phase, and the card is handed the key of the
- * column it is rendered inside. Card and column cannot disagree because they are the same value. */
+ * The fix is structural: a column is keyed by its operating phase, never by one stage id standing
+ * in for that phase, and the card is handed the key of the column it is rendered inside. Card and
+ * column cannot disagree because they are the same value. */
 export interface PipelineColumn {key:string;label:string;stages:PipelineStage[]}
 
-export function buildPipelineColumns(stages:PipelineStage[],detailed:boolean):PipelineColumn[]{
+export function buildPipelineColumns(stages:PipelineStage[]):PipelineColumn[]{
   const active=stages.filter((stage)=>!isOutcomeStage(stage))
-  return detailed
-    ?active.map((stage)=>({key:stage.id,label:stage.name,stages:[stage]}))
-    :groupPipelineStages(active).map((phase)=>({key:phase.key,label:phase.label,stages:phase.stages}))
+  return groupPipelineStages(active).map((phase)=>({key:phase.key,label:phase.label,stages:phase.stages}))
 }
 
 export const columnKeyForStage=(columns:PipelineColumn[],stageId:string):string|undefined=>
   columns.find((column)=>column.stages.some((stage)=>stage.id===stageId))?.key
-
-/* Illustrative per-phase SLA targets (days) -- placeholder pending the actual numbers the team signs
- * off on (see "Open questions" in the pipeline-board redesign handoff). Centralised here so the board,
- * the candidate detail page, and Today's job-health chip share one source instead of drifting. */
-export const slaTargetDays:Record<PipelinePhaseKey,number>={
-  sourcing:7,screening:5,shortlist:5,client_review:7,interview:5,offer:3,placed:0,other:7,
-}
 
 /* The stage-ramp hue used for column bars, card left-borders, and Today's mini stage-distribution
  * bar -- one CSS custom property per phase so every place that draws "which phase is this" agrees. */
@@ -89,16 +80,6 @@ export const phaseRampColor:Record<PipelinePhaseKey,string>={
   sourcing:'var(--color-faint)',screening:'var(--color-info)',shortlist:'var(--color-accent)',
   client_review:'var(--color-violet)',interview:'var(--color-warning)',offer:'var(--color-danger)',
   placed:'var(--tone-good-fg)',other:'var(--color-faint)',
-}
-
-export type StageUrgency='neutral'|'warn'|'bad'
-
-/* Same threshold rule everywhere a days-in-stage badge or a "stalled" count is derived, so the board,
- * the candidate panel, and Today's job-health chip can't disagree about what "stalled" means. */
-export function stageUrgency(days:number,targetDays:number):StageUrgency{
-  if(days<=targetDays)return 'neutral'
-  if(days<=targetDays*1.5)return 'warn'
-  return 'bad'
 }
 
 /* Same calculation CandidateDetailPage already uses for its "days in stage" column (the most recent
@@ -109,22 +90,16 @@ export function daysInStage(item:{updated_at:string;stage_history?:Array<{occurr
   return Math.max(0,Math.floor((now.getTime()-new Date(entered).getTime())/86_400_000))
 }
 
-export interface ColumnStageStats{avgDays:number;overTarget:number;targetDays:number;onTarget:boolean}
+export interface ColumnStageStats{avgDays:number}
 
-/* Powers the column subheading ("avg 6d · 1 over target"). Detailed-mode columns are single-stage so
- * `column.stages[0]` IS the phase; grouped columns are built from stages that all share one phase
- * (groupPipelineStages), so the first stage's phase speaks for the whole column either way. */
+/* Shows the one age fact the ATS can prove without pretending an unsigned SLA exists. */
 export function columnStageStats(column:PipelineColumn,items:Array<{current_stage_id:string;updated_at:string;stage_history?:Array<{occurred_at:string}>}>,now:Date):ColumnStageStats|null{
-  const firstStage=column.stages[0]
-  if(!firstStage)return null
   const stageIds=new Set(column.stages.map((stage)=>stage.id))
   const inColumn=items.filter((item)=>stageIds.has(item.current_stage_id))
   if(inColumn.length===0)return null
-  const targetDays=slaTargetDays[phaseForStage(firstStage)]??7
   const days=inColumn.map((item)=>daysInStage(item,now))
   const avgDays=Math.round(days.reduce((sum,value)=>sum+value,0)/days.length)
-  const overTarget=days.filter((value)=>value>targetDays).length
-  return {avgDays,overTarget,targetDays,onTarget:overTarget===0}
+  return {avgDays}
 }
 
 /* Resolves a drop/select onto a column into the stage to actually move to, or null for "no move".
@@ -140,22 +115,45 @@ export function resolveStageForColumn(columns:PipelineColumn[],columnKey:string,
   return column.stages[0]?.id??null
 }
 
-export function recommendedCandidateAction(input:{stage:PipelineStage;hasSubmission:boolean;interviews:Interview[];offers:Offer[];hasPlacement:boolean}):NextAction{
+export type RecruitmentActionInput=
+  |{scope:'candidate';stage:PipelineStage;hasSubmission:boolean;interviews:Interview[];offers:Offer[];hasPlacement:boolean;now?:Date}
+  |{scope:'job';status:string;ownerMemberId:string|null;candidateCount:number}
+  |{scope:'offer';status:string;hasPlacement:boolean}
+
+/* One action resolver serves the candidate drawer, job health and Today. The records each surface has
+ * are different, but the vocabulary and precedence are not allowed to drift anymore. */
+export function recommendedRecruitmentAction(input:RecruitmentActionInput):NextAction|null{
+  if(input.scope==='job'){
+    if(input.status!=='open')return null
+    if(!input.ownerMemberId)return {key:'assign_owner',label:'Assign an owner',reason:'Nobody is accountable for this job yet.'}
+    if(input.candidateCount===0)return {key:'add_candidates',label:'Add candidates',reason:'This pipeline is empty.'}
+    return null
+  }
+  if(input.scope==='offer'){
+    if(input.status==='accepted'&&!input.hasPlacement)return {key:'create_placement',label:'Create placement',reason:'The offer is accepted and the placement is not yet recorded.'}
+    if(input.status==='presented')return {key:'check_offer',label:'Follow up on offer',reason:'The offer is with the candidate and needs a decision.'}
+    return null
+  }
+
   const {stage,hasSubmission,interviews,offers,hasPlacement}=input
   const phase=phaseForStage(stage)
-  const activeInterview=interviews.find((item)=>item.status==='scheduled')
-  const completedInterview=interviews.find((item)=>item.status==='completed')
-  const offer=offers.find((item)=>!['declined','withdrawn'].includes(item.status))
+  const scheduled=interviews.find((item)=>item.status==='scheduled')
+  const completed=interviews.find((item)=>item.status==='completed')
+  const liveOffer=offers.find((item)=>['draft','presented','accepted'].includes(item.status))
   const closedOffer=offers.find((item)=>['declined','withdrawn'].includes(item.status))
+  const offerAction=liveOffer?recommendedRecruitmentAction({scope:'offer',status:liveOffer.status,hasPlacement}):null
+  if(offerAction)return offerAction
+  if(scheduled&&new Date(scheduled.starts_at)<=(input.now??new Date()))return {key:'record_outcome',label:'Record interview outcome',reason:'The scheduled interview time has passed and its outcome is still open.'}
   if(phase==='shortlist'&&!hasSubmission)return {key:'submit',label:'Submit to client',reason:'This candidate is shortlisted and ready for client review.'}
-  if(phase==='client_review'&&!activeInterview)return {key:'check_feedback',label:'Check client feedback',reason:'The candidate is with the client and needs a follow-up.'}
-  if(phase==='interview'&&!activeInterview&&!completedInterview)return {key:'schedule_interview',label:'Schedule interview',reason:'No interview has been scheduled for this candidate.'}
-  if(phase==='offer'&&closedOffer&&!offer)return {key:'record_offer',label:'Record a new offer',reason:`The previous offer was ${closedOffer.status}. Record a new offer only when the candidate and client are ready.`}
-  if(completedInterview&&!offer)return {key:'record_outcome',label:'Record outcome',reason:'The latest interview is complete and has no recorded outcome.'}
-  if((phase==='offer'||completedInterview)&&!offer)return {key:'record_offer',label:'Record offer',reason:'The candidate has reached the offer milestone.'}
-  if(offer?.status==='accepted'&&!hasPlacement)return {key:'create_placement',label:'Create placement',reason:'The offer is accepted and the placement is not yet recorded.'}
+  if(phase==='client_review'&&!scheduled&&!completed)return {key:'check_feedback',label:'Check client feedback',reason:'The candidate is with the client and needs a follow-up.'}
+  if(phase==='interview'&&!scheduled&&!completed)return {key:'schedule_interview',label:'Schedule interview',reason:'No interview has been scheduled for this candidate.'}
+  if(phase==='offer'&&closedOffer&&!liveOffer)return {key:'record_offer',label:'Record a new offer',reason:`The previous offer was ${closedOffer.status}. Record a new offer only when the candidate and client are ready.`}
+  if((phase==='offer'||completed)&&!liveOffer)return {key:'record_offer',label:'Record offer',reason:'The interview is complete and no offer is recorded.'}
   return {key:'complete_job',label:'Review candidate',reason:`Currently in ${stage.name}.`}
 }
+
+export const recommendedCandidateAction=(input:{stage:PipelineStage;hasSubmission:boolean;interviews:Interview[];offers:Offer[];hasPlacement:boolean;now?:Date}):NextAction=>
+  recommendedRecruitmentAction({scope:'candidate',...input})!
 
 const dayKey=(value:Date)=>`${value.getFullYear()}-${value.getMonth()}-${value.getDate()}`
 
@@ -215,20 +213,22 @@ export function buildTodayWorkItems(input:{
       group:bucket.map((entry)=>({label:entry.who||entry.task.title,href:entry.href,cta:'Open',taskId:entry.task.id})),
     })
   }
+  const cancellationActionInterviewIds=new Set<string>()
   for(const interview of input.interviews){
     const job=interview.job_candidates?.jobs
-    if(interview.status==='cancelled')continue
+    if(interview.status==='cancelled'&&interview.calendar_sync_status!=='failed')continue
     if(currentMemberId&&interview.organizer_member_id&&interview.organizer_member_id!==currentMemberId&&job?.owner_member_id!==currentMemberId)continue
     const failed=interview.calendar_sync_status==='failed'
+    if(failed&&interview.status==='cancelled')cancellationActionInterviewIds.add(interview.id)
     const starts=new Date(interview.starts_at)
-    if(!failed&&starts<now)continue
+    const outcomeDue=!failed&&interview.status==='scheduled'&&starts<now
     items.push({
       id:`interview-${interview.id}`,
-      kind:failed?'blocked':dayKey(starts)===dayKey(now)?'today':'upcoming',
-      title:failed?'Resolve Calendar sync':`Interview · ${interview.job_candidates?.candidates?.full_name||'Candidate'}`,
-      reason:failed?interview.calendar_last_error||'Calendar synchronization failed.':`${job?.title||'Job'} · ${starts.toLocaleString()}`,
-      href:job?.id?`${base}/jobs/${job.id}?candidate=${interview.job_candidate_id}&action=interview`:`${base}/today`,
-      cta:failed?'Resolve':'Open',dueAt:interview.starts_at,
+      kind:failed?'blocked':outcomeDue?'overdue':dayKey(starts)===dayKey(now)?'today':'upcoming',
+      title:failed?(interview.status==='cancelled'?'Retry interview cancellation':'Resolve Calendar sync'):outcomeDue?`Record outcome · ${interview.job_candidates?.candidates?.full_name||'Candidate'}`:`Interview · ${interview.job_candidates?.candidates?.full_name||'Candidate'}`,
+      reason:failed?interview.calendar_last_error||'Calendar synchronization failed.':outcomeDue?'The scheduled interview time has passed and its outcome is still open.':`${job?.title||'Job'} · ${starts.toLocaleString()}`,
+      href:job?.id?`${base}/jobs/${job.id}?candidate=${interview.job_candidate_id}&action=${interview.status==='cancelled'?'retry_cancel':outcomeDue?'outcome':'interview'}`:`${base}/today`,
+      cta:failed?'Resolve':outcomeDue?'Record outcome':'Open',dueAt:interview.starts_at,
     })
   }
   const placedCandidates=new Set((input.placements||[]).filter((placement)=>placement.status!=='cancelled').map((placement)=>placement.job_candidate_id))
@@ -240,14 +240,16 @@ export function buildTodayWorkItems(input:{
     if(offer.status==='accepted'&&placedCandidates.has(offer.job_candidate_id))continue
     const job=offer.job_candidates?.jobs
     if(currentMemberId&&job?.owner_member_id&&job.owner_member_id!==currentMemberId)continue
+    const action=recommendedRecruitmentAction({scope:'offer',status:offer.status,hasPlacement:placedCandidates.has(offer.job_candidate_id)})
+    if(!action)continue
     items.push({
       id:`offer-${offer.id}`,kind:'recommended',
       // Same fix as the task loop above: two accepted offers used to both read "Create placement" in
       // bold with the candidate buried underneath. The candidate+job pairing is what tells them apart.
       title:`${offer.job_candidates?.candidates?.full_name||'Candidate'} · ${job?.title||'Job'}`,
-      reason:offer.status==='accepted'?'Offer accepted — ready to record the placement.':'Offer presented, awaiting the candidate’s decision.',
-      href:job?.id?`${base}/jobs/${job.id}?candidate=${offer.job_candidate_id}&action=${offer.status==='accepted'?'placement':'offer'}`:`${base}/today`,
-      cta:offer.status==='accepted'?'Create placement':'Open offer',
+      reason:action.reason,
+      href:job?.id?`${base}/jobs/${job.id}?candidate=${offer.job_candidate_id}&action=${offer.status==='accepted'?'placement':'check_offer'}`:`${base}/today`,
+      cta:action.label,
     })
   }
   // Unowned jobs used to push one item each, but the reason string is always the same literal
@@ -259,7 +261,8 @@ export function buildTodayWorkItems(input:{
   const unownedJobs=input.jobs.filter((job)=>job.status==='open'&&!job.owner_member_id)
   if(unownedJobs.length===1){
     const job=unownedJobs[0]!
-    items.push({id:`job-owner-${job.id}`,kind:'blocked',title:`Assign an owner · ${job.title}`,reason:'This open job has no accountable consultant.',href:`${base}/jobs/${job.id}?view=details`,cta:'Complete setup'})
+    const action=recommendedRecruitmentAction({scope:'job',status:job.status,ownerMemberId:job.owner_member_id,candidateCount:0})!
+    items.push({id:`job-owner-${job.id}`,kind:'blocked',title:`${action.label} · ${job.title}`,reason:action.reason,href:`${base}/jobs/${job.id}?view=details`,cta:action.label})
   }else if(unownedJobs.length>1){
     // href/cta here are never rendered (TodayPage shows the group list instead) -- set only because
     // TodayWorkItem requires them. Each grouped job's own href/cta is what's actually clickable.
@@ -272,9 +275,14 @@ export function buildTodayWorkItems(input:{
     })
   }
   const deliveryPackages=new Set<string>()
+  const deliveryInterviews=new Set(cancellationActionInterviewIds)
   for(const delivery of input.deliveryIssues||[]){
     const pack=input.submissions?.find((entry)=>entry.id===delivery.related_entity_id);if(pack)deliveryPackages.add(pack.id)
-    items.push({id:`delivery-${delivery.id}`,kind:'blocked',title:`Resolve ${delivery.status} delivery`,reason:delivery.error_message||`A ${delivery.email_type.replaceAll('_',' ')} email could not be delivered.`,href:pack?`${base}/jobs/${pack.job_id}`:`${base}/today`,cta:'Resolve',dueAt:delivery.updated_at})
+    const interview=input.interviews.find((entry)=>entry.id===delivery.related_entity_id);const interviewJob=interview?.job_candidates?.jobs
+    if(interview&&deliveryInterviews.has(interview.id))continue
+    if(interview)deliveryInterviews.add(interview.id)
+    const issueCount=interview?.cancellation_delivery_issues||1
+    items.push({id:`delivery-${delivery.id}`,kind:'blocked',title:interview?`Retry ${issueCount} cancellation notice${issueCount===1?'':'s'}`:`Resolve ${delivery.status} delivery`,reason:delivery.error_message||`A ${delivery.email_type.replaceAll('_',' ')} email could not be delivered.`,href:pack?`${base}/jobs/${pack.job_id}`:interviewJob?`${base}/jobs/${interviewJob.id}?candidate=${interview!.job_candidate_id}&action=retry_cancel`:`${base}/today`,cta:interview?'Retry notices':'Resolve',dueAt:delivery.updated_at})
   }
   for(const pack of input.submissions||[]){
     if(deliveryPackages.has(pack.id))continue
@@ -322,5 +330,5 @@ export function buildTodayWorkItems(input:{
 }
 
 export function jobNeedsCandidateAction(items:JobCandidate[]):NextAction|null{
-  return items.length?null:{key:'add_candidates',label:'Add candidates',reason:'This job has no candidates yet.'}
+  return recommendedRecruitmentAction({scope:'job',status:'open',ownerMemberId:'assigned',candidateCount:items.length})
 }

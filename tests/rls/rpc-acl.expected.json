@@ -35,6 +35,7 @@
     "move_job_candidate_stage",
     "normalize_email",
     "preview_candidate_retention",
+    "queue_interview_cancellation",
     "record_candidate_profile_export_failure",
     "revoke_organization_invitation",
     "revoke_submission_link",

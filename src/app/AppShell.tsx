@@ -113,7 +113,7 @@ function RealtimeIndicator({status}:{status:RealtimeStatus}){
  * shortcuts are broken. */
 const shortcutGroups=[
   {title:'Anywhere',keys:[['/','Search candidates, jobs, clients, and actions'],['Ctrl K','The same search'],['?','Show or hide this list'],['Esc','Close whatever is open']]},
-  {title:'Pipeline board',keys:[['a','Add candidates to this job'],['d','Show or hide detailed stages'],['Space','Pick up the focused candidate card'],['← →','Move a picked-up card between phases']]},
+  {title:'Pipeline board',keys:[['a','Add candidates to this job'],['Space','Pick up the focused candidate card'],['← →','Move a picked-up card between phases']]},
 ] as const
 
 function ShortcutSheet({open,onClose}:{open:boolean;onClose:()=>void}){
