@@ -65,36 +65,12 @@
   text-overflow: ellipsis;
   font-size: var(--text-xs);
 }
-.workspace-select {
-  padding: 0 8px 15px;
-  display: grid;
-  gap: var(--space-15);
-}
-.workspace-select > span,
 .nav-section-label {
   font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--color-sidebar-muted);
   font-weight: var(--weight-semibold);
-}
-.workspace-select select {
-  width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.055);
-  color: var(--color-sidebar-text);
-  border-radius: var(--radius-md);
-  padding: 9px 10px;
-  outline: none;
-}
-.workspace-select option {
-  color: var(--color-ink);
-}
-/* The sidebar has its own dark-surface text tokens (color-sidebar-text/-muted) distinct from the
-   main content's -- the shared .select-chevron's --color-muted is tuned for the lighter surface,
-   so it's overridden here to match how every other sidebar label already does this. */
-.workspace-select .select-chevron {
-  color: var(--color-sidebar-muted);
 }
 .sidebar nav {
   display: grid;
@@ -372,7 +348,6 @@
   padding-inline: 9px;
 }
 .sidebar-collapsed .brand div,
-.sidebar-collapsed .workspace-select,
 .sidebar-collapsed .nav-section-label,
 .sidebar-collapsed nav span,
 .sidebar-collapsed .user-chip div,

@@ -2772,7 +2772,6 @@ export type Database = {
           onboarding_completed_at: string | null
           pilot_status: string
           salary_period: string
-          seat_limit: number
           slug: string
           status: string
           timezone: string
@@ -2788,7 +2787,6 @@ export type Database = {
           onboarding_completed_at?: string | null
           pilot_status?: string
           salary_period?: string
-          seat_limit?: number
           slug: string
           status?: string
           timezone?: string
@@ -2804,7 +2802,6 @@ export type Database = {
           onboarding_completed_at?: string | null
           pilot_status?: string
           salary_period?: string
-          seat_limit?: number
           slug?: string
           status?: string
           timezone?: string

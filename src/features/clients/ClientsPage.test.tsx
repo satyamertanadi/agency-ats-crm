@@ -25,8 +25,8 @@ vi.mock('./BdBoard',()=>({BdBoard:()=><div>BD board</div>,BdRiskSummary:()=>null
 vi.mock('../../app/AuthProvider',()=>({useAuth:()=>({user:{id:'user-1'}})}))
 vi.mock('../../app/OrganizationProvider',()=>({useOrganization:()=>({
   organization:{id:'org-1',slug:'ravalli',base_currency:'IDR'},
-  // SavedViewBar resolves the current member off memberships to own the view it saves.
-  memberships:[{id:'member-1',organization_id:'org-1',user_id:'user-1'}],
+  // SavedViewBar uses the caller's own membership to own the view it saves.
+  membership:{id:'member-1',organization_id:'org-1',user_id:'user-1'},
 })}))
 vi.mock('../../app/useWorkspaceCapabilities',()=>({useWorkspaceCapabilities:()=>({data:{canWriteClients:true},isLoading:false})}))
 

@@ -75,8 +75,8 @@ function WorkQueueRow({item,now,working,onTaskAction}:{item:TodayWorkItem;now:Da
 }
 
 export function TodayPage(){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [scope,setScope]=useState<'mine'|'team'>('mine')
-  const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
+  const {organization,membership}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [scope,setScope]=useState<'mine'|'team'>('mine')
+  const currentMember=membership
   const [setupHidden,setSetupHidden]=useState(()=>readSetupDismissed(organization?.id))
   const query=useQuery({queryKey:['today',organization?.id],enabled:Boolean(organization),queryFn:async()=>{
     /* The two windows the notification-lite items are built from. Both are bounded on the server: an

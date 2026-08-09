@@ -17,8 +17,7 @@ const routeItems=[
    * just the list nobody had extended. Capability-gated routes stay listed: they redirect on arrival
    * exactly as typing the URL does, and hiding them would need the palette to duplicate the route
    * guards it sits above. */
-  {path:'scorecard',label:'Open my scorecard',hint:'Your placements, offers, and activity',icon:BarChart3},
-  {path:'admin/reports',label:'Open reports',hint:'Team performance and delivery',icon:BarChart3},
+  {path:'scorecard',label:'Open scorecard',hint:'Your performance, with a team view if permitted',icon:BarChart3},
   {path:'admin/finance',label:'Open finance',hint:'Placements, fees, and invoices',icon:Receipt},
   {path:'admin/personal',label:'Open my settings',hint:'Calendar connection',icon:Settings},
 ] as const

@@ -1,6 +1,5 @@
 import {useQuery} from '@tanstack/react-query'
 import {useSearchParams} from 'react-router'
-import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {listCalendarConnections} from '../core/commercialRepository'
 import {Page} from '../../shared/ui/Page'
@@ -8,8 +7,8 @@ import {ErrorState,LoadingState} from '../../shared/ui/States'
 import {CalendarConnectionCard} from './CalendarConnectionCard'
 
 export function PersonalSettingsPage(){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const [params]=useSearchParams()
-  const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
+  const {organization,membership}=useOrganization();const [params]=useSearchParams()
+  const currentMember=membership
   const connections=useQuery({queryKey:['calendar-connections',organization?.id],enabled:Boolean(organization),queryFn:()=>listCalendarConnections(organization!.id)})
   if(connections.isLoading)return <LoadingState/>;if(connections.error)return <ErrorState error={connections.error}/>
   const own=connections.data?.find((item)=>item.member_id===currentMember?.id)

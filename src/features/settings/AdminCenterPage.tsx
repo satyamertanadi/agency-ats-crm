@@ -1,4 +1,4 @@
-import {BarChart3,FileSignature,FileUp,Landmark,Settings,UsersRound} from 'lucide-react'
+import {FileSignature,FileUp,Landmark,Settings,UsersRound} from 'lucide-react'
 import {useQuery} from '@tanstack/react-query'
 import {Link,Navigate} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
@@ -34,7 +34,6 @@ export function AdminCenterPage(){
   if(!capabilities.data?.canViewAdmin)return <Navigate to={`/app/${organization!.slug}/today`} replace/>
   const base=`/app/${organization!.slug}/admin`
   const items=[
-    capabilities.data.canViewTeamReports&&{href:`${base}/reports`,title:'Reports',description:'Agency funnel, workload, and consultant performance.',icon:BarChart3},
     /* Recording a placement is a recruitment act, not a finance one, and it was reachable only
      * through this finance-gated tile -- so a consultant holding placements.write could convert an
      * accepted offer from the candidate panel but could not see the placement afterwards, and could

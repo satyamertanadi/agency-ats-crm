@@ -1,7 +1,6 @@
 import {useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {BookmarkPlus,Download,Star,Trash2,Users} from 'lucide-react'
-import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {deleteSavedView,listSavedViews,saveView} from './commercialRepository'
 import type {SavedView,SavedViewResource} from '../../shared/types/domain'
@@ -25,9 +24,9 @@ export function SavedViewBar({resource,paramKeys,params,onApply,onExport,exporti
   onExport?:()=>void
   exporting?:boolean
 }){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const cache=useQueryClient();const toast=useToast()
+  const {organization,membership}=useOrganization();const cache=useQueryClient();const toast=useToast()
   const [saveOpen,setSaveOpen]=useState(false);const [name,setName]=useState('');const [shared,setShared]=useState(false);const [makeDefault,setMakeDefault]=useState(false)
-  const member=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
+  const member=membership
   const views=useQuery({queryKey:['saved-views',organization?.id,resource],enabled:Boolean(organization),queryFn:()=>listSavedViews(organization!.id,resource)})
   const refresh=()=>cache.invalidateQueries({queryKey:['saved-views',organization?.id,resource]})
 

@@ -29,7 +29,7 @@ describe('humanizeRpcError',()=>{
 
   it('never leaves a mapped sentence looking like an identifier',()=>{
     // A snake_case "sentence" means someone pasted the token into the value column by mistake.
-    const messages=['permission_denied','rate_limited','seat_limit_reached','invalid_fee_source'].map((key)=>humanizeRpcError(key)?.message)
+    const messages=['permission_denied','rate_limited','invalid_email','invalid_fee_source'].map((key)=>humanizeRpcError(key)?.message)
     messages.forEach((message)=>{
       expect(message).toBeDefined()
       expect(message).not.toMatch(/^[a-z]+(_[a-z]+)+$/)
@@ -57,10 +57,11 @@ describe('every identifier the migrations raise has a human sentence',()=>{
     /* Tokens raised only by functions that have since been dropped. The migration that created them
      * is still on disk (already applied everywhere; deleting an applied migration file is what
      * breaks `supabase db push`), so the scan above still finds their text -- but
-     * 20260810030000_drop_unreachable_schema.sql removed the functions, so no code path can raise
-     * them and a user-facing sentence for each would be a message that can never be shown.
+     * 20260810030000_drop_unreachable_schema.sql (referrals) and
+     * 20260810040000_remove_seat_enforcement.sql (the seat cap) removed the functions that raised
+     * them, so no code path can, and a sentence for each would be a message that can never show.
      * Anything NOT on this list still has to be mapped. */
-    const retired=new Set(['referral_not_found','referral_not_pending'])
+    const retired=new Set(['referral_not_found','referral_not_pending','seat_limit_reached'])
     const unmapped=[...raised].filter((token)=>!retired.has(token)&&humanizeRpcError(token)===null).sort()
     expect(unmapped,`These identifiers are raised by a migration but would reach the user verbatim. Add a sentence for each in rpcMessages (src/shared/lib/errors.ts):\n${unmapped.join('\n')}`).toEqual([])
   })

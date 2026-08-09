@@ -59,7 +59,7 @@ export function reportDateRange(from:string,to:string,timeZone:string){
 
 /* Consultant attribution, shared by the team report and the personal scorecard.
  *
- * It lives here rather than inside ReportsPage because the scorecard's whole promise is that a
+ * It lives here rather than inside ScorecardPage because the scorecard's whole promise is that a
  * consultant's own numbers reconcile with the ones their manager sees. Two implementations reading
  * the same records would drift the first time either was adjusted, and the plan's acceptance
  * criterion ("Personal totals reconcile with team reports") would then be false without anything

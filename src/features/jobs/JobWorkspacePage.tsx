@@ -3,7 +3,6 @@ import {DndContext,KeyboardSensor,PointerSensor,useDraggable,useDroppable,useSen
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ArrowLeft,Clock,GripVertical,Plus,Send} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router'
-import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {getPipeline,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
@@ -112,7 +111,7 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
 }
 
 export function JobWorkspacePage(){
-  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [editOpen,setEditOpen]=useState(false);const [density,setDensity]=useState<Density>('compact');const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerCandidates,setComposerCandidates]=useState<ComposerCandidate[]|null>(null)
+  const {jobId=''}=useParams();const {organization,membership}=useOrganization();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [editOpen,setEditOpen]=useState(false);const [density,setDensity]=useState<Density>('compact');const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerCandidates,setComposerCandidates]=useState<ComposerCandidate[]|null>(null)
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)});const job=jobs.data?.find((item)=>item.id===jobId)
   const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
   /* Scoped to this job, not to the organization. These four decorate the candidate panel for
@@ -184,7 +183,7 @@ export function JobWorkspacePage(){
   // Drops resolve through the same model as the dropdown, so a drag cannot land a candidate somewhere
   // the card would then contradict -- and dropping back into the column you came from is a no-op.
   const onDragEnd=({active,over}:DragEndEvent)=>{if(!canRecruit||!over)return;const item=pipeline.data!.items.find((candidate)=>candidate.id===String(active.id));if(item)moveToColumn(item,String(over.id))}
-  const next=jobNeedsCandidateAction(pipeline.data!.items);const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
+  const next=jobNeedsCandidateAction(pipeline.data!.items);const currentMember=membership
   const setView=(nextView:WorkspaceView)=>{const nextParams=new URLSearchParams(params);nextParams.set('view',nextView);nextParams.delete('candidate');nextParams.delete('action');setParams(nextParams)}
   const openCandidate=(item:JobCandidate)=>{const nextParams=new URLSearchParams(params);nextParams.set('candidate',item.id);nextParams.delete('action');setParams(nextParams)}
   const composeCandidate=(item:JobCandidate)=>{setComposerCandidates([{jobCandidateId:item.id,name:item.candidates?.full_name||'Candidate'}]);const nextParams=new URLSearchParams(params);nextParams.delete('candidate');nextParams.delete('action');setParams(nextParams)}

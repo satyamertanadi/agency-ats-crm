@@ -15,7 +15,7 @@ export const membershipRowSchema=z.object({
   organizations:z.object({
     id:z.string(),name:z.string(),slug:z.string(),base_currency:z.string(),
     salary_period:z.enum(['annual','monthly']).nullable().optional(),timezone:z.string(),
-    seat_limit:z.number(),pilot_status:z.enum(['preparing','uat','pilot','active','suspended','closed']),
+    pilot_status:z.enum(['preparing','uat','pilot','active','suspended','closed']),
     organization_settings:organizationSettingsEmbed,
   }),
 })

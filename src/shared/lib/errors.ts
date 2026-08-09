@@ -29,7 +29,6 @@ const rpcMessages:Record<string,string>={
   owner_must_sign_in_first:'The workspace owner has to sign in before this can be set up.',
   email_mismatch:'That email does not match the invitation.',
   invitation_email_mismatch:'Sign in with the exact email the invitation was sent to.',
-  seat_limit_reached:'Every seat in this workspace is taken. Free one up or raise the seat limit first.',
   // Records not found, or belonging to another workspace
   organization_not_found:'That workspace could not be found.',
   candidate_not_found:'That candidate could not be found in this workspace.',
