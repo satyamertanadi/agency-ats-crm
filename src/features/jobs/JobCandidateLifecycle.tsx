@@ -26,7 +26,8 @@ export interface JobCandidateLifecycleProps {
   candidateName:string
   interviews:Interview[]
   offers:Offer[]
-  canManage:boolean
+  canManageInterviews:boolean
+  canManageOffers:boolean
   readOnly:boolean
   onUpdated:()=>Promise<unknown>
   /* Reschedule reuses the panel's existing interview form rather than growing a second one that can
@@ -39,7 +40,7 @@ const offerDecisions:Array<{value:OfferDecision;label:string}>=[
   {value:'accepted',label:'Accepted'},{value:'declined',label:'Declined'},{value:'withdrawn',label:'Withdrawn'},
 ]
 
-export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateName,interviews,offers,canManage,readOnly,onUpdated,onReschedule}:JobCandidateLifecycleProps){
+export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateName,interviews,offers,canManageInterviews,canManageOffers,readOnly,onUpdated,onReschedule}:JobCandidateLifecycleProps){
   const toast=useToast()
   const [offerDecision,setOfferDecision]=useState<{offer:Offer;decision:OfferDecision}|null>(null)
   const [offerNote,setOfferNote]=useState('')
@@ -74,7 +75,8 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
   })
 
   const latestOffer=offers[0]
-  const active=canManage&&!readOnly
+  const offersActive=canManageOffers&&!readOnly
+  const interviewsActive=canManageInterviews&&!readOnly
 
   return <div className="lifecycle-cards">
     <section className="lifecycle-card">
@@ -85,7 +87,7 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
         {/* The dead end this whole card exists to remove: 'presented' was terminal in the UI, so the
           * fee-provenance placement flow behind it could never be reached and Today kept a permanent
           * row chasing an offer that had already been answered. */}
-        {latestOffer.status==='presented'&&active&&<div className="lifecycle-actions">
+        {latestOffer.status==='presented'&&offersActive&&<div className="lifecycle-actions">
           {offerDecisions.map((option)=><Button key={option.value} size="sm" variant={option.value==='accepted'?'primary':'secondary'}
             onClick={()=>{setOfferNote('');setOfferDecision({offer:latestOffer,decision:option.value})}}>{option.label}</Button>)}
         </div>}
@@ -98,7 +100,7 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
         {interviews.map((entry)=><li key={entry.id}>
           <span><strong>{formatDateTime(entry.starts_at)}</strong><StatusBadge map={interviewStatus} value={entry.status}/></span>
           {entry.notes&&<small className="muted">{entry.notes}</small>}
-          {entry.status==='scheduled'&&active&&<div className="lifecycle-actions">
+          {entry.status==='scheduled'&&interviewsActive&&<div className="lifecycle-actions">
             <Button size="sm" variant="secondary" onClick={()=>{setOutcome('completed');setOutcomeNotes('');setCompleting(entry)}}>Complete</Button>
             <Button size="sm" variant="quiet" onClick={()=>onReschedule(entry)}>Reschedule</Button>
             <Button size="sm" variant="quiet" onClick={()=>setCancelling(entry)}>Cancel</Button>

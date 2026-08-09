@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "typecheck": "tsc --noEmit"
+    "lint": "node ../node_modules/eslint/bin/eslint.js src build.mjs vitest.config.ts --max-warnings 0",
+    "test": "node ../node_modules/vitest/vitest.mjs run --config vitest.config.ts",
+    "typecheck": "node ../node_modules/typescript/bin/tsc --noEmit"
   }
 }

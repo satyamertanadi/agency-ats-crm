@@ -7,8 +7,9 @@ dropping the candidate into an open job's pipeline. Private / load-unpacked — 
 
 - **Auth (session handoff):** the extension borrows your existing ATS web session. When you click
   **Connect**, it opens the ATS; a content script reads the logged-in Supabase session from the app
-  origin and hands it to the extension's background worker, which keeps it refreshed on its own. You
-  only reconnect if you fully sign out of the ATS. No password is ever entered into the extension.
+  origin and hands only its short-lived access token to the extension's background worker. The token
+  lives in browser-session memory, is never refreshed by the extension, and is cleared when Chrome
+  exits. Reconnect when it expires. No password or refresh token enters extension storage.
 - **Capture:** on a `linkedin.com/in/…` profile, an **ATS** button (bottom-right) opens a panel
   pre-filled from the visible profile. Edit anything, pick candidate/contact + workspace (+ job or
   company), and **Save**. Saving calls the `capture_prospect` RPC directly over Supabase's REST
@@ -63,5 +64,6 @@ It bundles into `extension/dist` (uses the repo's own esbuild — no separate in
   (`parse-linkedin-profile`) is reached through `host_permissions` rather than a CORS allowance.
 - Workspace, job, owner and tag lists are cached in the background worker for 60s, so a saved record
   made elsewhere may take up to a minute to show up in the panel's dropdowns.
-- There are no automated tests for the extension, and it is excluded from lint and CI. Selector rot is
-  the most likely silent failure; see the "How it works" note on why every field stays editable.
+- Session handoff has automated security regression tests, and extension lint, typecheck, tests, and
+  build run in CI. LinkedIn selector rot remains a runtime risk; see the "How it works" note on why
+  every scraped field stays editable before saving.

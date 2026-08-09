@@ -1,15 +1,16 @@
 import {createClient} from '@supabase/supabase-js'
 import {SUPABASE_ANON_KEY,SUPABASE_URL} from './config'
 
-// A service worker has no localStorage, so back the session with chrome.storage.local. This lets the
-// handed-off session survive worker restarts, and supabase-js's autoRefreshToken keeps it valid on its
-// own from then on -- the user only re-connects if they fully sign out of the ATS.
+// Keep the borrowed access credential in Chrome's memory-backed browser-session storage. It survives
+// service-worker suspension but is cleared when the browser exits. The ATS never hands the extension
+// a refresh token, so the extension cannot silently extend its own access; users reconnect after the
+// short-lived access token expires.
 const storage={
-  getItem:async(key:string)=>((await chrome.storage.local.get(key))[key]??null) as string|null,
-  setItem:async(key:string,value:string)=>{await chrome.storage.local.set({[key]:value})},
-  removeItem:async(key:string)=>{await chrome.storage.local.remove(key)},
+  getItem:async(key:string)=>((await chrome.storage.session.get(key))[key]??null) as string|null,
+  setItem:async(key:string,value:string)=>{await chrome.storage.session.set({[key]:value})},
+  removeItem:async(key:string)=>{await chrome.storage.session.remove(key)},
 }
 
 export const supabase=createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{
-  auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storage,storageKey:'ats-ext-session'},
+  auth:{persistSession:true,autoRefreshToken:false,detectSessionInUrl:false,storage,storageKey:'ats-ext-session'},
 })

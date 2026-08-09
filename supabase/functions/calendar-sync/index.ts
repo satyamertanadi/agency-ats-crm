@@ -11,7 +11,7 @@ Deno.serve(async(request)=>{
     if(request.method!=='POST')throw new FunctionError(405,'method_not_allowed','Use POST.')
     const input=await request.json() as Input;interviewId=input.interviewId
     if(!input.organizationId||!input.interviewId)throw new FunctionError(400,'invalid_request','Organization and interview are required.')
-    const context=await requirePermission(request,input.organizationId,'placements.write');admin=context.admin
+    const context=await requirePermission(request,input.organizationId,'interviews.write');admin=context.admin
     const {data:interview,error:interviewError}=await context.caller.from('interviews').select('id,organization_id,organizer_member_id,starts_at,ends_at,timezone,location,meeting_url,status,attendee_emails,create_google_meet,calendar_event_id,calendar_sync_version,job_candidates(candidates(full_name),jobs(title))').eq('organization_id',input.organizationId).eq('id',input.interviewId).single()
     if(interviewError||!interview)throw new FunctionError(404,'interview_not_found','Interview not found.')
     if(!interview.organizer_member_id)throw new FunctionError(400,'organizer_required','Choose an organizer before syncing Calendar.')

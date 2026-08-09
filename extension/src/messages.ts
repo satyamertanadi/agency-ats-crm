@@ -20,7 +20,9 @@ export interface OrgSummary{id:string;name:string}
 export interface JobSummary{id:string;title:string}
 export interface CompanySummary{id:string;name:string}
 export interface MemberSummary{id:string;name:string}
-export interface HandoffSession{access_token:string;refresh_token:string}
+// The browser extension receives only the short-lived access credential it needs to call ATS APIs.
+// Refresh tokens can mint new access tokens and therefore must stay inside the ATS application.
+export interface HandoffSession{access_token:string;expires_at:number}
 
 // One radar entry per queried LinkedIn URL.
 export interface ProspectMatch{linkedin_url:string;candidate:{id:string;full_name:string;status:string;stages:{job:string;stage:string}[]}|null;contact:{id:string;full_name:string}|null}
@@ -42,7 +44,7 @@ export type BgRequest =
 export interface StateResponse{connected:boolean;email?:string;organizations:OrgSummary[];error?:string}
 export interface CaptureOutcome{id:string;kind:ProspectKind;deduped:boolean;job_linked:boolean}
 export interface CaptureResult{result?:CaptureOutcome;error?:string}
-export interface BulkCaptureResult{results?:Array<{linkedin_url:string;ok:boolean;result?:CaptureOutcome;error?:string}>;error?:string}
+export interface BulkCaptureResult{results?:{linkedin_url:string;ok:boolean;result?:CaptureOutcome;error?:string}[];error?:string}
 export interface LookupResult{matches?:ProspectMatch[];error?:string}
 // The AI parse returns the CvExtraction shape; we only consume the fields capture_prospect accepts.
 export interface AiParseResult{extraction?:CapturePayload&{private?:PrivateDetails};error?:string}

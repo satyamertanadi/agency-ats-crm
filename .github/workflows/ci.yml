@@ -13,6 +13,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXT_SUPABASE_URL: https://ci-placeholder.supabase.co
+      EXT_SUPABASE_ANON_KEY: ci-public-anon-key
+      EXT_APP_ORIGIN: https://ats-ci.example.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint --prefix extension
+      - run: npm run typecheck --prefix extension
+      - run: npm test --prefix extension
+      - run: npm run build --prefix extension
+
   app:
     runs-on: ubuntu-latest
     timeout-minutes: 20
