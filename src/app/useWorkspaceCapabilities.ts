@@ -5,12 +5,12 @@ import {useAuth} from './AuthProvider'
 import {useOrganization} from './OrganizationProvider'
 
 const permissionKeys=[
-  'candidates.write','companies.write','jobs.write','pipeline.move','submissions.write','placements.write',
+  'candidates.write','companies.write','jobs.write','pipeline.move','submissions.write','interviews.write','offers.write','placements.write',
   'reports.read','reports.team','finance.write','imports.manage','organization.manage','roles.manage',
   'commercial_terms.write',
 ] as const
 
-const empty:WorkspaceCapabilities={roleKeys:[],canWriteCandidates:false,canWriteClients:false,canWriteJobs:false,canMovePipeline:false,canSubmit:false,canManagePlacements:false,canManageCommercialTerms:false,canViewTeamReports:false,canManageFinance:false,canImport:false,canManageOrganization:false,canManageWorkspace:false,canManageTemplates:false,canViewAdmin:false,readOnly:true}
+const empty:WorkspaceCapabilities={roleKeys:[],canWriteCandidates:false,canWriteClients:false,canWriteJobs:false,canMovePipeline:false,canSubmit:false,canManageInterviews:false,canManageOffers:false,canManagePlacements:false,canManageCommercialTerms:false,canViewTeamReports:false,canManageFinance:false,canImport:false,canManageOrganization:false,canManageWorkspace:false,canManageTemplates:false,canViewAdmin:false,readOnly:true}
 
 export function useWorkspaceCapabilities(){
   const {organization}=useOrganization();const {user}=useAuth()
@@ -31,7 +31,7 @@ export function useWorkspaceCapabilities(){
       const canManageTemplates=canManageWorkspace
       const canViewAdmin=canViewTeamReports||permissions['finance.write']||permissions['imports.manage']||canManageWorkspace||canManageTemplates
       const canWriteCandidates=permissions['candidates.write'];const canWriteClients=permissions['companies.write'];const canWriteJobs=permissions['jobs.write']
-      return {roleKeys,canWriteCandidates,canWriteClients,canWriteJobs,canMovePipeline:permissions['pipeline.move'],canSubmit:permissions['submissions.write'],canManagePlacements:permissions['placements.write'],canManageCommercialTerms:permissions['commercial_terms.write'],canViewTeamReports,canManageFinance:permissions['finance.write'],canImport:permissions['imports.manage'],canManageOrganization,canManageWorkspace,canManageTemplates,canViewAdmin,readOnly:![canWriteCandidates,canWriteClients,canWriteJobs,permissions['pipeline.move'],permissions['submissions.write'],permissions['placements.write']].some(Boolean)}
+      return {roleKeys,canWriteCandidates,canWriteClients,canWriteJobs,canMovePipeline:permissions['pipeline.move'],canSubmit:permissions['submissions.write'],canManageInterviews:permissions['interviews.write'],canManageOffers:permissions['offers.write'],canManagePlacements:permissions['placements.write'],canManageCommercialTerms:permissions['commercial_terms.write'],canViewTeamReports,canManageFinance:permissions['finance.write'],canImport:permissions['imports.manage'],canManageOrganization,canManageWorkspace,canManageTemplates,canViewAdmin,readOnly:![canWriteCandidates,canWriteClients,canWriteJobs,permissions['pipeline.move'],permissions['submissions.write'],permissions['interviews.write'],permissions['offers.write'],permissions['placements.write']].some(Boolean)}
     },
     placeholderData:empty,
   })

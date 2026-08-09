@@ -12,12 +12,12 @@ declare namespace chrome {
     const lastError: { message?: string } | undefined
     function sendMessage<T = unknown>(message: unknown): Promise<T>
     const onMessage: {
-      addListener(cb: (message: any, sender: { tab?: { id?: number; url?: string } }, sendResponse: (response?: unknown) => void) => boolean | void | Promise<unknown>): void
+      addListener(cb: (message: any, sender: { tab?: { id?: number; url?: string } }, sendResponse: (response?: unknown) => void) => boolean | undefined | Promise<unknown>): void
     }
   }
   namespace storage {
     interface Area { get(keys: string | string[] | null): Promise<Record<string, any>>; set(items: Record<string, unknown>): Promise<void>; remove(keys: string | string[]): Promise<void> }
-    const local: Area
+    const session: Area
   }
   namespace tabs {
     interface Tab { id?: number; url?: string }

@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage', 'playwright-report', 'test-results', '.claude/worktrees/**', '.agents/worktrees/**', 'supabase/.temp', 'src/generated/database.types.ts', 'extension'] },
+  { ignores: ['dist', 'node_modules', 'coverage', 'playwright-report', 'test-results', '.claude/worktrees/**', '.agents/worktrees/**', 'supabase/.temp', 'src/generated/database.types.ts', 'extension/dist'] },
   js.configs.recommended,
   ...tseslint.configs.strict,
   ...tseslint.configs.stylistic,
@@ -30,6 +30,18 @@ export default tseslint.config(
   },
   {
     files: ['*.config.ts', 'tests/**/*.ts', 'scripts/**/*.{js,mjs,cjs}'],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    files: ['extension/src/**/*.ts'],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      globals: {...globals.browser,...globals.webextensions},
+    },
+    rules: {'@typescript-eslint/no-explicit-any':'off'},
+  },
+  {
+    files: ['extension/*.{js,mjs,ts}'],
     languageOptions: { globals: globals.node },
   },
 )

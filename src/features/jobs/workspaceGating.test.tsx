@@ -1,6 +1,6 @@
 import {render,screen} from '@testing-library/react'
 import {MemoryRouter} from 'react-router'
-import {describe,expect,it,vi} from 'vitest'
+import {beforeEach,describe,expect,it,vi} from 'vitest'
 import {JobCandidatePanel} from './JobCandidatePanel'
 import type {Job,JobCandidate,PipelineStage} from '../../shared/types/domain'
 
@@ -15,7 +15,8 @@ import type {Job,JobCandidate,PipelineStage} from '../../shared/types/domain'
 
 vi.mock('../../app/OrganizationProvider',()=>({useOrganization:()=>({organization:{id:'org-1',slug:'northstar',base_currency:'USD'}})}))
 vi.mock('../../app/AuthProvider',()=>({useAuth:()=>({user:{id:'user-1'}})}))
-vi.mock('../../app/useWorkspaceCapabilities',()=>({useWorkspaceCapabilities:()=>({data:{canManagePlacements:true,canMovePipeline:true,canSubmit:true}})}))
+const capabilityState=vi.hoisted(()=>({canManageInterviews:true,canManageOffers:true,canManagePlacements:true,canMovePipeline:true,canSubmit:true}))
+vi.mock('../../app/useWorkspaceCapabilities',()=>({useWorkspaceCapabilities:()=>({data:capabilityState})}))
 vi.mock('../../shared/ui/Toast',()=>({useToast:()=>({success:vi.fn(),error:vi.fn(),info:vi.fn()})}))
 vi.mock('@tanstack/react-query',async()=>{
   const actual=await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
@@ -34,6 +35,8 @@ const renderPanel=(extra:Partial<React.ComponentProps<typeof JobCandidatePanel>>
     hasSubmission={false} action={null} readOnly={false} onAction={vi.fn()} onClose={vi.fn()} onUpdated={vi.fn()}
     onMove={vi.fn()} moving={false} {...extra}/></MemoryRouter>)
 
+beforeEach(()=>Object.assign(capabilityState,{canManageInterviews:true,canManageOffers:true,canManagePlacements:true,canMovePipeline:true,canSubmit:true}))
+
 describe('JobCandidatePanel hydration state',()=>{
   it('says the details are unavailable rather than claiming there are none',()=>{
     renderPanel({detailError:new Error('offers unreadable')})
@@ -49,5 +52,19 @@ describe('JobCandidatePanel hydration state',()=>{
     renderPanel({})
     expect(screen.queryByText('Some details could not be loaded')).not.toBeInTheDocument()
     expect(screen.queryByText('Loading offers, interviews and placements…')).not.toBeInTheDocument()
+  })
+
+  it('shows interview actions without granting offer or placement actions',()=>{
+    Object.assign(capabilityState,{canManageInterviews:true,canManageOffers:false,canManagePlacements:false})
+    renderPanel({})
+    expect(screen.getByRole('button',{name:'Interview'})).toBeInTheDocument()
+    expect(screen.queryByRole('button',{name:'Offer'})).not.toBeInTheDocument()
+  })
+
+  it('shows offer actions without granting interview or placement actions',()=>{
+    Object.assign(capabilityState,{canManageInterviews:false,canManageOffers:true,canManagePlacements:false})
+    renderPanel({})
+    expect(screen.getByRole('button',{name:'Offer'})).toBeInTheDocument()
+    expect(screen.queryByRole('button',{name:'Interview'})).not.toBeInTheDocument()
   })
 })

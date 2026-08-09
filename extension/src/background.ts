@@ -5,6 +5,7 @@ import type {BgRequest,OrgSummary,StateResponse} from './messages'
 // Session presence, tab URLs and org lists are all PII-adjacent, so tracing is opt-in at build time
 // (EXT_DEBUG=1) rather than always-on in a user's console.
 const trace=(...args:unknown[])=>{if(DEBUG)console.log('[ATS ext]',...args)}
+const SESSION_EXPIRED='Your ATS connection expired. Open the ATS and reconnect.'
 
 // The panel fires get-state + four list calls on every open and every workspace switch. None of that
 // changes minute to minute, so a short TTL cache turns a repeat open into zero round trips. Entries are
@@ -36,14 +37,14 @@ async function currentOrgs():Promise<OrgSummary[]>{
   const {data}=await supabase.from('organization_members').select('organizations(id,name)').eq('user_id',user.id).eq('status','active')
   // The embedded FK resolves to a single org at runtime; the generated types widen it to an array, so
   // normalise both shapes.
-  const rows=(data||[]) as unknown as Array<{organizations:{id:string;name:string}|{id:string;name:string}[]|null}>
+  const rows=(data||[]) as unknown as {organizations:{id:string;name:string}|{id:string;name:string}[]|null}[]
   return rows.flatMap((row)=>{const org=Array.isArray(row.organizations)?row.organizations[0]:row.organizations;return org?[{id:org.id,name:org.name}]:[]})
 }
 
 async function getState():Promise<StateResponse>{
   const {data:{session},error}=await supabase.auth.getSession()
   trace('getState: session present?',Boolean(session),'error?',error?.message)
-  if(!session)return {connected:false,organizations:[]}
+  if(!session)return {connected:false,organizations:[],...(error?{error:SESSION_EXPIRED}:{})}
   const organizations=await currentOrgs()
   trace('getState: organizations found:',organizations.length)
   return {connected:true,email:session.user.email,organizations}
@@ -58,7 +59,7 @@ async function handle(message:BgRequest):Promise<unknown>{
   switch(message.type){
     case 'get-state':return cached('state',getState)
     case 'connect':{invalidate();const tab=await chrome.tabs.create({url:APP_ORIGIN,active:true});handoffTabId=tab.id;trace('connect: opened tab',tab.id);return {ok:true}}
-    case 'disconnect':{await supabase.auth.signOut();invalidate();return {connected:false,organizations:[]}}
+    case 'disconnect':{await supabase.auth.signOut({scope:'local'});invalidate();return {connected:false,organizations:[]}}
     case 'session':{
       trace('session message received, has access_token?',Boolean(message.session?.access_token))
       const closeHandoffTab=async()=>{if(handoffTabId!==undefined){try{await chrome.tabs.remove(handoffTabId)}catch{/* already closed */}handoffTabId=undefined}}
@@ -66,7 +67,11 @@ async function handle(message:BgRequest):Promise<unknown>{
       // Re-running setSession for those churns stored tokens and wipes the cache for nothing.
       const {data:{session:existing}}=await supabase.auth.getSession()
       if(existing?.access_token===message.session?.access_token){trace('session: already current, no-op');await closeHandoffTab();return cached('state',getState)}
-      const {error}=await supabase.auth.setSession(message.session)
+      if(message.session.expires_at<=Math.floor(Date.now()/1000)+30){await closeHandoffTab();return {connected:false,organizations:[],error:SESSION_EXPIRED}}
+      // supabase-js requires a non-empty refresh_token field even for a live access token. This fixed
+      // sentinel satisfies that client contract but cannot mint credentials; expiry therefore fails
+      // closed and sends the user through the ATS handoff again.
+      const {error}=await supabase.auth.setSession({access_token:message.session.access_token,refresh_token:'extension-no-refresh'})
       invalidate()
       trace('setSession error?',error?.message)
       await closeHandoffTab()

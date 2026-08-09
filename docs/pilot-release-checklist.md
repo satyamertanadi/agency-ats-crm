@@ -2,6 +2,10 @@
 
 Record an owner, date, and evidence link for every item. A blank item is a release blocker.
 
+P0B recovery, legal, and release-gate ownership is tracked in
+[`p0b-operational-readiness.md`](./p0b-operational-readiness.md). Do not check an item from memory or
+because the code exists; attach proof from the actual environment or signed commercial record.
+
 ## Infrastructure and identity
 
 - [ ] Dedicated staging and production Supabase/Vercel projects are linked to the correct Git branch.
