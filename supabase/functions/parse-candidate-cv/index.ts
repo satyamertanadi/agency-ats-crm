@@ -6,7 +6,7 @@ import {candidateCvJsonSchema,normalizeCvExtraction} from '../_shared/cv-schema.
 
 declare const EdgeRuntime:{waitUntil(promise:Promise<unknown>):void}
 
-type Action='start'|'status'|'retry'|'cancel'|'cleanup'
+type Action='start'|'status'|'retry'|'cancel'
 interface Input {action:Action;organizationId?:string;parseId?:string;storagePath?:string;originalFilename?:string;mimeType?:string;targetCandidateId?:string|null}
 interface ScopedInput extends Input {organizationId:string;parseId:string}
 type Context=Awaited<ReturnType<typeof requireUser>>
@@ -19,7 +19,6 @@ Deno.serve(async(request)=>{
   const requestID=requestId(request)
   try{
     const input=await request.json() as Input
-    if(input.action==='cleanup')return await cleanup(request,requestID)
     if(!input.organizationId||!input.parseId)throw new FunctionError(400,'invalid_request','Organization and parse identifiers are required.')
     const scopedInput:ScopedInput={...input,organizationId:input.organizationId,parseId:input.parseId}
     const context=await requireCvPermission(request,scopedInput.organizationId)
@@ -117,80 +116,6 @@ async function cancel(request:Request,context:Context,input:ScopedInput,requestI
   if(cancelled.error)throw new FunctionError(500,'cv_cancel_failed','The CV cancellation could not be finalized. Try again safely.')
   log('info','candidate_cv_parse_cancelled',{requestId:requestID,parseId:row.id,organizationId:input.organizationId})
   return json(request,{parseId:row.id,status:'cancelled',requestId:requestID})
-}
-
-async function cleanup(request:Request,requestID:string){
-  const secret=Deno.env.get('WORKER_SECRET')
-  const serviceRole=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  const bearer=request.headers.get('authorization')?.replace(/^Bearer\s+/i,'')||null
-  const workerAuthorized=Boolean(secret&&request.headers.get('x-worker-secret')===secret)
-  const serviceAuthorized=Boolean(serviceRole&&bearer===serviceRole)
-  if(!workerAuthorized&&!serviceAuthorized)throw new FunctionError(401,'worker_authentication_required','Worker authentication required.')
-  const {admin}=await import('../_shared/auth.ts').then((module)=>module.clients(request))
-  const {data,error}=await admin.from('candidate_cv_parses').select('id,organization_id,storage_path').lt('expires_at',new Date().toISOString()).not('status','in','(accepted,cancelled,expired)').limit(100)
-  if(error)throw error
-  const paths=(data||[]).map((row)=>row.storage_path)
-  if(paths.length){
-    const removed=await admin.storage.from(bucket).remove(paths)
-    if(removed.error)throw removed.error
-  }
-  if(data?.length){
-    const expired=await Promise.all(data.map((row)=>admin.from('candidate_cv_parses').update({status:'expired',original_filename:`expired-${row.id}`,storage_path:`expired/${row.organization_id}/${row.id}`,extracted_data:null,field_evidence:{},uncertainties:[],error_code:null,error_message:null}).eq('id',row.id)))
-    const failure=expired.find((result)=>result.error)?.error
-    if(failure)throw failure
-  }
-
-  // submission_link_events / referral_link_events back the public rate limiters in
-  // resolve_submission_link, submit_submission_feedback, resolve_referral_link, and submit_referral,
-  // which only ever look back one hour -- nothing reads a row past that horizon, and there is no
-  // other reaper for either table. The audit trail that actually matters (last_accessed_at on
-  // public_submission_links / referral_links) is preserved separately, so this is pure rate-limit
-  // bookkeeping, not history. Seven days is generous headroom for investigating a recent abuse spike
-  // without letting either table grow without bound. Reuses this hourly worker rather than adding a
-  // new cron, matching WORKER_SECRET's existing scope.
-  const eventCutoff=new Date(Date.now()-7*24*60*60*1000).toISOString()
-  const [submissionEvents,referralEvents]=await Promise.all([
-    admin.from('submission_link_events').delete({count:'exact'}).lt('occurred_at',eventCutoff),
-    admin.from('referral_link_events').delete({count:'exact'}).lt('occurred_at',eventCutoff),
-  ])
-  if(submissionEvents.error)throw submissionEvents.error
-  if(referralEvents.error)throw referralEvents.error
-
-  // Retention is deliberately two phase: remove every storage object first, then
-  // ask the database to re-check inactivity/legal hold and anonymize. The RPC
-  // rejects the finalization if a new document appeared between those steps.
-  const due=await admin.rpc('list_candidates_due_for_retention',{p_limit:100})
-  if(due.error)throw due.error
-  let candidatesRetained=0
-  let retentionFailures=0
-  for(const candidate of due.data||[]){
-    const storagePaths=Array.isArray(candidate.storage_paths)?candidate.storage_paths.filter((path:unknown):path is string=>typeof path==='string'&&path.length>0):[]
-    if(storagePaths.length){
-      const removed=await admin.storage.from(bucket).remove(storagePaths)
-      if(removed.error){
-        retentionFailures+=1
-        log('error','candidate_retention_storage_failed',{requestId:requestID,candidateId:candidate.candidate_id,code:removed.error.name})
-        continue
-      }
-    }
-    const retained=await admin.rpc('anonymize_candidate_for_retention',{p_candidate_id:candidate.candidate_id,p_removed_storage_paths:storagePaths})
-    if(retained.error){
-      retentionFailures+=1
-      log('error','candidate_retention_finalize_failed',{requestId:requestID,candidateId:candidate.candidate_id,code:retained.error.code})
-      continue
-    }
-    candidatesRetained+=1
-  }
-
-  const payloads=await admin.from('email_delivery_payloads').delete({count:'exact'}).lt('expires_at',new Date().toISOString())
-  if(payloads.error)throw payloads.error
-
-  const imports=await admin.rpc('redact_expired_import_payloads')
-  if(imports.error)throw imports.error
-  const importRowsRedacted=Number(imports.data||0)
-
-  log('info','candidate_cv_parse_cleanup_completed',{requestId:requestID,count:data?.length||0,submissionEventsDeleted:submissionEvents.count||0,referralEventsDeleted:referralEvents.count||0,candidatesRetained,retentionFailures,emailPayloadsDeleted:payloads.count||0,importRowsRedacted})
-  return json(request,{expired:data?.length||0,submissionEventsDeleted:submissionEvents.count||0,referralEventsDeleted:referralEvents.count||0,candidatesRetained,retentionFailures,emailPayloadsDeleted:payloads.count||0,importRowsRedacted,requestId:requestID})
 }
 
 async function ownParse(context:Context,organizationId:string,parseId:string){

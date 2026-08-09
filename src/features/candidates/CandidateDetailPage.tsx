@@ -30,7 +30,6 @@ import {AddCandidateToJobModal} from './AddCandidateToJobModal'
 import {TaskButton} from '../activities/TaskButton'
 import {useToast} from '../../shared/ui/Toast'
 
-type AddMode='tag'|null
 type EditFormInput=z.input<typeof candidateProfileEditSchema>;type EditFormData=z.output<typeof candidateProfileEditSchema>
 type EditableEmployment=EmploymentItem&{id?:string}
 type EditableEducation=EducationItem&{id?:string}
@@ -45,7 +44,7 @@ const TABS=[{key:'overview',label:'Overview'},{key:'profile',label:'Profile'},{k
 type TabKey=typeof TABS[number]['key']
 
 export function CandidateDetailPage(){
-  const {candidateId=''}=useParams();const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams();const [addMode,setAddMode]=useState<AddMode>(null);const [cvOpen,setCvOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false);const [editing,setEditing]=useState(false);const [jobOpen,setJobOpen]=useState(false);const [menuOpen,setMenuOpen]=useState(false);const [legalHoldOpen,setLegalHoldOpen]=useState(false);const [legalHoldReason,setLegalHoldReason]=useState('');const [renderedAt]=useState(Date.now)
+  const {candidateId=''}=useParams();const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams();const [tagOpen,setTagOpen]=useState(false);const [tagName,setTagName]=useState('');const [cvOpen,setCvOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false);const [editing,setEditing]=useState(false);const [jobOpen,setJobOpen]=useState(false);const [menuOpen,setMenuOpen]=useState(false);const [legalHoldOpen,setLegalHoldOpen]=useState(false);const [legalHoldReason,setLegalHoldReason]=useState('');const [renderedAt]=useState(Date.now)
   const detail=useQuery({queryKey:['candidate-detail',organization?.id,candidateId],enabled:Boolean(organization&&candidateId),queryFn:()=>getCandidateDetail(organization!.id,candidateId)})
   const documents=useQuery({queryKey:['candidate-documents',organization?.id,candidateId],enabled:Boolean(organization&&candidateId),queryFn:()=>listCandidateDocuments(organization!.id,candidateId)})
   const profileVersions=useQuery({queryKey:['candidate-profile-versions',organization?.id,candidateId],enabled:Boolean(organization&&candidateId&&organization.profile_enabled),queryFn:()=>listCandidateProfileVersions(organization!.id,candidateId)})
@@ -65,6 +64,10 @@ export function CandidateDetailPage(){
    * UI, so it reports both outcomes by name. */
   const removeDocument=useMutation({mutationFn:({id,storagePath}:{id:string;storagePath:string;filename:string})=>deleteCandidateDocument(organization!.id,id,storagePath),onSuccess:async(_result,variables)=>{toast.success(`${variables.filename} archived.`);await refresh()},onError:(error,variables)=>toast.error(error,`${variables.filename} was not archived.`)})
   const removeTag=useMutation({mutationFn:(tagId:string)=>removeCandidateTag(organization!.id,candidateId,tagId),onSuccess:refresh})
+  /* Inlined from a generic AddProfileItem that took a `mode` and handled exactly one of them --
+   * employment, education, languages and skills all moved to in-place editing on their own panels,
+   * leaving a dispatching form with a single branch. */
+  const addTag=useMutation({mutationFn:(name:string)=>addCandidateTag(organization!.id,candidateId,name.trim()),onSuccess:async()=>{setTagOpen(false);setTagName('');await refresh()}})
   // wa.me only opens a chat with the message pre-filled -- nothing sends until the recruiter hits
   // send inside WhatsApp itself, so this logs "opened," not "sent," and never blocks the tab from
   // opening even if the activity write fails.
@@ -211,7 +214,7 @@ export function CandidateDetailPage(){
             {skillsEditing?<div className="stack"><SkillsListEditor value={skillsDraft} onChange={(items)=>setSkillsDraft(items as EditableSkill[])} disabled={saveSkills.isPending}/>{saveSkills.error&&<p className="form-error" role="alert">{saveSkills.error.message}</p>}<div className="form-actions"><Button variant="quiet" disabled={saveSkills.isPending} onClick={()=>setSkillsEditing(false)}>Cancel</Button><Button loading={saveSkills.isPending} onClick={()=>saveSkills.mutate(skillsDraft)}>{'Save'}</Button></div></div>
             :<div className="list">{candidate.candidate_skills?.length?candidate.candidate_skills.map((item)=><article className="list-row" key={item.skill_id}><div><strong>{item.skills?.name||'Skill'}</strong><span>{[item.proficiency,item.years_experience?`${item.years_experience} years`:null].filter(Boolean).join(' · ')||'Details not recorded'}</span></div>{canWrite&&<Button variant="quiet" aria-label="Remove skill" onClick={()=>removeSkill.mutate(item.skill_id)}><Trash2 size={14}/></Button>}</article>):<PanelEmpty message="No skills recorded" actionLabel={canWrite?'Add a skill':undefined} onAction={startSkillsEdit}/>}</div>}
           </Panel>
-          <Panel title="Tags" icon={<Tag size={17}/>} action={canWrite&&<Button variant="secondary" leadingIcon={<Plus size={14}/>} onClick={()=>setAddMode('tag')}>Add</Button>}><div className="tag-list">{candidate.candidate_tags?.length?candidate.candidate_tags.map((item)=><span className="tag-chip" key={item.tag_id}>{item.tags?.name||'Tag'}{canWrite&&<button type="button" aria-label={`Remove ${item.tags?.name||'tag'}`} onClick={()=>removeTag.mutate(item.tag_id)}>×</button>}</span>):<PanelEmpty message="No tags recorded" actionLabel={canWrite?'Add a tag':undefined} onAction={()=>setAddMode('tag')}/>}</div></Panel>
+          <Panel title="Tags" icon={<Tag size={17}/>} action={canWrite&&<Button variant="secondary" leadingIcon={<Plus size={14}/>} onClick={()=>setTagOpen(true)}>Add</Button>}><div className="tag-list">{candidate.candidate_tags?.length?candidate.candidate_tags.map((item)=><span className="tag-chip" key={item.tag_id}>{item.tags?.name||'Tag'}{canWrite&&<button type="button" aria-label={`Remove ${item.tags?.name||'tag'}`} onClick={()=>removeTag.mutate(item.tag_id)}>×</button>}</span>):<PanelEmpty message="No tags recorded" actionLabel={canWrite?'Add a tag':undefined} onAction={()=>setTagOpen(true)}/>}</div></Panel>
         </div>}
 
         {tab==='activity'&&<ActivityFeed links={[{candidate_id:candidate.id}]} subtitle="Every call, email, and meeting with this candidate. Pipeline moves and client feedback are recorded automatically." readOnly={!canWrite}/>}
@@ -223,7 +226,13 @@ export function CandidateDetailPage(){
       </div>
     </>}
 
-    <Modal title="Add tag" open={Boolean(addMode)} onClose={()=>setAddMode(null)}><AddProfileItem mode={addMode} organizationId={organization!.id} candidateId={candidateId} onDone={async()=>{setAddMode(null);await refresh()}}/></Modal>
+    <Modal title="Add tag" open={tagOpen} onClose={()=>{setTagOpen(false);setTagName('')}}>
+      <form className="stack" onSubmit={(event)=>{event.preventDefault();addTag.mutate(tagName)}}>
+        <Field label="Tag"><Input autoFocus value={tagName} onChange={(event)=>setTagName(event.target.value)} required/></Field>
+        {addTag.error&&<p className="form-error" role="alert">{addTag.error.message}</p>}
+        <div className="form-actions"><Button type="button" variant="quiet" onClick={()=>{setTagOpen(false);setTagName('')}}>Cancel</Button><Button loading={addTag.isPending} disabled={!tagName.trim()}>Add</Button></div>
+      </form>
+    </Modal>
     <Modal title={privateData?.legal_hold?'Remove legal hold':'Set legal hold'} open={legalHoldOpen} onClose={()=>setLegalHoldOpen(false)}><div className="stack"><p className="muted">{privateData?.legal_hold?'Removing this hold makes the candidate eligible for the normal retention policy.':'A legal hold prevents automated anonymization regardless of age.'}</p><Field label="Reason"><Textarea rows={3} value={legalHoldReason} onChange={(event)=>setLegalHoldReason(event.target.value)} required/></Field>{legalHold.error&&<p className="form-error" role="alert">{legalHold.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={()=>setLegalHoldOpen(false)}>Cancel</Button><Button variant={privateData?.legal_hold?'danger':'secondary'} loading={legalHold.isPending} disabled={legalHoldReason.trim().length<5} onClick={()=>legalHold.mutate({hold:!privateData?.legal_hold,reason:legalHoldReason})}>{privateData?.legal_hold?'Remove hold':'Apply hold'}</Button></div></div></Modal>
     <Modal title="Upload and parse CV" open={cvOpen} wide onClose={()=>setCvOpen(false)}><CandidateCvParser organizationId={organization!.id} userId={user!.id} targetCandidateId={candidateId} targetCandidateName={candidate.full_name} onCancel={()=>setCvOpen(false)} onAccepted={async()=>{setCvOpen(false);await refresh()}}/></Modal>
     <Modal title="Generate client profile" open={profileOpen} wide onClose={()=>setProfileOpen(false)}><CandidateProfileGenerator organizationId={organization!.id} userId={user!.id} candidate={candidate} organizationName={organization!.name} accent={organization?.primary_color} logoUrl={organization?.logo_url} footerBannerUrl={organization?.profile_footer_banner_url} defaultPreparedBy={preparedBy} onClose={()=>setProfileOpen(false)} onFinalized={refresh}/></Modal>
@@ -237,7 +246,3 @@ function PanelEmpty({message,actionLabel,onAction}:{message:string;actionLabel?:
   return <div className="panel-empty"><span><Inbox size={15}/>{message}</span>{actionLabel&&<Button variant="quiet" onClick={onAction}>{actionLabel}</Button>}</div>
 }
 
-// Employment/education/language/skill used to be added here one at a time; they're now edited
-// in place on their own panels (see startEmploymentEdit etc. above). Only tags -- a plain chip
-// adder with no repeatable-list pain point -- still go through this generic add form.
-function AddProfileItem({mode,organizationId,candidateId,onDone}:{mode:AddMode;organizationId:string;candidateId:string;onDone:()=>Promise<void>}){const mutation=useMutation({mutationFn:async(form:HTMLFormElement)=>{const data=new FormData(form);if(mode==='tag')await addCandidateTag(organizationId,candidateId,String(data.get('tag')||''))},onSuccess:onDone});return <form className="stack" onSubmit={(event)=>{event.preventDefault();mutation.mutate(event.currentTarget)}}>{mode==='tag'&&<Field label="Tag"><Input name="tag" required/> </Field>}{mutation.error&&<p className="form-error" role="alert">{mutation.error.message}</p>}<div className="form-actions"><Button loading={mutation.isPending}>Add</Button></div></form>}

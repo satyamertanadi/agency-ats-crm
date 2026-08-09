@@ -54,10 +54,6 @@ policy = "per_worker"
 enabled = false
 port = 55329
 
-[functions.ai-evaluate]
-enabled = true
-verify_jwt = false
-
 [functions.send-invitation]
 enabled = true
 verify_jwt = false
@@ -67,10 +63,6 @@ enabled = true
 verify_jwt = false
 
 [functions.public-review]
-enabled = true
-verify_jwt = false
-
-[functions.refer]
 enabled = true
 verify_jwt = false
 
@@ -99,6 +91,12 @@ enabled = true
 verify_jwt = false
 
 [functions.parse-candidate-cv]
+enabled = true
+verify_jwt = false
+
+# Called by pg_cron inside the project, not by a browser session: it authenticates with
+# WORKER_SECRET or the service role key in its own handler rather than with a user JWT.
+[functions.scheduled-maintenance]
 enabled = true
 verify_jwt = false
 

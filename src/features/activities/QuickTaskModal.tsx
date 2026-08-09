@@ -25,11 +25,11 @@ const dateValue=(days:number)=>{const date=new Date();date.setDate(date.getDate(
  * already name a record -- opening this from a candidate's page and then being asked to pick a job
  * would be the merge undoing the context the entry point already had. */
 export function QuickTaskModal(){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams()
+  const {organization,membership}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams()
   const [title,setTitle]=useState('');const [description,setDescription]=useState('');const [dueAt,setDueAt]=useState(()=>dateValue(0));const [priority,setPriority]=useState('normal');const [ownerId,setOwnerId]=useState('');const [jobId,setJobId]=useState('')
   const linkType=params.get('linkType') as 'candidate'|'company'|'contact'|'job'|null;const linkId=params.get('linkId')
   const open=(params.get('task')==='1'||params.get('action')==='task')&&Boolean(organization&&user)&&!capabilities.data?.readOnly
-  const current=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
+  const current=membership
   const team=useQuery({queryKey:['team',organization?.id],enabled:open&&Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
   // Only fetched when there is a picker to fill. Opened from a record, the link is already decided.
   const pickJob=!linkType||!linkId

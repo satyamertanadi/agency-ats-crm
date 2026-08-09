@@ -1,5 +1,6 @@
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query'
 import {fireEvent,render,screen,waitFor} from '@testing-library/react'
+import {MemoryRouter} from 'react-router'
 import {beforeEach,describe,expect,it,vi} from 'vitest'
 import {SubmissionComposerDrawer} from './SubmissionComposerDrawer'
 import {ToastProvider} from '../../shared/ui/Toast'
@@ -14,6 +15,8 @@ const {sendClientSubmission,listSubmissionCandidateDocuments,listContacts}=vi.ho
 }))
 vi.mock('../core/commercialRepository',()=>({sendClientSubmission,listSubmissionCandidateDocuments}))
 vi.mock('../core/repository',()=>({listContacts}))
+// The composer links salary/notice/availability back to the candidate record that owns them.
+vi.mock('../../app/OrganizationProvider',()=>({useOrganization:()=>({organization:{id:'org-1',slug:'sembada'}})}))
 
 const job={id:'job-1',title:'Head of Brand',company_id:'co-1',currency:'IDR',status:'open',
   companies:{id:'co-1',name:'Sembada Pangan'}} as Job
@@ -40,9 +43,9 @@ const sentItems=()=>(sendClientSubmission.mock.calls[0]![0] as {items:Array<Reco
 function renderComposer(candidates:Array<{jobCandidateId:string;name:string}>){
   const onSent=vi.fn().mockResolvedValue(undefined)
   const cache=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})
-  render(<QueryClientProvider client={cache}><ToastProvider>
+  render(<MemoryRouter><QueryClientProvider client={cache}><ToastProvider>
     <SubmissionComposerDrawer open onClose={vi.fn()} job={job} organizationId="org-1" candidates={candidates} onSent={onSent}/>
-  </ToastProvider></QueryClientProvider>)
+  </ToastProvider></QueryClientProvider></MemoryRouter>)
   return onSent
 }
 
@@ -68,20 +71,33 @@ describe('SubmissionComposerDrawer',()=>{
     expect(payload.title).toBe('2 candidates · Head of Brand')
   })
 
-  it('writes the pitch columns that nothing has ever written',async()=>{
+  /* Three inputs per candidate, not ten. Why-they-fit, relevant experience, motivation and
+   * relocation were four free-text boxes restating the CV and the summary; salary, notice and
+   * availability come from the candidate record and are shown read-only so the package cannot
+   * disagree with the source. */
+  it('offers only summary and comments, and shows the record facts read-only',async()=>{
     renderComposer([{jobCandidateId:'jc-1',name:'Ana Chen'}])
     await waitFor(()=>expect(screen.getByLabelText('Recipient email')).toBeInTheDocument())
-    // Each candidate is a disclosure, so the pitch fields only exist once it is opened.
     expandCandidate('Ana Chen')
-    fireEvent.change(screen.getByLabelText('Why they fit'),{target:{value:'Ran the exact rebrand this role needs'}})
-    fireEvent.change(screen.getByLabelText('Notice period'),{target:{value:'One month'}})
+
+    expect(screen.getByLabelText('Summary the client sees first')).toBeInTheDocument()
+    expect(screen.getByLabelText('Your comments')).toBeInTheDocument()
+    for(const gone of ['Why they fit','Relevant experience','What is motivating them','Relocation','Notice period','Expected salary']){
+      expect(screen.queryByLabelText(gone)).toBeNull()
+    }
+    /* Seeded from the candidate record once the roster query resolves. Scoped to the facts list --
+     * "30 days" is also one of the link-expiry options further down the drawer. */
+    await waitFor(()=>expect(screen.getByText('45000000 IDR')).toBeInTheDocument())
+    const facts=document.querySelector('.composer-facts') as HTMLElement
+    expect(facts).toHaveTextContent('30 days')
+    expect(facts).toHaveTextContent('Within 2 weeks')
+    expect(screen.getByRole('link',{name:"Edit these on Ana Chen's record"})).toHaveAttribute('href','/app/sembada/candidates/cand-jc-1')
+
     fireEvent.change(screen.getByLabelText('Recipient email'),{target:{value:'rani@sembada.example'}})
     fireEvent.click(screen.getByRole('button',{name:'Send 1 candidate'}))
-
     await waitFor(()=>expect(sendClientSubmission).toHaveBeenCalled())
-    expect(sentItems()[0]).toMatchObject({
-      suitability_assessment:'Ran the exact rebrand this role needs',notice_period:'One month',
-    })
+    expect(sentItems()[0]).not.toHaveProperty('suitability_assessment')
+    expect(sentItems()[0]).not.toHaveProperty('motivation')
   })
 
   it('falls back to a generated summary rather than sending a blank heading',async()=>{
@@ -97,9 +113,7 @@ describe('SubmissionComposerDrawer',()=>{
     renderComposer([{jobCandidateId:'jc-1',name:'Ana Chen'}])
     await waitFor(()=>expect(screen.getByLabelText('Recipient email')).toBeInTheDocument())
     const candidateSection=screen.getByText('Ana Chen').closest('details') as HTMLDetailsElement
-    const optionalSection=screen.getByText('Add detail (optional)').closest('details') as HTMLDetailsElement
     expect(candidateSection.open).toBe(true)
-    expect(optionalSection.open).toBe(false)
     await waitFor(()=>expect(screen.getByLabelText('Summary the client sees first')).toHaveValue('Ana Chen — Brand Manager at Acme.'))
 
     fireEvent.change(screen.getByLabelText('Recipient email'),{target:{value:'rani@sembada.example'}})

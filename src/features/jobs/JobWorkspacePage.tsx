@@ -3,7 +3,6 @@ import {DndContext,KeyboardSensor,PointerSensor,useDraggable,useDroppable,useSen
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ArrowLeft,Clock,GripVertical,Plus,Send} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router'
-import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {getPipeline,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
@@ -38,7 +37,6 @@ import {formatMoney,formatSalary} from '../../shared/lib/format'
 import {useShortcut} from '../../shared/lib/useShortcut'
 
 type WorkspaceView='pipeline'|'activity'|'details'
-type Density='compact'|'roomy'
 
 const memberInitials=(member?:Pick<TeamMember,'profiles'>|null)=>{
   const name=member?.profiles?.full_name||member?.profiles?.email||''
@@ -112,10 +110,14 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
 }
 
 export function JobWorkspacePage(){
-  const {jobId=''}=useParams();const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [editOpen,setEditOpen]=useState(false);const [density,setDensity]=useState<Density>('compact');const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerCandidates,setComposerCandidates]=useState<ComposerCandidate[]|null>(null)
+  const {jobId=''}=useParams();const {organization,membership}=useOrganization();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [editOpen,setEditOpen]=useState(false);const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerCandidates,setComposerCandidates]=useState<ComposerCandidate[]|null>(null)
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)});const job=jobs.data?.find((item)=>item.id===jobId)
   const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
-  const interviews=useQuery({queryKey:['interviews',organization?.id],enabled:Boolean(organization),queryFn:()=>listInterviews(organization!.id)});const offers=useQuery({queryKey:['offers',organization?.id],enabled:Boolean(organization),queryFn:()=>listOffers(organization!.id)});const placements=useQuery({queryKey:['placements',organization?.id],enabled:Boolean(organization),queryFn:()=>listPlacements(organization!.id)});const packages=useQuery({queryKey:['submissions',organization?.id],enabled:Boolean(organization),queryFn:()=>listSubmissionPackages(organization!.id)});const members=useQuery({queryKey:['members',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
+  /* Scoped to this job, not to the organization. These four decorate the candidate panel for
+   * candidates on this board only -- fetching every interview, offer, placement and submission
+   * package in the workspace to filter them down client-side was four unbounded reads per job open.
+   * The query keys carry the job id so one job's cache is not served to another. */
+  const interviews=useQuery({queryKey:['interviews',organization?.id,jobId],enabled:Boolean(organization),queryFn:()=>listInterviews(organization!.id,{jobId})});const offers=useQuery({queryKey:['offers',organization?.id,jobId],enabled:Boolean(organization),queryFn:()=>listOffers(organization!.id,{jobId})});const placements=useQuery({queryKey:['placements',organization?.id,jobId],enabled:Boolean(organization),queryFn:()=>listPlacements(organization!.id,{jobId})});const packages=useQuery({queryKey:['submissions',organization?.id,jobId],enabled:Boolean(organization),queryFn:()=>listSubmissionPackages(organization!.id,{jobId})});const members=useQuery({queryKey:['members',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
   const refresh=()=>Promise.all([cache.invalidateQueries({queryKey:['pipeline',jobId]}),cache.invalidateQueries({queryKey:['jobs',organization?.id]}),cache.invalidateQueries({queryKey:['job-health',organization?.id]}),cache.invalidateQueries({queryKey:['today',organization?.id]})])
   /* The jobs list's next-action CTAs name an action, so they carry it: arriving with ?open=add or
    * ?open=edit lands on the surface that resolves the action rather than on the board with the
@@ -180,7 +182,7 @@ export function JobWorkspacePage(){
   // Drops resolve through the same model as the dropdown, so a drag cannot land a candidate somewhere
   // the card would then contradict -- and dropping back into the column you came from is a no-op.
   const onDragEnd=({active,over}:DragEndEvent)=>{if(!canRecruit||!over)return;const item=pipeline.data!.items.find((candidate)=>candidate.id===String(active.id));if(item)moveToColumn(item,String(over.id))}
-  const next=jobNeedsCandidateAction(pipeline.data!.items);const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
+  const next=jobNeedsCandidateAction(pipeline.data!.items);const currentMember=membership
   const setView=(nextView:WorkspaceView)=>{const nextParams=new URLSearchParams(params);nextParams.set('view',nextView);nextParams.delete('candidate');nextParams.delete('action');setParams(nextParams)}
   const openCandidate=(item:JobCandidate)=>{const nextParams=new URLSearchParams(params);nextParams.set('candidate',item.id);nextParams.delete('action');setParams(nextParams)}
   const composeCandidate=(item:JobCandidate)=>{setComposerCandidates([{jobCandidateId:item.id,name:item.candidates?.full_name||'Candidate'}]);const nextParams=new URLSearchParams(params);nextParams.delete('candidate');nextParams.delete('action');setParams(nextParams)}
@@ -201,14 +203,13 @@ export function JobWorkspacePage(){
             {placedCount>0&&<span className="outcome-chip outcome-chip-good">Placed <strong>{placedCount}</strong></span>}
           </div>}
           {capabilities.data?.canSubmit&&shortlisted.length>0&&job.status==='open'&&<Button size="sm" variant="secondary" leadingIcon={<Send size={14}/>} onClick={()=>setComposerCandidates(shortlisted)}>Send {shortlisted.length} to client</Button>}
-          <div className="segmented-control" role="group" aria-label="Card density"><button type="button" className={density==='compact'?'active':''} onClick={()=>setDensity('compact')}>Compact</button><button type="button" className={density==='roomy'?'active':''} onClick={()=>setDensity('roomy')}>Roomy</button></div>
           {canRecruit&&<Button variant="secondary" leadingIcon={<Plus size={14}/>} onClick={()=>setAddOpen(true)}>Add candidates</Button>}
         </div>
       </div>
       <Panel padding="sm">
         <PhaseJump containerRef={boardRef} columns={boardColumns.map((column)=>({key:column.key,label:column.label,count:pipeline.data!.items.filter((item)=>column.stages.some((stage)=>stage.id===item.current_stage_id)).length}))}/>
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-          <div ref={boardRef} className={`kanban workflow-kanban workflow-kanban-${density}`} style={{'--kanban-columns':boardColumns.length} as React.CSSProperties}>
+          <div ref={boardRef} className="kanban workflow-kanban" style={{'--kanban-columns':boardColumns.length} as React.CSSProperties}>
             {boardColumns.map((column)=>{
               const stageIds=new Set(column.stages.map((stage)=>stage.id));const items=pipeline.data!.items.filter((item)=>stageIds.has(item.current_stage_id))
               const color=column.stages[0]?phaseRampColor[phaseForStage(column.stages[0])]:'var(--color-faint)'

@@ -57,7 +57,7 @@ export type PipelinePhaseKey='sourcing'|'screening'|'shortlist'|'client_review'|
  * same reason as ProfileStatus: shared/lib/status.ts owns its wording and must not import features/. */
 export type TodayWorkKind='blocked'|'overdue'|'today'|'upcoming'|'recommended'
 
-export type Organization = { id: string; name: string; slug: string; base_currency: string; salary_period?: 'annual'|'monthly'; timezone: string; seat_limit: number; pilot_status: PilotStatus; primary_color?:string;logo_path?:string|null;logo_url?:string|null;profile_footer_banner_path?:string|null;profile_footer_banner_url?:string|null;profile_enabled?:boolean;whatsapp_country_code?:string|null;whatsapp_template?:string|null }
+export type Organization = { id: string; name: string; slug: string; base_currency: string; salary_period?: 'annual'|'monthly'; timezone: string; pilot_status: PilotStatus; primary_color?:string;logo_path?:string|null;logo_url?:string|null;migration_complete?:boolean;profile_footer_banner_path?:string|null;profile_footer_banner_url?:string|null;profile_enabled?:boolean;whatsapp_country_code?:string|null;whatsapp_template?:string|null }
 export type Membership = { id: string; organization_id: string; user_id?:string; status: MemberStatus; organizations: Organization }
 export type Candidate = {
   id: string; organization_id: string; full_name: string; current_company: string | null; current_position: string | null;
@@ -81,7 +81,7 @@ export type CompanyPipelineRow = {
 export type SavedViewResource='candidates'|'jobs'|'clients'
 export type SavedView = {
   id:string;organization_id:string;owner_member_id:string;resource:SavedViewResource;name:string
-  filters:Record<string,unknown>;columns:string[];is_shared:boolean;is_default:boolean;updated_at:string
+  filters:Record<string,unknown>;is_shared:boolean;is_default:boolean;updated_at:string
 }
 
 export type Contact = { id: string; organization_id: string; company_id: string; full_name: string; position: string | null; email: string | null; phone: string | null; contact_status: ContactStatus; next_follow_up_at: string | null; companies?: Pick<Company,'id'|'name'> | null }
@@ -102,12 +102,10 @@ export interface WorkspaceCapabilities {roleKeys:string[];canWriteCandidates:boo
 export type PublicReview = { package: { id:string; title:string; message:string|null; job_title:string; company_name:string; recipient_name:string|null; expires_at:string }; branding?:{organization_name:string;primary_color:string|null;logo_path:string|null;salary_period?:'annual'|'monthly'|null}|null; candidates: PublicSubmission[];documents?:Array<{id:string;filename:string;mimeType:string;url:string}> }
 export type PublicSubmission = { submission_id:string; candidate_name:string; current_company:string|null; current_position:string|null; location:string|null; linkedin_url:string|null; portfolio_url:string|null; candidate_summary:string; recruiter_comments:string|null; suitability_assessment:string|null; relevant_experience:string|null; expected_salary:number|null; currency:string|null; notice_period:string|null; availability:string|null; motivation:string|null; relocation_willingness:string|null; interview_availability:string|null; feedback:{decision:string;comments:string|null;reviewer_name:string|null;updated_at:string}|null }
 
-export type ReferralStatus='new'|'accepted'|'rejected'|'duplicate'
-export type PublicReferral={branding:{organization_name:string;primary_color:string|null;logo_path:string|null};jobs:Array<{id:string;title:string;company_name:string;location:string|null}>}
-export type ReferralLink={id:string;label:string|null;token_prefix:string;member_id:string|null;expires_at:string|null;revoked_at:string|null;created_at:string}
-export type Referral={id:string;organization_id:string;referrer_member_id:string|null;referrer_name:string|null;referrer_email:string|null;candidate_full_name:string;candidate_email:string|null;candidate_linkedin_url:string|null;candidate_note:string|null;resume_path:string|null;target_job_id:string|null;status:ReferralStatus;created_candidate_id:string|null;created_at:string;jobs?:{id:string;title:string}|null;organization_members?:{profiles?:{full_name?:string|null}|null}|null}
 
-export type ActivityType='call'|'email'|'whatsapp'|'meeting'|'interview'|'status_change'|'submission'|'client_feedback'|'placement'|'other'
+// 'note' is written by capture_prospect (the browser extension's note field) and is not offered in
+// the manual composer -- a note typed inside the app is an 'other' activity.
+export type ActivityType='call'|'email'|'whatsapp'|'meeting'|'interview'|'status_change'|'submission'|'client_feedback'|'placement'|'note'|'other'
 export type Activity={id:string;activity_type:ActivityType;direction:'inbound'|'outbound'|'internal'|null;subject:string|null;summary:string;occurred_at:string;created_by:string;actor_name_snapshot?:string|null;profiles?:{full_name?:string|null}|null}
 
 export type TeamMember={id:string;organization_id:string;user_id:string;job_title:string|null;status:MemberStatus;is_vendor_support:boolean;profiles:{full_name?:string;email?:string}|null;member_roles?:Array<{roles:{id:string;name:string;role_key:string}|null}>}

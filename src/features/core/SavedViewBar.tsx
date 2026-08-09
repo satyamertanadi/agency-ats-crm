@@ -1,7 +1,6 @@
-import {useState} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {BookmarkPlus,Download,Star,Trash2,Users} from 'lucide-react'
-import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {deleteSavedView,listSavedViews,saveView} from './commercialRepository'
 import type {SavedView,SavedViewResource} from '../../shared/types/domain'
@@ -25,9 +24,9 @@ export function SavedViewBar({resource,paramKeys,params,onApply,onExport,exporti
   onExport?:()=>void
   exporting?:boolean
 }){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const cache=useQueryClient();const toast=useToast()
+  const {organization,membership}=useOrganization();const cache=useQueryClient();const toast=useToast()
   const [saveOpen,setSaveOpen]=useState(false);const [name,setName]=useState('');const [shared,setShared]=useState(false);const [makeDefault,setMakeDefault]=useState(false)
-  const member=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
+  const member=membership
   const views=useQuery({queryKey:['saved-views',organization?.id,resource],enabled:Boolean(organization),queryFn:()=>listSavedViews(organization!.id,resource)})
   const refresh=()=>cache.invalidateQueries({queryKey:['saved-views',organization?.id,resource]})
 
@@ -35,7 +34,7 @@ export function SavedViewBar({resource,paramKeys,params,onApply,onExport,exporti
   const activeCount=Object.keys(currentFilters).length
 
   const create=useMutation({
-    mutationFn:()=>saveView(organization!.id,member!.id,resource,{name,filters:currentFilters,columns:[],isShared:shared,isDefault:makeDefault}),
+    mutationFn:()=>saveView(organization!.id,member!.id,resource,{name,filters:currentFilters,isShared:shared,isDefault:makeDefault}),
     onSuccess:async()=>{const saved=name;setSaveOpen(false);setName('');setShared(false);setMakeDefault(false);await refresh();toast.success(`View saved: ${saved}`)},
     onError:(error)=>toast.error(error,'The view was not saved.'),
   })
@@ -52,6 +51,23 @@ export function SavedViewBar({resource,paramKeys,params,onApply,onExport,exporti
     for(const [key,value] of Object.entries(view.filters))if(value)next.set(key,String(value))
     onApply(next)
   }
+
+  /* The star on a default view used to persist and do nothing -- marking a view default changed no
+   * behaviour anywhere. It now applies on arrival.
+   *
+   * Two guards keep that from fighting the user. It runs once per mount (`applied`), so clearing the
+   * filters does not immediately reinstate them; and only when the URL carries none of this list's
+   * own parameters, so a link, a back-navigation or a hand-edited URL always wins over the default. */
+  const applied=useRef(false)
+  useEffect(()=>{
+    if(applied.current||!views.data)return
+    applied.current=true
+    if(paramKeys.some((key)=>params.get(key)))return
+    const fallback=views.data.find((view)=>view.is_default&&view.owner_member_id===member?.id)
+    if(fallback)apply(fallback)
+    // Keyed on the loaded views alone: this is a once-per-mount bootstrap, not a subscription to
+    // param changes.
+  },[views.data])
 
   const mine=(view:SavedView)=>view.owner_member_id===member?.id
 

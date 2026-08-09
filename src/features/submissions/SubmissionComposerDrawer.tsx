@@ -1,6 +1,8 @@
 import {useEffect,useMemo,useRef,useState} from 'react'
 import {useMutation,useQuery} from '@tanstack/react-query'
 import {FileText} from 'lucide-react'
+import {Link} from 'react-router'
+import {useOrganization} from '../../app/OrganizationProvider'
 import {listContacts} from '../core/repository'
 import {listSubmissionCandidateDocuments,sendClientSubmission} from '../core/commercialRepository'
 import type {Job} from '../../shared/types/domain'
@@ -9,8 +11,7 @@ import {Callout} from '../../shared/ui/Callout'
 import {CollapsibleSection} from '../../shared/ui/CollapsibleSection'
 import {Drawer} from '../../shared/ui/Drawer'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
-import {OptionSelect} from '../../shared/ui/OptionSelect'
-import {candidateAvailability,relocationWillingness} from '../../shared/lib/optionSets'
+import {candidateAvailability} from '../../shared/lib/optionSets'
 import {Badge} from '../../shared/ui/Page'
 import {useToast} from '../../shared/ui/Toast'
 
@@ -19,13 +20,26 @@ import {useToast} from '../../shared/ui/Toast'
 
 export interface ComposerCandidate {jobCandidateId:string;name:string}
 
+/* Three inputs per candidate, not ten. On a three-person shortlist the old set put thirty fields
+ * between the consultant and a client email, four of which (why they fit, relevant experience,
+ * motivation, relocation) were free-text boxes restating what the CV and the summary already say.
+ *
+ * Salary, notice and availability are not gone -- they are still sent. They are facts already on the
+ * candidate record, so the composer shows them read-only and links to the record to change them,
+ * rather than offering an editable copy that can silently disagree with the source. */
 interface ItemDraft {
-  candidate_summary:string;recruiter_comments:string;suitability_assessment:string;relevant_experience:string
-  expected_salary:string;currency:string;notice_period:string;availability:string;motivation:string;relocation_willingness:string
+  candidate_summary:string;recruiter_comments:string
+  expected_salary:string;currency:string;notice_period:string;availability:string
   document_ids:string[]
 }
-const emptyDraft=():ItemDraft=>({candidate_summary:'',recruiter_comments:'',suitability_assessment:'',relevant_experience:'',
-  expected_salary:'',currency:'',notice_period:'',availability:'',motivation:'',relocation_willingness:'',document_ids:[]})
+const emptyDraft=():ItemDraft=>({candidate_summary:'',recruiter_comments:'',
+  expected_salary:'',currency:'',notice_period:'',availability:'',document_ids:[]})
+
+const factSalary=(draft?:ItemDraft)=>{
+  const amount=draft?.expected_salary?.trim()
+  if(!amount)return 'Not recorded'
+  return [amount,draft?.currency?.trim()].filter(Boolean).join(' ')
+}
 
 type SubmissionPrivate={consent_status:string;expected_salary:number|null;salary_currency:string|null}
 const privateOf=(candidate?:{candidate_private_details?:SubmissionPrivate|SubmissionPrivate[]|null}|null)=>{
@@ -43,7 +57,8 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
   candidates:ComposerCandidate[]
   onSent:()=>Promise<unknown>
 }){
-  const toast=useToast()
+  const toast=useToast();const {organization}=useOrganization()
+  const candidateBase=`/app/${organization?.slug||'workspace'}/candidates`
   const [drafts,setDrafts]=useState<Record<string,ItemDraft>>({})
   const [title,setTitle]=useState('')
   const [message,setMessage]=useState('Please review these candidates for the role.')
@@ -125,14 +140,10 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
            * leads with it, and a blank heading reads as a broken package. */
           candidate_summary:draft.candidate_summary.trim()||`${entry.name} — ${entry.row?.candidates?.current_position||'Experienced candidate'}${entry.row?.candidates?.current_company?` at ${entry.row.candidates.current_company}`:''}.`,
           recruiter_comments:draft.recruiter_comments.trim()||undefined,
-          suitability_assessment:draft.suitability_assessment.trim()||undefined,
-          relevant_experience:draft.relevant_experience.trim()||undefined,
           expected_salary:draft.expected_salary.trim()||undefined,
           currency:draft.expected_salary.trim()?draft.currency.trim()||job.currency||undefined:undefined,
           notice_period:draft.notice_period.trim()||undefined,
           availability:draft.availability.trim()||undefined,
-          motivation:draft.motivation.trim()||undefined,
-          relocation_willingness:draft.relocation_willingness.trim()||undefined,
           document_ids:draft.document_ids}
       })};const fingerprint=JSON.stringify(payload);if(fingerprint!==requestFingerprint.current){requestFingerprint.current=fingerprint;requestKey.current=crypto.randomUUID()}return sendClientSubmission({...payload,requestKey:requestKey.current})},
     onSuccess:async(result)=>{
@@ -161,17 +172,15 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
             :<div className="stack">
               <Field label="Summary the client sees first"><Textarea rows={2} value={drafts[entry.jobCandidateId]?.candidate_summary??''} onChange={(event)=>update(entry.jobCandidateId,{candidate_summary:event.target.value})} placeholder={`${entry.name} — ${entry.row?.candidates?.current_position||'Experienced candidate'}`}/></Field>
               <Field label="Your comments"><Textarea rows={2} value={drafts[entry.jobCandidateId]?.recruiter_comments??''} onChange={(event)=>update(entry.jobCandidateId,{recruiter_comments:event.target.value})} placeholder="What should the client know before speaking with them?"/></Field>
-              <CollapsibleSection title="Add detail (optional)" className="composer-optional-details">
-                <div className="form-grid">
-                  <Field label="Why they fit"><Textarea rows={2} value={drafts[entry.jobCandidateId]?.suitability_assessment??''} onChange={(event)=>update(entry.jobCandidateId,{suitability_assessment:event.target.value})}/></Field>
-                  <Field label="Relevant experience"><Textarea rows={2} value={drafts[entry.jobCandidateId]?.relevant_experience??''} onChange={(event)=>update(entry.jobCandidateId,{relevant_experience:event.target.value})}/></Field>
-                  <Field label="What is motivating them"><Textarea rows={2} value={drafts[entry.jobCandidateId]?.motivation??''} onChange={(event)=>update(entry.jobCandidateId,{motivation:event.target.value})}/></Field>
-                  <Field label="Expected salary"><div className="field-row"><Input aria-label={`Expected salary for ${entry.name}`} value={drafts[entry.jobCandidateId]?.expected_salary??''} onChange={(event)=>update(entry.jobCandidateId,{expected_salary:event.target.value})}/><Input aria-label={`Salary currency for ${entry.name}`} value={drafts[entry.jobCandidateId]?.currency??job.currency??''} maxLength={3} onChange={(event)=>update(entry.jobCandidateId,{currency:event.target.value.toUpperCase()})}/></div></Field>
-                  <Field label="Notice period"><Input value={drafts[entry.jobCandidateId]?.notice_period??''} onChange={(event)=>update(entry.jobCandidateId,{notice_period:event.target.value})}/></Field>
-                  <Field label="Availability"><OptionSelect label="Availability" placeholder="Not stated" options={candidateAvailability.options(drafts[entry.jobCandidateId]?.availability)} value={candidateAvailability.key(drafts[entry.jobCandidateId]?.availability)} onChange={(next)=>update(entry.jobCandidateId,{availability:next})}/></Field>
-                  <Field label="Relocation"><OptionSelect label="Relocation" placeholder="Not stated" options={relocationWillingness.options(drafts[entry.jobCandidateId]?.relocation_willingness)} value={relocationWillingness.key(drafts[entry.jobCandidateId]?.relocation_willingness)} onChange={(next)=>update(entry.jobCandidateId,{relocation_willingness:next})}/></Field>
-                </div>
-              </CollapsibleSection>
+              {/* Read-only, and sent as shown. These come from the candidate record; editing them
+                * here would create a second copy that disagrees with the source the moment either
+                * one changes. The link goes to the place that owns them. */}
+              <dl className="composer-facts">
+                <div><dt>Expected salary</dt><dd>{factSalary(drafts[entry.jobCandidateId])}</dd></div>
+                <div><dt>Notice period</dt><dd>{drafts[entry.jobCandidateId]?.notice_period||'Not recorded'}</dd></div>
+                <div><dt>Availability</dt><dd>{candidateAvailability.label(drafts[entry.jobCandidateId]?.availability)||'Not recorded'}</dd></div>
+              </dl>
+              {entry.row?.candidate_id&&<p className="muted"><Link to={`${candidateBase}/${entry.row.candidate_id}`}>Edit these on {entry.name}'s record</Link></p>}
               <fieldset>
                 <legend>Documents to share</legend>
                 <div className="checkbox-list">

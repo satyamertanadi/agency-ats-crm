@@ -11,15 +11,11 @@ values
 ('20000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@rival.local',crypt('LocalTest!123',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}','{"full_name":"Rival Owner"}','','','','',now(),now())
 on conflict(id) do nothing;
 
--- Northstar's seat_limit is raised above the production default of 6 because this fixture exists to
--- exercise all eight seeded roles, not to mirror the pilot contract; its seven members below would
--- otherwise trip the seat limit and fail `supabase db reset`.
---
--- Rival has exactly one member and is deliberately capped at one seat, giving the RLS suite an
--- already-full workspace to prove seat enforcement against. Do not add members to Rival.
-insert into public.organizations(id,name,slug,base_currency,timezone,created_by,seat_limit) values
-('30000000-0000-0000-0000-000000000001','Northstar Search','northstar-search','USD','Asia/Singapore','10000000-0000-0000-0000-000000000001',25),
-('30000000-0000-0000-0000-000000000002','Rival Search','rival-search','USD','UTC','20000000-0000-0000-0000-000000000001',1)
+-- Rival exists to give the RLS suite a second tenant to prove isolation against. It has exactly one
+-- member; keep it that way so cross-tenant assertions stay meaningful.
+insert into public.organizations(id,name,slug,base_currency,timezone,created_by) values
+('30000000-0000-0000-0000-000000000001','Northstar Search','northstar-search','USD','Asia/Singapore','10000000-0000-0000-0000-000000000001'),
+('30000000-0000-0000-0000-000000000002','Rival Search','rival-search','USD','UTC','20000000-0000-0000-0000-000000000001')
 on conflict(id) do nothing;
 insert into public.organization_settings(organization_id) values('30000000-0000-0000-0000-000000000001'),('30000000-0000-0000-0000-000000000002') on conflict do nothing;
 
@@ -36,6 +32,45 @@ on conflict do nothing;
 
 select public.seed_organization_roles('30000000-0000-0000-0000-000000000001');
 select public.seed_organization_roles('30000000-0000-0000-0000-000000000002');
+
+/* The product ships three pre-baked bundles (owner / consultant / readonly -- see
+ * 20260810070000_three_seeded_roles.sql). The five below are FIXTURES, not product roles: the RLS
+ * suite proves each permission key is enforced independently, and it needs holders of narrower
+ * permission sets to prove it against. tests/rls/private-details-permission-split.test.ts signs in
+ * as bd, candidate-documents-storage.test.ts and interview-offer-permissions.test.ts as finance and
+ * sourcer. Created here with is_system=false so nothing mistakes them for shipped bundles.
+ *
+ * These sets are the ones the old eight-role seeder used, kept verbatim so the boundaries the tests
+ * assert are the same boundaries they were written against. */
+insert into public.roles(organization_id,name,role_key,is_system) values
+('30000000-0000-0000-0000-000000000001','Administrator','admin',false),
+('30000000-0000-0000-0000-000000000001','Recruitment Manager','manager',false),
+('30000000-0000-0000-0000-000000000001','Researcher / Sourcer','sourcer',false),
+('30000000-0000-0000-0000-000000000001','Business Development Consultant','bd',false),
+('30000000-0000-0000-0000-000000000001','Finance / Operations','finance',false)
+on conflict do nothing;
+
+insert into public.role_permissions(role_id,permission_key)
+select r.id,p.key from public.roles r join public.permissions p on true
+where r.organization_id='30000000-0000-0000-0000-000000000001' and r.role_key='admin'
+on conflict do nothing;
+insert into public.role_permissions(role_id,permission_key)
+select r.id,p.key from public.roles r join public.permissions p on p.key not in ('organization.manage','roles.manage','finance.write')
+where r.organization_id='30000000-0000-0000-0000-000000000001' and r.role_key='manager'
+on conflict do nothing;
+insert into public.role_permissions(role_id,permission_key)
+select r.id,p.key from public.roles r join public.permissions p on p.key in ('candidates.read','candidates.write','candidates_private.read','companies.read','jobs.read','pipeline.move','activities.read','activities.write','tasks.read','tasks.write','ai.use')
+where r.organization_id='30000000-0000-0000-0000-000000000001' and r.role_key='sourcer'
+on conflict do nothing;
+insert into public.role_permissions(role_id,permission_key)
+select r.id,p.key from public.roles r join public.permissions p on p.key in ('companies.read','companies.write','contacts.read','contacts.write','commercial_terms.read','commercial_terms.write','jobs.read','jobs.write','submissions.read','activities.read','activities.write','tasks.read','tasks.write','reports.read')
+where r.organization_id='30000000-0000-0000-0000-000000000001' and r.role_key='bd'
+on conflict do nothing;
+insert into public.role_permissions(role_id,permission_key)
+select r.id,p.key from public.roles r join public.permissions p on p.key in ('companies.read','jobs.read','placements.read','placements.write','finance.read','finance.write','reports.read','tasks.read','tasks.write')
+where r.organization_id='30000000-0000-0000-0000-000000000001' and r.role_key='finance'
+on conflict do nothing;
+
 insert into public.member_roles(member_id,role_id)
 select m.id,r.id from public.organization_members m join public.roles r on r.organization_id=m.organization_id
 where r.role_key=case m.user_id

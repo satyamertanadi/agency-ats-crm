@@ -1,6 +1,6 @@
 import { useEffect,useMemo,useRef,useState } from 'react'
 import { NavLink, Outlet, useLocation,useNavigate,useParams } from 'react-router'
-import { BarChart3,BriefcaseBusiness,Building2,CheckSquare,ChevronDown,LayoutDashboard,LogOut,Menu,MonitorSmartphone,Moon,PanelLeftClose,Plus,Search,Settings,SlidersHorizontal,Sun,UserPlus,UserRoundSearch,X } from 'lucide-react'
+import { BarChart3,BriefcaseBusiness,Building2,CheckSquare,ChevronDown,LayoutDashboard,LogOut,Menu,MonitorSmartphone,Moon,PanelLeftClose,Plus,Search,Settings,SlidersHorizontal,Sun,UserRoundSearch,X } from 'lucide-react'
 import { useAuth } from './AuthProvider'
 import { useOrganization } from './OrganizationProvider'
 import { env } from '../shared/lib/env'
@@ -32,7 +32,7 @@ const navItems=[['today','Today',LayoutDashboard],['jobs','Jobs',BriefcaseBusine
 const destinationFor=(pathname:string)=>{const parts=pathname.split('/').filter(Boolean);const section=parts[2]||'home';return section==='admin'?`admin:${parts[3]||'home'}`:section}
 
 export function AppShell() {
-  const { signOut, user } = useAuth();const { memberships, organization, setOrganization } = useOrganization();const navigate = useNavigate();const location=useLocation();const {organizationSlug}=useParams()
+  const { signOut, user } = useAuth();const { organization } = useOrganization();const navigate = useNavigate();const location=useLocation();const {organizationSlug}=useParams()
   const capabilities=useWorkspaceCapabilities()
   // Mounted once for the whole workspace rather than per page: a subscription per screen would open
   // and tear down a socket on every navigation, and the queries it refreshes are shared anyway.
@@ -59,10 +59,15 @@ export function AppShell() {
     document.addEventListener('mousedown',onPointer);document.addEventListener('keydown',onKey)
     return()=>{document.removeEventListener('mousedown',onPointer);document.removeEventListener('keydown',onKey)}
   },[userMenuOpen,quickAddOpen])
-  useEffect(()=>{if(!organizationSlug)return;const membership=memberships.find((item)=>item.organizations.slug===organizationSlug);if(membership&&membership.organizations.id!==organization?.id)setOrganization(membership.organizations)},[memberships,organization?.id,organizationSlug,setOrganization])
+  /* One organization per deployment, so there is nothing to switch to -- but the slug is still in
+   * every URL, and a stale bookmark from before a rename would otherwise sit in the address bar
+   * showing this workspace's data under someone else's name. Rewrite it to the canonical slug. */
+  useEffect(()=>{
+    if(!organizationSlug||!organization||organizationSlug===organization.slug)return
+    navigate(location.pathname.replace(`/app/${organizationSlug}`,`/app/${organization.slug}`)+location.search,{replace:true})
+  },[navigate,location.pathname,location.search,organization,organizationSlug])
   useEffect(()=>{const handleKey=(event:KeyboardEvent)=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();setCommandOpen(true)}};document.addEventListener('keydown',handleKey);return()=>document.removeEventListener('keydown',handleKey)},[])
   useEffect(()=>{if(organization)recordWorkflowEvent({organizationId:organization.id,eventName:'navigation_changed',surface:'consultant_first',destination:destinationFor(location.pathname)})},[location.pathname,organization])
-  const changeOrganization=(id:string)=>{const membership=memberships.find((item)=>item.organizations.id===id);if(membership){setOrganization(membership.organizations);navigate(`/app/${membership.organizations.slug}/today`)}}
   const initials=useMemo(()=>organization?.name.split(/\s+/).slice(0,2).map((part)=>part[0]).join('').toUpperCase()||'A',[organization?.name])
   const root=`/app/${organization?.slug||'workspace'}`;const logoUrl=organization?.logo_url
   /* Only override when the agency has actually chosen a colour of its own. An inline value wins over
@@ -75,8 +80,7 @@ export function AppShell() {
   return <div className={`app-layout ${collapsed?'sidebar-collapsed':''}`} style={style}>
     <aside className={`sidebar ${mobileOpen?'sidebar-open':''}`}>
       <div className="brand"><span className="brand-mark">{logoUrl?<img src={logoUrl} alt=""/>:initials}</span><div><strong>{organization?.name||env.productName}</strong><small>{workspaceSubtitle({})}</small></div><button className="icon-button mobile-only" onClick={()=>setMobileOpen(false)} aria-label="Close navigation"><X size={18}/></button></div>
-      <label className="workspace-select"><span>Workspace</span><span className="select-wrap"><select value={organization?.id||''} onChange={(event)=>changeOrganization(event.target.value)}>{memberships.map((item)=><option value={item.organizations.id} key={item.id}>{item.organizations.name}</option>)}</select><ChevronDown className="select-chevron" size={14} aria-hidden="true"/></span></label>
-      <nav aria-label="Primary navigation"><div className="nav-section nav-section-primary">{navItems.map(([path,label,Icon])=><NavLink data-label={label} key={path} to={`${root}/${path}`} onClick={()=>setMobileOpen(false)}><Icon size={18}/><span>{label}</span></NavLink>)}{capabilities.data?.canWriteCandidates&&<NavLink data-label="Referrals" to={`${root}/referrals`} onClick={()=>setMobileOpen(false)}><UserPlus size={18}/><span>Referrals</span></NavLink>}</div>{capabilities.data?.canViewAdmin&&<div className="nav-section nav-section-admin"><span className="nav-section-label">Advanced</span><NavLink data-label="Admin" to={`${root}/admin`} onClick={()=>setMobileOpen(false)}><SlidersHorizontal size={18}/><span>Admin</span></NavLink></div>}</nav>
+      <nav aria-label="Primary navigation"><div className="nav-section nav-section-primary">{navItems.map(([path,label,Icon])=><NavLink data-label={label} key={path} to={`${root}/${path}`} onClick={()=>setMobileOpen(false)}><Icon size={18}/><span>{label}</span></NavLink>)}</div>{capabilities.data?.canViewAdmin&&<div className="nav-section nav-section-admin"><span className="nav-section-label">Advanced</span><NavLink data-label="Admin" to={`${root}/admin`} onClick={()=>setMobileOpen(false)}><SlidersHorizontal size={18}/><span>Admin</span></NavLink></div>}</nav>
       <div className="sidebar-footer"><div className="user-chip"><Avatar name={user?.user_metadata.full_name||user?.email||'Agency user'} size="sm"/><div><strong>{user?.user_metadata.full_name||'Agency user'}</strong><small>{user?.email}</small></div></div><button className="sidebar-action" onClick={()=>void signOut()}><LogOut size={17}/><span>Sign out</span></button><button className="sidebar-action desktop-only" onClick={()=>setManualCollapsed(!collapsed)}><PanelLeftClose size={17}/><span>{collapsed?'Expand sidebar':'Collapse sidebar'}</span></button></div>
     </aside>
     {mobileOpen&&<button className="mobile-scrim" aria-label="Close navigation" onClick={()=>setMobileOpen(false)}/>} 

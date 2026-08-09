@@ -6,8 +6,8 @@ import {z} from 'zod'
 // defensively unwraps both an array and a bare object, so this preserves that same union rather than
 // assuming PostgREST always resolves the 1:1 cardinality the same way.
 const organizationSettingsEmbed=z.union([
-  z.object({primary_color:z.string(),logo_path:z.string().nullable(),settings:z.record(z.string(),z.unknown()).optional()}),
-  z.array(z.object({primary_color:z.string(),logo_path:z.string().nullable(),settings:z.record(z.string(),z.unknown()).optional()})),
+  z.object({primary_color:z.string(),logo_path:z.string().nullable(),settings:z.record(z.string(),z.unknown()).optional(),migration_complete:z.boolean().optional()}),
+  z.array(z.object({primary_color:z.string(),logo_path:z.string().nullable(),settings:z.record(z.string(),z.unknown()).optional(),migration_complete:z.boolean().optional()})),
 ]).nullable().optional()
 
 export const membershipRowSchema=z.object({
@@ -15,7 +15,7 @@ export const membershipRowSchema=z.object({
   organizations:z.object({
     id:z.string(),name:z.string(),slug:z.string(),base_currency:z.string(),
     salary_period:z.enum(['annual','monthly']).nullable().optional(),timezone:z.string(),
-    seat_limit:z.number(),pilot_status:z.enum(['preparing','uat','pilot','active','suspended','closed']),
+    pilot_status:z.enum(['preparing','uat','pilot','active','suspended','closed']),
     organization_settings:organizationSettingsEmbed,
   }),
 })

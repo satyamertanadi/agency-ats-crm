@@ -46,7 +46,7 @@ describe('candidate-documents storage requires candidates.read, not just members
 
   /* Every policy on this bucket used to cast the first path segment straight to uuid, on the assumption
    * that everything here lives under an organization-id prefix. refer's signed-upload flow breaks that
-   * assumption -- referral resumes go to `referrals/{token}/...` -- and a uuid cast RAISES rather than
+   * assumption -- some objects landed under a non-uuid prefix -- and a uuid cast RAISES rather than
    * failing to match, so one such object made every authenticated read of the whole bucket error for
    * every user. Reproduced against the local stack before the fix; this keeps it fixed. */
   it('still lists the bucket when an object sits outside any organization prefix',async()=>{

@@ -3,7 +3,6 @@ import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {Plus,Search} from 'lucide-react'
 import {Link,useNavigate,useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
-import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {createJob,listCompanies,listJobHealth} from '../core/repository'
 import {listTeamMembers,updateJob} from '../core/commercialRepository'
@@ -29,10 +28,10 @@ const filters:Array<[JobHealthFilter,string]>=[['all','All health'],['unowned','
 const statusFilters:Array<[JobStatusFilter,string]>=[['active','Active'],['filled','Filled'],['closed','Closed'],['all','All']]
 
 export function JobsPage(){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const navigate=useNavigate();const [open,setOpen]=useState(false);const [params,setParams]=useSearchParams()
+  const {organization,membership}=useOrganization();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const navigate=useNavigate();const [open,setOpen]=useState(false);const [params,setParams]=useSearchParams()
   const search=params.get('q')||'';const filter=(params.get('health') as JobHealthFilter)||'all';const statusFilter=(params.get('status') as JobStatusFilter)||'active'
   const setParam=(key:string,value:string)=>{const next=new URLSearchParams(params);if(value)next.set(key,value);else next.delete(key);setParams(next,{replace:true})}
-  const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id);const [companyId,setCompanyId]=useState('');const [title,setTitle]=useState('');const [owner,setOwner]=useState(currentMember?.id||'');const [location,setLocation]=useState('');const [priority,setPriority]=useState('normal')
+  const currentMember=membership;const [companyId,setCompanyId]=useState('');const [title,setTitle]=useState('');const [owner,setOwner]=useState(currentMember?.id||'');const [location,setLocation]=useState('');const [priority,setPriority]=useState('normal')
   const [description,setDescription]=useState('');const [employment,setEmployment]=useState('permanent');const [salaryMin,setSalaryMin]=useState('');const [salaryMax,setSalaryMax]=useState('');const [currency,setCurrency]=useState(organization?.base_currency||'USD')
   const prefillCompany=useCallback((params:URLSearchParams)=>{const company=params.get('company');if(!company)return [];setCompanyId(company);return ['company']},[setCompanyId])
   useOpenOnNewParam(setOpen,prefillCompany)

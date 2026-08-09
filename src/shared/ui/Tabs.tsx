@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
  *
  * The app had three treatments: `.record-tabs` inside Page's tabs slot (JobWorkspacePage),
  * `.record-tabs` outside Page entirely (CandidateDetailPage), and bare buttons inheriting `.page-tabs`
- * (ReferralsPage, styleguide). Only one set role="tab"/aria-selected, none set role="tabpanel",
+ * (styleguide). Only one set role="tab"/aria-selected, none set role="tabpanel",
  * aria-controls, or arrow-key navigation -- so to assistive tech they were an unexplained row of
  * buttons, and to a keyboard user every tab was a separate Tab stop.
  *

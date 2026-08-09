@@ -1,8 +1,8 @@
 import { supabase } from '../../shared/lib/supabase'
 import { AppError, DUPLICATE_CANDIDATE, humanizeRpcError } from '../../shared/lib/errors'
 import { row, rows } from '../../shared/lib/rows'
-import { acceptReferralResultSchema, activitySchema, candidatePipelineAssignmentSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, referralLinkCreationSchema, referralLinkSchema, referralSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
-import type { Activity, CandidateStatus, ConsentStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReferral, PublicReview, Referral, ReferralLink, ReferralStatus, Task } from '../../shared/types/domain'
+import { activitySchema, candidatePipelineAssignmentSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
+import type { Activity, CandidateStatus, ConsentStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReview, Task } from '../../shared/types/domain'
 import type {Json} from '../../generated/database.types'
 
 function fail(error:{message:string;code?:string}|null,fallback:string):never{
@@ -149,11 +149,27 @@ export async function createActivity(organizationId:string,input:{activity_type:
   return data as string
 }
 
-export async function listPlacements(organizationId:string){const {data,error}=await supabase.from('placements').select('id,job_candidate_id,candidate_id,job_id,company_id,start_date,salary,placement_fee,currency,guarantee_ends_on,status,candidates(full_name),jobs(title),companies(name),placement_revenue_splits(id,member_id,split_percentage,split_amount,organization_members:member_id(profiles:user_id(full_name,email))),placement_invoices(id,invoice_reference,amount,currency,issued_on,due_on,status,paid_on)').eq('organization_id',organizationId).order('start_date',{ascending:false});if(error)fail(error,'Could not load placements');return rows(data,placementSchema,'Placement rows did not match the expected shape') as Placement[]}
+/* `jobId` scopes the four workspace lists below (interviews, offers, placements, submission
+ * packages) to one job. Opening a job used to cost four unbounded org-wide fetches that were then
+ * filtered client-side down to a single candidate -- fine at today's row counts, and exactly what
+ * the Vincere migration's history import breaks. Today keeps the org-wide view it genuinely needs,
+ * bounded instead by the status and date windows it already applies (see TodayPage). */
+export async function listPlacements(organizationId:string,filter:{jobId?:string}={}){let query=supabase.from('placements').select('id,job_candidate_id,candidate_id,job_id,company_id,start_date,salary,placement_fee,currency,guarantee_ends_on,status,candidates(full_name),jobs(title),companies(name),placement_revenue_splits(id,member_id,split_percentage,split_amount,organization_members:member_id(profiles:user_id(full_name,email))),placement_invoices(id,invoice_reference,amount,currency,issued_on,due_on,status,paid_on)').eq('organization_id',organizationId);if(filter.jobId)query=query.eq('job_id',filter.jobId);const {data,error}=await query.order('start_date',{ascending:false});if(error)fail(error,'Could not load placements');return rows(data,placementSchema,'Placement rows did not match the expected shape') as Placement[]}
+/* Today needs placements only to know which job candidates are already placed, so it suppresses the
+ * "create placement" prompt on an accepted offer. Two narrow columns answer that; pulling the full
+ * placement rows (with their revenue splits and invoices) to compute a Set of ids was the most
+ * expensive query on the page and the least of its output. */
+export async function listPlacedJobCandidates(organizationId:string){const {data,error}=await supabase.from('placements').select('job_candidate_id,status').eq('organization_id',organizationId).neq('status','cancelled');if(error)fail(error,'Could not load placements');return data??[]}
 export async function createPlacement(organizationId:string,userId:string,input:{job_candidate_id:string;candidate_id:string;job_id:string;company_id:string;start_date:string;salary:number;placement_fee:number;currency:string;guarantee_days:number}){const {error}=await supabase.from('placements').insert({...input,organization_id:organizationId,created_by:userId});if(error)fail(error,error.code==='23505'?'This candidate already has a placement for the job.':'Could not create placement')}
-export async function listInterviews(organizationId:string){
+export async function listInterviews(organizationId:string,filter:{jobId?:string;since?:string}={}){
+  // The job filter lives on job_candidates, so the embed has to be an inner join for it to filter
+  // parent rows rather than just blanking the embedded object.
+  const embed=filter.jobId?'job_candidates!inner(candidate_id,job_id,candidates(id,full_name),jobs(id,title,owner_member_id))':'job_candidates(candidate_id,candidates(id,full_name),jobs(id,title,owner_member_id))'
+  let interviewQuery=supabase.from('interviews').select(`id,job_candidate_id,interview_type,stage_label,starts_at,ends_at,timezone,location,meeting_url,notes,status,organizer_member_id,attendee_emails,create_google_meet,calendar_event_id,calendar_event_url,calendar_sync_status,calendar_last_error,calendar_last_synced_at,calendar_retry_count,calendar_sync_version,calendar_synced_version,${embed}`).eq('organization_id',organizationId)
+  if(filter.jobId)interviewQuery=interviewQuery.eq('job_candidates.job_id',filter.jobId)
+  if(filter.since)interviewQuery=interviewQuery.gte('starts_at',filter.since)
   const [interviews,deliveries]=await Promise.all([
-    supabase.from('interviews').select('id,job_candidate_id,interview_type,stage_label,starts_at,ends_at,timezone,location,meeting_url,notes,status,organizer_member_id,attendee_emails,create_google_meet,calendar_event_id,calendar_event_url,calendar_sync_status,calendar_last_error,calendar_last_synced_at,calendar_retry_count,calendar_sync_version,calendar_synced_version,job_candidates(candidate_id,candidates(id,full_name),jobs(id,title,owner_member_id))').eq('organization_id',organizationId).order('starts_at',{ascending:true}),
+    interviewQuery.order('starts_at',{ascending:true}),
     supabase.from('email_deliveries').select('related_entity_id,status').eq('organization_id',organizationId).eq('email_type','interview_cancellation').in('status',['pending','failed','bounced','suppressed']),
   ])
   if(interviews.error)fail(interviews.error,'Could not load interviews')
@@ -229,7 +245,15 @@ export async function listStageHistory(organizationId:string,jobCandidateId:stri
   return rows(data,stageHistoryEntrySchema,'Stage history rows did not match the expected shape') as StageHistoryEntry[]
 }
 
-export async function listOffers(organizationId:string){const {data,error}=await supabase.from('offers').select('id,job_candidate_id,salary,currency,offered_at,start_date,status,notes,job_candidates(candidate_id,candidates(id,full_name),jobs(id,title,owner_member_id))').eq('organization_id',organizationId).order('offered_at',{ascending:false});if(error)fail(error,'Could not load offers');return rows(data,offerSchema,'Offer rows did not match the expected shape') as Offer[]}
+export async function listOffers(organizationId:string,filter:{jobId?:string;statuses?:string[]}={}){
+  const embed=filter.jobId?'job_candidates!inner(candidate_id,job_id,candidates(id,full_name),jobs(id,title,owner_member_id))':'job_candidates(candidate_id,candidates(id,full_name),jobs(id,title,owner_member_id))'
+  let query=supabase.from('offers').select(`id,job_candidate_id,salary,currency,offered_at,start_date,status,notes,${embed}`).eq('organization_id',organizationId)
+  if(filter.jobId)query=query.eq('job_candidates.job_id',filter.jobId)
+  if(filter.statuses?.length)query=query.in('status',filter.statuses)
+  const {data,error}=await query.order('offered_at',{ascending:false})
+  if(error)fail(error,'Could not load offers')
+  return rows(data,offerSchema,'Offer rows did not match the expected shape') as Offer[]
+}
 export async function createOffer(organizationId:string,userId:string,input:{job_candidate_id:string;salary:number;currency:string;start_date?:string}){const {error}=await supabase.from('offers').insert({...input,organization_id:organizationId,created_by:userId,status:'presented'});if(error)fail(error,'Could not create offer')}
 /* Was exported and called from nowhere, which is why an offer reached 'presented' and stayed there
  * forever: no UI could accept or decline one, so the placement flow behind it was unreachable and
@@ -265,29 +289,34 @@ export async function completeInterview(organizationId:string,interviewId:string
 export type PlacementFeeSource='account_agreement'|'job_override'|'manual'
 export async function convertOfferToPlacement(offerId:string,fee:number,guaranteeDays=90,feeSource:PlacementFeeSource='manual'){const {data,error}=await supabase.rpc('create_placement_from_offer',{p_offer_id:offerId,p_fee:fee,p_guarantee_days:guaranteeDays,p_fee_source:feeSource});if(error)fail(error,'Could not convert accepted offer to placement');return data as string}
 
-export async function listSubmissionPackages(organizationId:string){const [packages,deliveries]=await Promise.all([supabase.from('submission_packages').select('id,job_id,title,message,status,created_at,jobs(id,title,companies(name)),candidate_submissions(id,job_candidate_id,status),public_submission_links(id,recipient_email,expires_at,revoked_at,last_accessed_at)').eq('organization_id',organizationId).order('created_at',{ascending:false}),supabase.from('email_deliveries').select('id,status,error_message,related_entity_id').eq('organization_id',organizationId).eq('email_type','client_submission')]);if(packages.error)fail(packages.error,'Could not load submissions');if(deliveries.error)fail(deliveries.error,'Could not load submission delivery status');const deliveryByPackage=new Map((deliveries.data||[]).map((delivery)=>[delivery.related_entity_id,delivery]));return (packages.data??[]).map((pack)=>({...pack,email_delivery:deliveryByPackage.get(pack.id)||null}))}
+export async function listSubmissionPackages(organizationId:string,filter:{jobId?:string;since?:string}={}){
+  let packageQuery=supabase.from('submission_packages').select('id,job_id,title,message,status,created_at,jobs(id,title,companies(name)),candidate_submissions(id,job_candidate_id,status),public_submission_links(id,recipient_email,expires_at,revoked_at,last_accessed_at)').eq('organization_id',organizationId)
+  if(filter.jobId)packageQuery=packageQuery.eq('job_id',filter.jobId)
+  if(filter.since)packageQuery=packageQuery.gte('created_at',filter.since)
+  const scoped=Boolean(filter.jobId||filter.since)
+  /* Unscoped, the delivery lookup runs in parallel on the whole organization -- it is the Today
+   * path, which wants every package anyway. Scoped, it waits for the package ids and asks only
+   * about those: fetching every client_submission delivery ever sent to decorate one job's handful
+   * of packages is the same unbounded read this change exists to remove. */
+  const packages=scoped?await packageQuery.order('created_at',{ascending:false}):null
+  const [resolvedPackages,deliveries]=packages
+    ?[packages,await deliveryLookup(organizationId,(packages.data??[]).map((pack)=>pack.id))]
+    :await Promise.all([packageQuery.order('created_at',{ascending:false}),deliveryLookup(organizationId,null)])
+  if(resolvedPackages.error)fail(resolvedPackages.error,'Could not load submissions')
+  if(deliveries.error)fail(deliveries.error,'Could not load submission delivery status')
+  const deliveryByPackage=new Map((deliveries.data||[]).map((delivery)=>[delivery.related_entity_id,delivery]))
+  return (resolvedPackages.data??[]).map((pack)=>({...pack,email_delivery:deliveryByPackage.get(pack.id)||null}))
+}
+function deliveryLookup(organizationId:string,packageIds:string[]|null){
+  const query=supabase.from('email_deliveries').select('id,status,error_message,related_entity_id').eq('organization_id',organizationId).eq('email_type','client_submission')
+  return packageIds?query.in('related_entity_id',packageIds):query
+}
 export async function listEmailDeliveryIssues(organizationId:string){const {data,error}=await supabase.from('email_deliveries').select('id,status,email_type,related_entity_type,related_entity_id,error_code,error_message,updated_at').eq('organization_id',organizationId).in('status',['pending','failed','bounced','suppressed']).order('updated_at',{ascending:false});if(error)fail(error,'Could not load delivery issues');return data??[]}
 export async function createSubmission(organizationId:string,input:{job_id:string;contact_id?:string;title:string;message?:string;items:Array<{job_candidate_id:string;candidate_summary:string;recruiter_comments?:string}>;recipient_name?:string;recipient_email?:string}){const {data,error}=await supabase.rpc('create_submission_package',{p_organization_id:organizationId,p_job_id:input.job_id,p_contact_id:input.contact_id,p_title:input.title,p_message:input.message,p_items:input.items as Json,p_recipient_name:input.recipient_name,p_recipient_email:input.recipient_email,p_expiry_days:7});if(error)fail(error,'Could not create submission');return data as {package_id:string;link_id:string;token:string;expires_at:string}}
 
 export async function resolveReview(token:string){const {data,error}=await supabase.functions.invoke('public-review',{body:{action:'resolve',token},timeout:10_000});if(error)fail(error,'This review link is unavailable.');if((data as {error?:{message?:string}})?.error)throw new AppError((data as {error:{message?:string}}).error.message||'This review link is unavailable.','link_unavailable',data);return row(data,publicReviewSchema,'Public review response did not match the expected shape') as PublicReview}
 export async function sendReviewFeedback(token:string,submissionId:string,decision:string,comments:string,reviewerName:string){const {data,error}=await supabase.functions.invoke('public-review',{body:{action:'feedback',token,submissionId,decision,comments,reviewerName},timeout:10_000});if(error)fail(error,'Could not save feedback');if((data as {error?:{message?:string}})?.error)throw new AppError((data as {error:{message?:string}}).error.message||'Could not save feedback','feedback_failed',data)}
 
-// --- Referrals ---
-// Public (unauthenticated) side: everything routes through the rate-limited `refer` edge function,
-// mirroring resolveReview. The resolve/submit RPCs are service_role only and never reachable directly.
-function unwrap<T>(data:unknown,fallback:string):T{if((data as {error?:{message?:string}})?.error)throw new AppError((data as {error:{message?:string}}).error.message||fallback,'referral_unavailable',data);return data as T}
-export async function resolveReferralLink(token:string){const {data,error}=await supabase.functions.invoke('refer',{body:{action:'resolve',token},timeout:10_000});if(error)fail(error,'This referral link is unavailable.');return unwrap<PublicReferral>(data,'This referral link is unavailable.')}
-export async function requestReferralUpload(token:string,filename:string){const {data,error}=await supabase.functions.invoke('refer',{body:{action:'upload-url',token,filename},timeout:10_000});if(error)fail(error,'Could not prepare the upload.');return unwrap<{path:string;token:string;signedUrl:string}>(data,'Could not prepare the upload.')}
-export async function submitReferral(token:string,payload:{referrer_name?:string;referrer_email?:string;candidate_full_name:string;candidate_email?:string;candidate_linkedin_url?:string;candidate_note?:string;target_job_id?:string;resume_path?:string}){const {data,error}=await supabase.functions.invoke('refer',{body:{action:'submit',token,payload},timeout:10_000});if(error)fail(error,'Could not submit this referral.');return unwrap<{status:string;referral_id:string}>(data,'Could not submit this referral.')}
-
-// Authenticated side.
-export async function createReferralLink(organizationId:string,input:{label?:string;memberId?:string}={}){const {data,error}=await supabase.rpc('create_referral_link',{p_organization_id:organizationId,p_label:input.label||undefined,p_member_id:input.memberId||undefined});if(error)fail(error,'Could not create referral link');return row(data,referralLinkCreationSchema,'Referral link creation response did not match the expected shape')}
-export async function listReferralLinks(organizationId:string){const {data,error}=await supabase.from('referral_links').select('id,label,token_prefix,member_id,expires_at,revoked_at,created_at').eq('organization_id',organizationId).is('revoked_at',null).order('created_at',{ascending:false});if(error)fail(error,'Could not load referral links');return rows(data,referralLinkSchema,'Referral link rows did not match the expected shape') as ReferralLink[]}
-export async function revokeReferralLink(id:string){const {error}=await supabase.from('referral_links').update({revoked_at:new Date().toISOString()}).eq('id',id);if(error)fail(error,'Could not revoke referral link')}
-export async function listReferrals(organizationId:string,status:ReferralStatus|'all'='new'){let request=supabase.from('referrals').select('id,organization_id,referrer_member_id,referrer_name,referrer_email,candidate_full_name,candidate_email,candidate_linkedin_url,candidate_note,resume_path,target_job_id,status,created_candidate_id,created_at,jobs:target_job_id(id,title),organization_members:referrer_member_id(profiles:user_id(full_name))').eq('organization_id',organizationId).order('created_at',{ascending:false}).limit(200);if(status!=='all')request=request.eq('status',status);const {data,error}=await request;if(error)fail(error,'Could not load referrals');return rows(data,referralSchema,'Referral rows did not match the expected shape') as Referral[]}
-export async function submitInternalReferral(organizationId:string,payload:{referrer_name?:string;candidate_full_name:string;candidate_email?:string;candidate_linkedin_url?:string;candidate_note?:string;target_job_id?:string}){const {data,error}=await supabase.rpc('submit_internal_referral',{p_organization_id:organizationId,p_payload:payload as Json});if(error)fail(error,'Could not submit this referral');return data as string}
-export async function acceptReferral(organizationId:string,referralId:string){const {data,error}=await supabase.rpc('accept_referral',{p_organization_id:organizationId,p_referral_id:referralId});if(error)fail(error,'Could not accept this referral');return row(data,acceptReferralResultSchema,'Accept referral response did not match the expected shape')}
-export async function rejectReferral(referralId:string){const {error}=await supabase.from('referrals').update({status:'rejected',reviewed_at:new Date().toISOString()}).eq('id',referralId);if(error)fail(error,'Could not reject this referral')}
 
 export async function searchWorkspace(organizationId:string,query:string){const {data,error}=await supabase.rpc('search_workspace',{p_organization_id:organizationId,p_query:query,p_limit:30});if(error)fail(error,'Search failed');return (data??[]) as Array<{entity_type:string;entity_id:string;title:string;subtitle:string;rank:number}>}
 

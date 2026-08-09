@@ -1012,7 +1012,7 @@
 .workflow-toolbar{justify-content:space-between;gap:var(--space-4)}.workflow-toolbar>div:first-child strong,.workflow-toolbar>div:first-child span{display:block}.workflow-toolbar>div:first-child span{color:var(--color-muted);margin-top:3px}.detail-toggle{display:inline-flex;align-items:center;gap:7px;color:var(--color-muted);font-size:var(--text-sm);font-weight:var(--weight-semibold)}.outcome-summary{display:flex;gap:var(--space-2);flex-wrap:wrap}
 .workflow-kanban{min-height:460px}.workflow-column{min-height:440px}.workflow-candidate-card{padding:0;touch-action:none;overflow:hidden}.workflow-candidate-card.dragging{opacity:.65;box-shadow:var(--shadow-lg);z-index:5}.candidate-card-open{display:grid;grid-template-columns:1fr auto;width:100%;text-align:left;border:0;background:transparent;padding:var(--space-3);color:inherit;cursor:pointer}.candidate-card-open strong,.candidate-card-open span,.candidate-card-open small{grid-column:1}.candidate-card-open svg{grid-column:2;grid-row:1/4;align-self:center;color:var(--color-faint)}.candidate-card-open span,.candidate-card-open small{margin-top:2px;color:var(--color-muted)}.workflow-candidate-card>label{display:block;padding:0 var(--space-3) var(--space-3)}.workflow-candidate-card select{width:100%;font-size:var(--text-xs)}
 
-/* ---- pipeline board redesign: SLA-aware cards, phase-ramp column headers, density toggle --------
+/* ---- pipeline board redesign: SLA-aware cards, phase-ramp column headers --------
  * `.workflow-kanban` overrides the base `.kanban` auto-flow-column layout with a fixed grid sized to
  * the actual number of rendered columns (`--kanban-columns`, set inline per job since a job's phase
  * count varies), falling back to 6 -- the base `.kanban`'s own `overflow-x:auto` still applies as the
@@ -1057,12 +1057,6 @@
 .workflow-candidate-card .workflow-days-badge.tone-warn{background:var(--tone-warn-bg);color:var(--tone-warn-fg);border-color:var(--tone-warn-border)}
 .workflow-candidate-card .workflow-days-badge.tone-bad{background:var(--tone-bad-bg);color:var(--tone-bad-fg);border-color:var(--tone-bad-border)}
 .workflow-candidate-card .workflow-card-owner{margin-left:auto;display:grid;place-items:center;width:20px;height:20px;border-radius:var(--radius-circle);background:var(--color-canvas-deep);color:var(--color-muted);font-size:var(--text-2xs);font-weight:var(--weight-bold);flex:0 0 auto}
-/* Roomy trades card density for breathing room; compact (the default) keeps today's spacing. */
-.workflow-kanban-roomy .workflow-column{padding:14px}
-.workflow-kanban-roomy .candidate-card{margin-bottom:12px}
-.workflow-kanban-roomy .candidate-card-open{padding:14px}
-.workflow-kanban-roomy .workflow-card-role{margin-top:9px}
-.workflow-kanban-roomy .workflow-card-bottom{margin-top:13px}
 .record-overview-grid,.candidate-overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5)}.record-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4);margin:0}.record-summary div{min-width:0}.record-summary .full{grid-column:1/-1}.record-summary dt{font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:.04em}.record-summary dd{margin:4px 0 0;color:var(--color-ink);overflow-wrap:anywhere}.phase-progress{display:grid;gap:var(--space-1);margin:0;padding:0;list-style:none}.phase-progress li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:9px 12px;border:1px solid var(--color-line-soft);border-radius:var(--radius-sm);color:var(--color-muted);font-size:var(--text-sm)}.phase-progress li strong{color:var(--color-faint);font-variant-numeric:tabular-nums}
 /* Three states, so the card answers "where is this job" at a glance: cleared phases the pipeline has
  * moved past, live phases holding candidates now, and untouched phases ahead (the base style). */
@@ -1436,7 +1430,30 @@ button.outcome-chip:disabled {
 
 /* ---- submission composer (src/features/submissions/SubmissionComposerDrawer.tsx) ----
    One package, N candidates, so the roster is the tall part of the drawer and each candidate is a
-   disclosure rather than a permanently-open block of nine fields. */
+   disclosure rather than a permanently-open block of fields. */
+.composer-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+.composer-facts dt {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--color-muted);
+}
+.composer-facts dd {
+  margin: 3px 0 0;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 720px) {
+  .composer-facts {
+    grid-template-columns: 1fr;
+  }
+}
 .composer-roster {
   display: grid;
   gap: var(--space-2);

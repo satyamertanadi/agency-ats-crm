@@ -1,6 +1,6 @@
 import {useState,type FormEvent} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ArrowDownLeft,ArrowUpRight,CircleDot,Handshake,Mail,MessageSquare,Phone,Send,Users} from 'lucide-react'
+import {ArrowDownLeft,ArrowUpRight,CircleDot,Handshake,Mail,MessageSquare,Phone,Send,StickyNote,Users} from 'lucide-react'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {createActivity,listActivities,type ActivityLink} from '../core/repository'
 import {Button} from '../../shared/ui/Button'
@@ -13,7 +13,7 @@ import type {ActivityType} from '../../shared/types/domain'
 import {presentActivity} from './activityPresentation'
 
 const manualTypes=[{value:'call',label:'Call'},{value:'email',label:'Email'},{value:'whatsapp',label:'WhatsApp'},{value:'meeting',label:'Meeting'},{value:'other',label:'Other'}] as const
-const icons:Record<ActivityType,typeof Phone>={call:Phone,email:Mail,whatsapp:MessageSquare,meeting:Users,interview:Users,status_change:CircleDot,submission:Send,client_feedback:ArrowDownLeft,placement:Handshake,other:CircleDot}
+const icons:Record<ActivityType,typeof Phone>={call:Phone,email:Mail,whatsapp:MessageSquare,meeting:Users,interview:Users,status_change:CircleDot,submission:Send,client_feedback:ArrowDownLeft,placement:Handshake,note:StickyNote,other:CircleDot}
 
 // datetime-local wants `YYYY-MM-DDTHH:mm` in local time; toISOString would shift it by the offset.
 const localNow=()=>{const now=new Date();now.setMinutes(now.getMinutes()-now.getTimezoneOffset());return now.toISOString().slice(0,16)}

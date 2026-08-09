@@ -47,7 +47,7 @@ export const companyPipelineRowSchema=z.object({
 export const savedViewSchema=z.object({
   id:z.string(),organization_id:z.string(),owner_member_id:z.string(),
   resource:z.enum(['candidates','jobs','clients']),name:z.string(),filters:z.record(z.string(),z.unknown()),
-  columns:z.array(z.string()),is_shared:z.boolean(),is_default:z.boolean(),updated_at:z.string(),
+  is_shared:z.boolean(),is_default:z.boolean(),updated_at:z.string(),
 })
 
 export const importBatchSchema=z.object({

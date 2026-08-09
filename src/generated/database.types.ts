@@ -316,119 +316,6 @@ export type Database = {
           },
         ]
       }
-      background_jobs: {
-        Row: {
-          attempts: number
-          available_at: string
-          completed_at: string | null
-          created_at: string
-          error_message: string | null
-          id: string
-          idempotency_key: string | null
-          job_type: string
-          locked_at: string | null
-          locked_by: string | null
-          max_attempts: number
-          organization_id: string
-          payload: Json
-          priority: number
-          status: string
-        }
-        Insert: {
-          attempts?: number
-          available_at?: string
-          completed_at?: string | null
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          idempotency_key?: string | null
-          job_type: string
-          locked_at?: string | null
-          locked_by?: string | null
-          max_attempts?: number
-          organization_id: string
-          payload?: Json
-          priority?: number
-          status?: string
-        }
-        Update: {
-          attempts?: number
-          available_at?: string
-          completed_at?: string | null
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          idempotency_key?: string | null
-          job_type?: string
-          locked_at?: string | null
-          locked_by?: string | null
-          max_attempts?: number
-          organization_id?: string
-          payload?: Json
-          priority?: number
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "background_jobs_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      candidate_consents: {
-        Row: {
-          candidate_id: string
-          evidence: string | null
-          id: string
-          legal_basis: string | null
-          notice_version: string | null
-          occurred_at: string
-          organization_id: string
-          recorded_by: string | null
-          status: string
-        }
-        Insert: {
-          candidate_id: string
-          evidence?: string | null
-          id?: string
-          legal_basis?: string | null
-          notice_version?: string | null
-          occurred_at?: string
-          organization_id: string
-          recorded_by?: string | null
-          status: string
-        }
-        Update: {
-          candidate_id?: string
-          evidence?: string | null
-          id?: string
-          legal_basis?: string | null
-          notice_version?: string | null
-          occurred_at?: string
-          organization_id?: string
-          recorded_by?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "candidate_consents_candidate_id_fkey"
-            columns: ["candidate_id"]
-            isOneToOne: false
-            referencedRelation: "candidates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "candidate_consents_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       candidate_cv_parses: {
         Row: {
           accepted_at: string | null
@@ -745,39 +632,6 @@ export type Database = {
           },
           {
             foreignKeyName: "candidate_merge_history_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      candidate_preferred_locations: {
-        Row: {
-          candidate_id: string
-          location: string
-          organization_id: string
-        }
-        Insert: {
-          candidate_id: string
-          location: string
-          organization_id: string
-        }
-        Update: {
-          candidate_id?: string
-          location?: string
-          organization_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "candidate_preferred_locations_candidate_id_fkey"
-            columns: ["candidate_id"]
-            isOneToOne: false
-            referencedRelation: "candidates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "candidate_preferred_locations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -1432,86 +1286,6 @@ export type Database = {
           },
         ]
       }
-      company_tags: {
-        Row: {
-          company_id: string
-          organization_id: string
-          tag_id: string
-        }
-        Insert: {
-          company_id: string
-          organization_id: string
-          tag_id: string
-        }
-        Update: {
-          company_id?: string
-          organization_id?: string
-          tag_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "company_tags_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "company_tags_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "company_tags_tag_id_fkey"
-            columns: ["tag_id"]
-            isOneToOne: false
-            referencedRelation: "tags"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      contact_tags: {
-        Row: {
-          contact_id: string
-          organization_id: string
-          tag_id: string
-        }
-        Insert: {
-          contact_id: string
-          organization_id: string
-          tag_id: string
-        }
-        Update: {
-          contact_id?: string
-          organization_id?: string
-          tag_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contact_tags_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_tags_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_tags_tag_id_fkey"
-            columns: ["tag_id"]
-            isOneToOne: false
-            referencedRelation: "tags"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       contacts: {
         Row: {
           company_id: string
@@ -1850,50 +1624,6 @@ export type Database = {
           },
         ]
       }
-      exports: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          expires_at: string | null
-          export_type: string
-          id: string
-          organization_id: string
-          requested_by: string
-          status: string
-          storage_path: string | null
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          expires_at?: string | null
-          export_type: string
-          id?: string
-          organization_id: string
-          requested_by: string
-          status?: string
-          storage_path?: string | null
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          expires_at?: string | null
-          export_type?: string
-          id?: string
-          organization_id?: string
-          requested_by?: string
-          status?: string
-          storage_path?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "exports_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       google_calendar_connections: {
         Row: {
           calendar_id: string
@@ -2052,54 +1782,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      guarantee_events: {
-        Row: {
-          created_at: string
-          created_by: string
-          event_type: string
-          id: string
-          notes: string | null
-          occurred_on: string
-          organization_id: string
-          placement_id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by: string
-          event_type: string
-          id?: string
-          notes?: string | null
-          occurred_on?: string
-          organization_id: string
-          placement_id: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string
-          event_type?: string
-          id?: string
-          notes?: string | null
-          occurred_on?: string
-          organization_id?: string
-          placement_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "guarantee_events_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "guarantee_events_placement_id_fkey"
-            columns: ["placement_id"]
-            isOneToOne: false
-            referencedRelation: "placements"
             referencedColumns: ["id"]
           },
         ]
@@ -2325,44 +2007,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "imports_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      integrations: {
-        Row: {
-          configuration: Json
-          created_at: string
-          id: string
-          organization_id: string
-          provider: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          configuration?: Json
-          created_at?: string
-          id?: string
-          organization_id: string
-          provider: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          configuration?: Json
-          created_at?: string
-          id?: string
-          organization_id?: string
-          provider?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "integrations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -2662,85 +2306,6 @@ export type Database = {
           },
         ]
       }
-      job_tags: {
-        Row: {
-          job_id: string
-          organization_id: string
-          tag_id: string
-        }
-        Insert: {
-          job_id: string
-          organization_id: string
-          tag_id: string
-        }
-        Update: {
-          job_id?: string
-          organization_id?: string
-          tag_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "job_tags_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_tags_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_tags_tag_id_fkey"
-            columns: ["tag_id"]
-            isOneToOne: false
-            referencedRelation: "tags"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      job_target_companies: {
-        Row: {
-          company_name: string
-          id: string
-          job_id: string
-          mode: string
-          organization_id: string
-        }
-        Insert: {
-          company_name: string
-          id?: string
-          job_id: string
-          mode: string
-          organization_id: string
-        }
-        Update: {
-          company_name?: string
-          id?: string
-          job_id?: string
-          mode?: string
-          organization_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "job_target_companies_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_target_companies_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       job_team_members: {
         Row: {
           job_id: string
@@ -2900,6 +2465,39 @@ export type Database = {
           },
         ]
       }
+      maintenance_heartbeats: {
+        Row: {
+          job_key: string
+          last_detail: Json
+          last_error: string | null
+          last_run_at: string | null
+          last_status: string
+          last_successful_run_at: string | null
+          stale_after_hours: number
+          updated_at: string
+        }
+        Insert: {
+          job_key: string
+          last_detail?: Json
+          last_error?: string | null
+          last_run_at?: string | null
+          last_status?: string
+          last_successful_run_at?: string | null
+          stale_after_hours?: number
+          updated_at?: string
+        }
+        Update: {
+          job_key?: string
+          last_detail?: Json
+          last_error?: string | null
+          last_run_at?: string | null
+          last_status?: string
+          last_successful_run_at?: string | null
+          stale_after_hours?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       member_roles: {
         Row: {
           member_id: string
@@ -2926,137 +2524,6 @@ export type Database = {
             columns: ["role_id"]
             isOneToOne: false
             referencedRelation: "roles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      note_links: {
-        Row: {
-          candidate_id: string | null
-          candidate_submission_id: string | null
-          company_id: string | null
-          contact_id: string | null
-          id: string
-          job_id: string | null
-          note_id: string
-          organization_id: string
-          placement_id: string | null
-        }
-        Insert: {
-          candidate_id?: string | null
-          candidate_submission_id?: string | null
-          company_id?: string | null
-          contact_id?: string | null
-          id?: string
-          job_id?: string | null
-          note_id: string
-          organization_id: string
-          placement_id?: string | null
-        }
-        Update: {
-          candidate_id?: string | null
-          candidate_submission_id?: string | null
-          company_id?: string | null
-          contact_id?: string | null
-          id?: string
-          job_id?: string | null
-          note_id?: string
-          organization_id?: string
-          placement_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "note_links_candidate_id_fkey"
-            columns: ["candidate_id"]
-            isOneToOne: false
-            referencedRelation: "candidates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "note_links_candidate_submission_id_fkey"
-            columns: ["candidate_submission_id"]
-            isOneToOne: false
-            referencedRelation: "candidate_submissions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "note_links_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "note_links_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "note_links_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "note_links_note_id_fkey"
-            columns: ["note_id"]
-            isOneToOne: false
-            referencedRelation: "notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "note_links_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "note_links_placement_id_fkey"
-            columns: ["placement_id"]
-            isOneToOne: false
-            referencedRelation: "placements"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      notes: {
-        Row: {
-          content: string
-          created_at: string
-          created_by: string
-          id: string
-          organization_id: string
-          updated_at: string
-          visibility: string
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          created_by: string
-          id?: string
-          organization_id: string
-          updated_at?: string
-          visibility?: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          created_by?: string
-          id?: string
-          organization_id?: string
-          updated_at?: string
-          visibility?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -3246,6 +2713,7 @@ export type Database = {
           default_submission_expiry_days: number
           document_migration_completed: boolean
           logo_path: string | null
+          migration_complete: boolean
           organization_id: string
           primary_color: string
           require_invitation: boolean
@@ -3261,6 +2729,7 @@ export type Database = {
           default_submission_expiry_days?: number
           document_migration_completed?: boolean
           logo_path?: string | null
+          migration_complete?: boolean
           organization_id: string
           primary_color?: string
           require_invitation?: boolean
@@ -3276,6 +2745,7 @@ export type Database = {
           default_submission_expiry_days?: number
           document_migration_completed?: boolean
           logo_path?: string | null
+          migration_complete?: boolean
           organization_id?: string
           primary_color?: string
           require_invitation?: boolean
@@ -3305,7 +2775,6 @@ export type Database = {
           onboarding_completed_at: string | null
           pilot_status: string
           salary_period: string
-          seat_limit: number
           slug: string
           status: string
           timezone: string
@@ -3321,7 +2790,6 @@ export type Database = {
           onboarding_completed_at?: string | null
           pilot_status?: string
           salary_period?: string
-          seat_limit?: number
           slug: string
           status?: string
           timezone?: string
@@ -3337,7 +2805,6 @@ export type Database = {
           onboarding_completed_at?: string | null
           pilot_status?: string
           salary_period?: string
-          seat_limit?: number
           slug?: string
           status?: string
           timezone?: string
@@ -3818,188 +3285,6 @@ export type Database = {
           },
         ]
       }
-      referral_link_events: {
-        Row: {
-          event_type: string
-          id: number
-          ip_hash: string | null
-          link_id: string
-          occurred_at: string
-        }
-        Insert: {
-          event_type: string
-          id?: never
-          ip_hash?: string | null
-          link_id: string
-          occurred_at?: string
-        }
-        Update: {
-          event_type?: string
-          id?: never
-          ip_hash?: string | null
-          link_id?: string
-          occurred_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "referral_link_events_link_id_fkey"
-            columns: ["link_id"]
-            isOneToOne: false
-            referencedRelation: "referral_links"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      referral_links: {
-        Row: {
-          created_at: string
-          created_by: string
-          expires_at: string | null
-          id: string
-          label: string | null
-          member_id: string | null
-          organization_id: string
-          revoked_at: string | null
-          token_hash: string
-          token_prefix: string
-        }
-        Insert: {
-          created_at?: string
-          created_by: string
-          expires_at?: string | null
-          id?: string
-          label?: string | null
-          member_id?: string | null
-          organization_id: string
-          revoked_at?: string | null
-          token_hash: string
-          token_prefix: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string
-          expires_at?: string | null
-          id?: string
-          label?: string | null
-          member_id?: string | null
-          organization_id?: string
-          revoked_at?: string | null
-          token_hash?: string
-          token_prefix?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "referral_links_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "organization_members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referral_links_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      referrals: {
-        Row: {
-          candidate_email: string | null
-          candidate_full_name: string
-          candidate_linkedin_url: string | null
-          candidate_note: string | null
-          created_at: string
-          created_candidate_id: string | null
-          id: string
-          organization_id: string
-          referral_link_id: string | null
-          referrer_email: string | null
-          referrer_member_id: string | null
-          referrer_name: string | null
-          resume_path: string | null
-          reviewed_at: string | null
-          reviewed_by: string | null
-          status: string
-          target_job_id: string | null
-        }
-        Insert: {
-          candidate_email?: string | null
-          candidate_full_name: string
-          candidate_linkedin_url?: string | null
-          candidate_note?: string | null
-          created_at?: string
-          created_candidate_id?: string | null
-          id?: string
-          organization_id: string
-          referral_link_id?: string | null
-          referrer_email?: string | null
-          referrer_member_id?: string | null
-          referrer_name?: string | null
-          resume_path?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: string
-          target_job_id?: string | null
-        }
-        Update: {
-          candidate_email?: string | null
-          candidate_full_name?: string
-          candidate_linkedin_url?: string | null
-          candidate_note?: string | null
-          created_at?: string
-          created_candidate_id?: string | null
-          id?: string
-          organization_id?: string
-          referral_link_id?: string | null
-          referrer_email?: string | null
-          referrer_member_id?: string | null
-          referrer_name?: string | null
-          resume_path?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: string
-          target_job_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "referrals_created_candidate_id_fkey"
-            columns: ["created_candidate_id"]
-            isOneToOne: false
-            referencedRelation: "candidates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referral_link_id_fkey"
-            columns: ["referral_link_id"]
-            isOneToOne: false
-            referencedRelation: "referral_links"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referrer_member_id_fkey"
-            columns: ["referrer_member_id"]
-            isOneToOne: false
-            referencedRelation: "organization_members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_target_job_id_fkey"
-            columns: ["target_job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       role_permissions: {
         Row: {
           permission_key: string
@@ -4070,7 +3355,6 @@ export type Database = {
       }
       saved_views: {
         Row: {
-          columns: Json
           created_at: string
           filters: Json
           id: string
@@ -4083,7 +3367,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          columns?: Json
           created_at?: string
           filters?: Json
           id?: string
@@ -4096,7 +3379,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          columns?: Json
           created_at?: string
           filters?: Json
           id?: string
@@ -4535,45 +3817,6 @@ export type Database = {
           },
         ]
       }
-      task_reminders: {
-        Row: {
-          delivered_at: string | null
-          id: string
-          organization_id: string
-          remind_at: string
-          task_id: string
-        }
-        Insert: {
-          delivered_at?: string | null
-          id?: string
-          organization_id: string
-          remind_at: string
-          task_id: string
-        }
-        Update: {
-          delivered_at?: string | null
-          id?: string
-          organization_id?: string
-          remind_at?: string
-          task_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "task_reminders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "task_reminders_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "tasks"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       tasks: {
         Row: {
           completed_at: string | null
@@ -4758,10 +4001,6 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json
       }
-      accept_referral: {
-        Args: { p_organization_id: string; p_referral_id: string }
-        Returns: Json
-      }
       add_candidates_to_job: {
         Args: {
           p_candidate_ids: string[]
@@ -4919,15 +4158,6 @@ export type Database = {
         }
         Returns: string
       }
-      create_referral_link: {
-        Args: {
-          p_expiry_days?: number
-          p_label?: string
-          p_member_id?: string
-          p_organization_id: string
-        }
-        Returns: Json
-      }
       create_submission_delivery: {
         Args: {
           p_contact_id?: string
@@ -4996,7 +4226,42 @@ export type Database = {
         }
         Returns: string
       }
+      get_maintenance_health: {
+        Args: { p_organization_id: string }
+        Returns: {
+          is_stale: boolean
+          job_key: string
+          last_error: string
+          last_run_at: string
+          last_status: string
+          last_successful_run_at: string
+          stale_after_hours: number
+        }[]
+      }
       get_my_access_state: { Args: never; Returns: Json }
+      get_my_workspace_capabilities: {
+        Args: { p_organization_id: string }
+        Returns: {
+          can_import: boolean
+          can_manage_commercial_terms: boolean
+          can_manage_finance: boolean
+          can_manage_interviews: boolean
+          can_manage_offers: boolean
+          can_manage_organization: boolean
+          can_manage_placements: boolean
+          can_manage_templates: boolean
+          can_manage_workspace: boolean
+          can_move_pipeline: boolean
+          can_submit: boolean
+          can_view_admin: boolean
+          can_view_team_reports: boolean
+          can_write_candidates: boolean
+          can_write_clients: boolean
+          can_write_jobs: boolean
+          read_only: boolean
+          role_keys: string[]
+        }[]
+      }
       has_permission: {
         Args: { p_organization_id: string; p_permission: string }
         Returns: boolean
@@ -5211,7 +4476,6 @@ export type Database = {
         Returns: undefined
       }
       request_ip_hash: { Args: never; Returns: string }
-      resolve_referral_link: { Args: { p_token: string }; Returns: Json }
       resolve_submission_documents: {
         Args: { p_token: string }
         Returns: {
@@ -5238,6 +4502,10 @@ export type Database = {
           p_organization_id: string
           p_template_id: string
         }
+        Returns: string
+      }
+      schedule_maintenance_cron: {
+        Args: { p_function_url: string; p_worker_secret: string }
         Returns: string
       }
       search_candidates_page: {
@@ -5355,14 +4623,6 @@ export type Database = {
         Returns: string
       }
       storage_prefix_organization: { Args: { p_name: string }; Returns: string }
-      submit_internal_referral: {
-        Args: { p_organization_id: string; p_payload: Json }
-        Returns: string
-      }
-      submit_referral: {
-        Args: { p_payload: Json; p_token: string }
-        Returns: Json
-      }
       submit_submission_feedback: {
         Args: {
           p_candidate_submission_id: string

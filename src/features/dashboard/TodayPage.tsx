@@ -5,7 +5,7 @@ import {Link} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {completeTask,dashboardSummary,listEmailDeliveryIssues,listExpiringConsent,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listRecentSubmissionFeedback,listSubmissionPackages,listTasks,snoozeTask} from '../core/repository'
+import {completeTask,dashboardSummary,listEmailDeliveryIssues,listExpiringConsent,listInterviews,listJobHealth,listJobs,listOffers,listPlacedJobCandidates,listRecentSubmissionFeedback,listSubmissionPackages,listTasks,snoozeTask} from '../core/repository'
 import {ErrorState,TableSkeleton} from '../../shared/ui/States'
 import {Page,Panel} from '../../shared/ui/Page'
 import {formatTime} from '../../shared/lib/format'
@@ -22,6 +22,11 @@ import {useToast} from '../../shared/ui/Toast'
  * reply and record it before a live shortlist becomes unsendable. */
 const FEEDBACK_WINDOW_HOURS=72
 const CONSENT_WINDOW_DAYS=14
+/* Today is a work queue, not an archive. Interviews and submission packages older than this cannot
+ * produce an action anyone is still going to take -- an outcome unrecorded for three months is a
+ * data-quality job, not today's -- and leaving them unbounded means the queue's cost grows with the
+ * whole history of the workspace, which is precisely what the Vincere import lands on it. */
+const WORK_QUEUE_LOOKBACK_DAYS=90
 
 /* The nested Supabase rows flattened for the pure builder. Kept at this edge on purpose: workflow.ts
  * is tested, and its fixtures should express "this job is owned by someone else" as one field rather
@@ -70,8 +75,8 @@ function WorkQueueRow({item,now,working,onTaskAction}:{item:TodayWorkItem;now:Da
 }
 
 export function TodayPage(){
-  const {organization,memberships}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [scope,setScope]=useState<'mine'|'team'>('mine')
-  const currentMember=memberships.find((item)=>item.organization_id===organization?.id&&item.user_id===user?.id)
+  const {organization,membership}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [scope,setScope]=useState<'mine'|'team'>('mine')
+  const currentMember=membership
   const [setupHidden,setSetupHidden]=useState(()=>readSetupDismissed(organization?.id))
   const query=useQuery({queryKey:['today',organization?.id],enabled:Boolean(organization),queryFn:async()=>{
     /* The two windows the notification-lite items are built from. Both are bounded on the server: an
@@ -79,7 +84,12 @@ export function TodayPage(){
      * months is not today's problem. */
     const feedbackSince=new Date(Date.now()-FEEDBACK_WINDOW_HOURS*3_600_000).toISOString()
     const consentBefore=new Date(Date.now()+CONSENT_WINDOW_DAYS*86_400_000).toISOString()
-    const [tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth,feedback,consent]=await Promise.all([listTasks(organization!.id),listInterviews(organization!.id),listOffers(organization!.id),listPlacements(organization!.id),listJobs(organization!.id),dashboardSummary(organization!.id),listEmailDeliveryIssues(organization!.id),listSubmissionPackages(organization!.id),listJobHealth(organization!.id),listRecentSubmissionFeedback(organization!.id,feedbackSince),listExpiringConsent(organization!.id,consentBefore)])
+    const workQueueSince=new Date(Date.now()-WORK_QUEUE_LOOKBACK_DAYS*86_400_000).toISOString()
+    /* Offers are bounded by status rather than by date: the queue only ever builds items from
+     * 'presented' and 'accepted', so the other statuses were fetched and discarded. Placements are
+     * needed only as a set of already-placed job candidates, which is two columns rather than the
+     * full rows with their revenue splits and invoices. */
+    const [tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth,feedback,consent]=await Promise.all([listTasks(organization!.id),listInterviews(organization!.id,{since:workQueueSince}),listOffers(organization!.id,{statuses:['presented','accepted']}),listPlacedJobCandidates(organization!.id),listJobs(organization!.id),dashboardSummary(organization!.id),listEmailDeliveryIssues(organization!.id),listSubmissionPackages(organization!.id,{since:workQueueSince}),listJobHealth(organization!.id),listRecentSubmissionFeedback(organization!.id,feedbackSince),listExpiringConsent(organization!.id,consentBefore)])
     return {tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth,feedback,consent}
   }})
   const taskAction=useMutation({mutationFn:({taskId,action}:{taskId:string;action:'complete'|'snooze'})=>{if(action==='complete')return completeTask(organization!.id,taskId);const due=new Date();due.setDate(due.getDate()+1);due.setHours(9,0,0,0);return snoozeTask(organization!.id,taskId,due.toISOString())},onSuccess:async(_result,variables)=>{toast.success(variables.action==='complete'?'Follow-up completed.':'Follow-up moved to tomorrow.');await Promise.all([cache.invalidateQueries({queryKey:['today',organization?.id]}),cache.invalidateQueries({queryKey:['tasks',organization?.id]}),cache.invalidateQueries({queryKey:['agency-performance',organization?.id]})])},onError:(error)=>toast.error(error,'The follow-up was not changed.')})
