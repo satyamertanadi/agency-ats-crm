@@ -13,6 +13,7 @@ import {Field,Input,Select} from '../../shared/ui/Field'
 import {LocationField} from '../../shared/ui/LocationField'
 import {OptionSelect} from '../../shared/ui/OptionSelect'
 import {Badge,Page,Panel,StatusBadge} from '../../shared/ui/Page'
+import {KpiGrid,KpiTile} from '../../shared/ui/KpiTile'
 import {accountStatus} from '../../shared/lib/status'
 import {INDUSTRIES,industryKey,industryLabel,industryOptions} from '../../shared/lib/industries'
 import {companySize} from '../../shared/lib/optionSets'
@@ -85,21 +86,24 @@ export function ClientsPage(){
     <div className="segmented-control" aria-label="Client view"><button className={view==='list'?'active':''} onClick={()=>setView('list')}>List</button><button className={view==='board'?'active':''} onClick={()=>setView('board')}>BD board</button></div>
     {capabilities.data?.canWriteClients&&<Button leadingIcon={<Plus size={15}/>} onClick={()=>setOpen(true)}>Add client</Button>}
   </div>}>
-    <div className="kpi-grid bd-kpis">
-      <article className="kpi"><div><p>Accounts in play</p><strong>{summary.active}</strong></div></article>
-      <article className="kpi"><div><p>Won</p><strong>{summary.won}</strong></div></article>
-      <article className="kpi"><div><p>Open jobs</p><strong>{summary.openJobs}</strong></div></article>
-      <article className="kpi" title="Expected fee across open jobs at accounts still in play."><div><p>Pipeline value</p><strong>{formatMoney(summary.pipelineValue,organization?.base_currency)}</strong></div></article>
-      <article className="kpi"><div><p>Need attention</p><strong className={summary.atRisk?'overdue-text':''}>{summary.atRisk}</strong></div></article>
-    </div>
+    <KpiGrid>
+      <KpiTile label="Accounts in play" value={summary.active} icon={<Building2 size={18}/>}/>
+      <KpiTile label="Won" value={summary.won} icon={<UsersRound size={18}/>}/>
+      <KpiTile label="Open jobs" value={summary.openJobs} icon={<Search size={18}/>}/>
+      <KpiTile label="Pipeline value" value={formatMoney(summary.pipelineValue,organization?.base_currency)} icon={<CalendarClock size={18}/>} definition="Expected fee across open jobs at accounts still in play."/>
+      <KpiTile label="Need attention" value={summary.atRisk} tone={summary.atRisk?'alert':undefined} icon={<Plus size={18}/>}/>
+    </KpiGrid>
     <BdRiskSummary rows={visible}/>
+    {/* The toolbar (search, industry filter, saved views) applies to both views -- `visible` already
+      * feeds the board as well as the table. It used to sit inside a Panel that, in board view, ended
+      * right after the toolbar with nothing below it: a hollow box immediately followed by BdBoard's
+      * own panel. Paneling it only for the view that actually has table content under it removes that
+      * dead box without losing the toolbar in board view. */}
     <Panel>
       <SavedViewBar resource="clients" paramKeys={['q','view','industry']} params={params} onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/>
       <div className="toolbar"><div className="search-box"><Search size={15}/><Input aria-label="Search clients" placeholder="Client, industry, or location" value={query} onChange={(event)=>setQuery(event.target.value)}/></div><Select aria-label="Filter by industry" value={industryFilter} onChange={(event)=>setIndustryFilter(event.target.value)}><option value="">All industries</option>{industryChoices.map((industry)=><option key={industry.key} value={industry.key}>{industry.label}</option>)}</Select><span className="muted">{visible.length} clients</span></div>
-      {visible.length===0
-        ?<EmptyState title={needle||industryFilter?'No matching clients':'No clients yet'} description={needle||industryFilter?'Try a different search or industry.':'Create the first prospect or client account.'} action={!needle&&!industryFilter&&capabilities.data?.canWriteClients?<Button onClick={()=>setOpen(true)}>Add first client</Button>:undefined}/>
-        :view==='list'
-          ?<Table caption="Client accounts" headers={['Client','BD stage','Owner','Open jobs','Next follow-up','Fee agreement','Account status']}>
+      {visible.length===0&&<EmptyState title={needle||industryFilter?'No matching clients':'No clients yet'} description={needle||industryFilter?'Try a different search or industry.':'Create the first prospect or client account.'} action={!needle&&!industryFilter&&capabilities.data?.canWriteClients?<Button onClick={()=>setOpen(true)}>Add first client</Button>:undefined}/>}
+      {visible.length>0&&view==='list'&&<Table className="clients-table" caption="Client accounts" headers={['Client','BD stage','Owner','Open jobs','Next follow-up','Fee agreement','Account status']}>
             {visible.map((client)=><tr key={client.id}>
               <td><Link className="record-link" to={`/app/${organization?.slug}/clients/${client.id}`}><strong>{client.name}</strong></Link><span>{industryLabel(client.industry)||'Industry not recorded'}</span></td>
               <td>{bdStageLabel(client.business_development_stage)}</td>
@@ -109,8 +113,7 @@ export function ClientsPage(){
               <td>{client.terms_status==='active'?<Badge tone="good">In place</Badge>:client.terms_status==='expired'?<Badge tone="bad">Expired</Badge>:<Badge tone="warn">None</Badge>}</td>
               <td><StatusBadge map={accountStatus} value={client.account_status}/></td>
             </tr>)}
-          </Table>
-          :null}
+          </Table>}
     </Panel>
     {visible.length>0&&view==='board'&&<BdBoard rows={visible} canWrite={Boolean(capabilities.data?.canWriteClients)} onCreateJob={(row)=>startJobForAccount(row.id)}/>}
     <Drawer title="Add client" description="Start with the account and, if useful, its primary contact." open={open} onClose={()=>setOpen(false)}><div className="stack"><Field label="Client name"><Input autoFocus value={name} onChange={(event)=>setName(event.target.value)}/></Field>{/* Rendered from the vocabulary map rather than hand-written options: this drawer offered two of the

@@ -494,14 +494,18 @@ td span:not([class]) {
 .table-scroll tbody tr:last-child td {
   border-bottom: 0;
 }
-/* Scoped to the Candidates table only (via Table's `className` prop) rather than added to the
-   shared tbody/tr rules above -- Jobs and Clients tables were not asked for this and should keep
-   their current look. The hover rule is repeated at the same specificity as the zebra rule and
-   placed after it, so hover still visibly changes an even row instead of the zebra tint winning. */
-.candidates-table tbody tr:nth-child(even) {
+/* Scoped via Table's `className` prop rather than added to the shared tbody/tr rules above, so a
+   table that genuinely wants a flat look (none currently do) is not forced into zebra. The hover
+   rule is repeated at the same specificity as the zebra rule and placed after it, so hover still
+   visibly changes an even row instead of the zebra tint winning. */
+.candidates-table tbody tr:nth-child(even),
+.jobs-table tbody tr:nth-child(even),
+.clients-table tbody tr:nth-child(even) {
   background: color-mix(in srgb, var(--color-surface-soft) 45%, transparent);
 }
-.candidates-table tbody tr:hover {
+.candidates-table tbody tr:hover,
+.jobs-table tbody tr:hover,
+.clients-table tbody tr:hover {
   background: var(--color-surface-soft);
 }
 /* A smaller sibling of .candidate-summary-avatar (features.css) for list rows, where a 52px

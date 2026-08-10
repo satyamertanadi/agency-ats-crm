@@ -15,6 +15,7 @@ import {Button} from '../../shared/ui/Button'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
 import {Badge,Page,Panel,StatusBadge} from '../../shared/ui/Page'
+import {Callout} from '../../shared/ui/Callout'
 import {EmptyState,ErrorState,TableSkeleton} from '../../shared/ui/States'
 import {useToast} from '../../shared/ui/Toast'
 import {SavedViewBar} from '../core/SavedViewBar'
@@ -55,6 +56,11 @@ export function CandidatesPage(){
   const toggle=(id:string,checked:boolean)=>setSelected((current)=>checked?[...current,id]:current.filter((item)=>item!==id))
   const pages=Math.max(1,Math.ceil((query.data?.count||0)/pageSize));const showPagination=(query.data?.count||0)>pageSize
   return <Page title="Candidates" eyebrow="Talent database" description="Find the right people, check readiness, and place them into a job without exposing private data in the list." actions={<>{selectionMode==='bulk'&&selected.length>0&&<Button variant="secondary" leadingIcon={<Users size={15}/>} onClick={()=>openPlacement()}>Add {selected.length} to job</Button>}{selectionMode==='merge'&&selected.length===2&&<Button variant="secondary" leadingIcon={<Merge size={15}/>} onClick={openMerge}>Merge selected</Button>}{capabilities.data?.canMovePipeline&&<Button variant="secondary" onClick={()=>{setSelectionMode((mode)=>mode==='bulk'?'none':'bulk');setSelected([])}}>{selectionMode==='bulk'?'Done selecting':'Select candidates'}</Button>}{capabilities.data?.canWriteCandidates&&<><Button variant="quiet" onClick={()=>{setSelectionMode((mode)=>mode==='merge'?'none':'merge');setSelected([])}}>{selectionMode==='merge'?'Done':'Manage duplicates'}</Button><Button leadingIcon={<Plus size={15}/>} onClick={()=>{setOpen(true)}}>Add candidate</Button></>}</>}>
+    {/* Selecting rows used to be silent -- checkboxes ticked and the header buttons enabled, with
+      * nothing else on the page saying what was selected or what to do next. Merge specifically
+      * needs exactly two, which a bare button count does not communicate. */}
+    {selectionMode==='bulk'&&<Callout tone="info">{selected.length===0?'Select candidates to add them to a job together.':`${selected.length} candidate${selected.length===1?'':'s'} selected.`}</Callout>}
+    {selectionMode==='merge'&&<Callout tone="info">{selected.length===0?'Select two candidates to merge.':selected.length===1?'Select one more candidate to merge.':'Two candidates selected — choose which record to keep.'}</Callout>}
     <Panel><SavedViewBar resource="candidates" paramKeys={viewParamKeys} params={params} onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/><div className="toolbar"><div className="search-box"><Search size={15}/><Input aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div><Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select><span className="muted">{query.data?.count??0} candidates</span></div>
       <details className="filter-panel"><summary>Filters and sorting</summary><div className="filter-grid"><Field label="Location"><Input value={filters.location} onChange={(event)=>setFilter('location',event.target.value)}/></Field>{/* Was a free-text box against an `ilike` predicate, so "Linkedin" found nothing when the column
         said "LinkedIn". Both sides are curated values now, and the filter offers the same list the

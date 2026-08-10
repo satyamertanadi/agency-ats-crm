@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from 'react'
 import {DndContext,KeyboardSensor,PointerSensor,useDraggable,useDroppable,useSensor,useSensors,type DragEndEvent,type KeyboardCoordinateGetter} from '@dnd-kit/core'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ArrowLeft,Clock,GripVertical,Plus,Send} from 'lucide-react'
+import {ArrowLeft,ChevronDown,Clock,GripVertical,Plus,Send} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
@@ -111,6 +111,12 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
 
 export function JobWorkspacePage(){
   const {jobId=''}=useParams();const {organization,membership}=useOrganization();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [editOpen,setEditOpen]=useState(false);const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerCandidates,setComposerCandidates]=useState<ComposerCandidate[]|null>(null)
+  /* Columns used to render every card unconditionally, so a well-worked Sourcing column with forty
+   * names pushed every other phase off the fold below it. Capped per column, expanded on request --
+   * a set of expanded keys rather than a single board-wide toggle, because "I want to see everyone
+   * in Sourcing" says nothing about whether Screening should also be full. */
+  const [expandedColumns,setExpandedColumns]=useState<Set<string>>(new Set())
+  const toggleColumnExpanded=(key:string)=>setExpandedColumns((current)=>{const next=new Set(current);if(next.has(key))next.delete(key);else next.add(key);return next})
   const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)});const job=jobs.data?.find((item)=>item.id===jobId)
   const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
   /* Scoped to this job, not to the organization. These four decorate the candidate panel for
@@ -214,7 +220,17 @@ export function JobWorkspacePage(){
               const stageIds=new Set(column.stages.map((stage)=>stage.id));const items=pipeline.data!.items.filter((item)=>stageIds.has(item.current_stage_id))
               const color=column.stages[0]?phaseRampColor[phaseForStage(column.stages[0])]:'var(--color-faint)'
               const stats=columnStageStats(column,pipeline.data!.items,now)
-              return <PhaseColumn id={column.key} label={column.label} count={items.length} color={color} stats={stats} key={column.key}>{items.map((item)=><CandidateCard item={item} key={item.id} columnKey={column.key} columnColor={color} now={now} members={members.data||[]} onOpen={()=>openCandidate(item)} onMove={(columnKey)=>moveToColumn(item,columnKey)} onOutcome={(stage)=>setOutcome({item,stage})} outcomeStages={outcomeStages} targets={targets} canMove={canRecruit}/>)}</PhaseColumn>
+              // 6 matches the cap Today's active-jobs list already uses: enough to see the column at
+              // a glance without an inner scroll, few enough that a heavily-worked phase does not
+              // push every column after it below the fold.
+              const expanded=expandedColumns.has(column.key)
+              const visibleItems=expanded?items:items.slice(0,6)
+              const hiddenCount=items.length-visibleItems.length
+              return <PhaseColumn id={column.key} label={column.label} count={items.length} color={color} stats={stats} key={column.key}>
+                {visibleItems.map((item)=><CandidateCard item={item} key={item.id} columnKey={column.key} columnColor={color} now={now} members={members.data||[]} onOpen={()=>openCandidate(item)} onMove={(columnKey)=>moveToColumn(item,columnKey)} onOutcome={(stage)=>setOutcome({item,stage})} outcomeStages={outcomeStages} targets={targets} canMove={canRecruit}/>)}
+                {hiddenCount>0&&<button type="button" className="workflow-column-more" onClick={()=>toggleColumnExpanded(column.key)}>+{hiddenCount} more candidate{hiddenCount===1?'':'s'}<ChevronDown size={13}/></button>}
+                {expanded&&items.length>6&&<button type="button" className="workflow-column-more workflow-column-more-collapse" onClick={()=>toggleColumnExpanded(column.key)}>Show fewer<ChevronDown size={13}/></button>}
+              </PhaseColumn>
             })}
           </div>
         </DndContext>
