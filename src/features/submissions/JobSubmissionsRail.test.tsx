@@ -21,7 +21,7 @@ function renderRail(packages:SubmissionPackageRow[],canSubmit=true){
   const onResend=vi.fn()
   const cache=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})
   render(<QueryClientProvider client={cache}><ToastProvider>
-    <JobSubmissionsRail packages={packages} jobId="job-1" organizationId="org-1" canSubmit={canSubmit} onChanged={vi.fn().mockResolvedValue(undefined)} onResend={onResend}/>
+    <JobSubmissionsRail packages={packages} jobId="job-1" organizationId="org-1" canSubmit={canSubmit} onChanged={vi.fn().mockResolvedValue(undefined)} onResend={onResend} now={now}/>
   </ToastProvider></QueryClientProvider>)
   return onResend
 }
