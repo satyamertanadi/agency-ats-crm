@@ -13,7 +13,7 @@ import {CandidateForm} from './CandidateForm'
 import {Button} from '../../shared/ui/Button'
 import {Field,Input,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
-import {Badge,Panel,StatusBadge} from '../../shared/ui/Page'
+import {Badge,Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {candidateStatus,consentStatus,lookup,profileStatus,type Tone} from '../../shared/lib/status'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
 import {formatCvDate,formatDate,formatSalary} from '../../shared/lib/format'
@@ -111,7 +111,6 @@ export function CandidateDetailPage(){
   }
   const tab=(TABS.find((item)=>item.key===params.get('tab'))?.key||'overview') as TabKey
   const selectTab=(next:TabKey)=>{const nextParams=new URLSearchParams(params);if(next==='overview')nextParams.delete('tab');else nextParams.set('tab',next);setParams(nextParams)}
-  const initials=candidate.full_name.split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0]?.toUpperCase()||'').join('')||'?'
   const pipelineCount=pipelines.data?.length||0
   /* The readiness facts a recruiter checks before doing anything else, lifted out of the old
    * mid-page panel into a band under the name. Consent borrows tone from the domain status map so
@@ -144,17 +143,15 @@ export function CandidateDetailPage(){
    * that opens onto nothing. */
   const hasOverflow=canWrite
 
-  return <main className="page candidate-detail">
-    <div className="breadcrumbs"><Link className="button button-quiet" to={`/app/${organization?.slug}/candidates`}><ArrowLeft size={15}/>Candidates</Link></div>
-    <header className="candidate-summary">
-      <span className="candidate-summary-avatar" aria-hidden="true">{initials}</span>
-      <div className="candidate-summary-identity">
-        <p className="eyebrow">Candidate</p>
-        <h1>{candidate.full_name}</h1>
-        <p>{candidate.current_position||'Role not recorded'}{candidate.current_company?` at ${candidate.current_company}`:''}</p>
-        <div className="candidate-summary-meta"><StatusBadge map={candidateStatus} value={candidate.status}/>{candidate.location&&<span>{candidate.location}</span>}</div>
-      </div>
-      <div className="candidate-summary-actions">
+  // Hidden while editing: switching tabs would not change what is on screen, since the edit form
+  // replaces the tab content entirely (see below).
+  const detailTabs=!editing&&<div className="record-tabs" role="tablist">{TABS.map((item)=><button key={item.key} type="button" role="tab" aria-selected={tab===item.key} className={tab===item.key?'active':''} onClick={()=>selectTab(item.key)}>{item.label}</button>)}</div>
+  return <Page title={candidate.full_name} eyebrow="Candidate"
+    description={`${candidate.current_position||'Role not recorded'}${candidate.current_company?` at ${candidate.current_company}`:''}`}
+    breadcrumbs={<Link className="button button-quiet" to={`/app/${organization?.slug}/candidates`}><ArrowLeft size={15}/>Candidates</Link>}
+    metadata={<div className="record-metadata"><StatusBadge map={candidateStatus} value={candidate.status}/>{candidate.location&&<span>{candidate.location}</span>}</div>}
+    tabs={detailTabs}
+    actions={<>
         {capabilities.data?.canMovePipeline&&<Button onClick={()=>setJobOpen(true)} disabled={Boolean(candidate.deleted_at)||candidate.status==='do_not_contact'}>Add to job</Button>}
         <TaskButton linkType="candidate" linkId={candidateId}/>
         {capabilities.data?.canManageOrganization&&<Button variant="secondary" leadingIcon={<ShieldAlert size={14}/>} onClick={()=>setLegalHoldOpen(true)}>{privateData?.legal_hold?'Remove legal hold':'Set legal hold'}</Button>}
@@ -167,8 +164,7 @@ export function CandidateDetailPage(){
             {canWrite&&<><span className="record-actions-menu-divider"/><button type="button" role="menuitem" className="menu-caution" disabled={archive.isPending} onClick={()=>runFromMenu(()=>archive.mutate(!candidate.deleted_at))}>{candidate.deleted_at?<><RotateCcw size={15}/>Restore candidate</>:<><Archive size={15}/>Archive candidate</>}</button></>}
           </div>}
         </div>}
-      </div>
-    </header>
+      </>}>
     {candidate.deleted_at&&<p className="warning-box">This record is archived and excluded from normal candidate searches.</p>}
     {privateData?.legal_hold&&<p className="warning-box"><ShieldAlert size={15}/> Legal hold is active. Automated retention will not anonymize this candidate.</p>}
     {actionItems.length>0&&<section className="readiness-action-band">
@@ -190,8 +186,6 @@ export function CandidateDetailPage(){
       <Panel title="Edit candidate"><CandidateForm form={editForm} mode="edit" owners={ownerOptions} salaryPeriod={organization?.salary_period} baseCurrency={organization?.base_currency}/></Panel>
       {save.error&&<p className="form-error" role="alert">{save.error.message}</p>}<div className="form-actions"><Button type="button" variant="quiet" disabled={save.isPending} onClick={()=>setEditing(false)}>Cancel</Button><Button loading={save.isPending}>{'Save candidate'}</Button></div>
     </form>:<>
-      <div className="record-tabs" role="tablist">{TABS.map((item)=><button key={item.key} type="button" role="tab" aria-selected={tab===item.key} className={tab===item.key?'active':''} onClick={()=>selectTab(item.key)}>{item.label}</button>)}</div>
-      <div className="page-content">
         {tab==='overview'&&<>
           <Panel title="In pipelines" icon={<Layers3 size={17}/>} subtitle="Every job this candidate is being considered for, using the same operating phases as the job board.">{pipelineCount?<Table headers={['Job','Client','Phase','Owner','Added','Days in phase']}>{pipelines.data!.map((assignment)=>{const stage=assignment.pipeline_stages;const phase=stage?pipelinePhases.find((item)=>item.key===phaseForStage(stage))?.label:'Unknown';const changed=assignment.stage_history[0]?.occurred_at||assignment.updated_at;const days=Math.max(0,Math.floor((renderedAt-new Date(changed).getTime())/86_400_000));return <tr key={assignment.id}><td><Link className="record-link" to={`/app/${organization?.slug}/jobs/${assignment.job_id}`}>{assignment.jobs?.title||'Job'}</Link></td><td>{assignment.jobs?.companies?.name||'—'}</td><td>{phase}</td><td>{assignment.jobs?.organization_members?.profiles?.full_name||assignment.jobs?.organization_members?.profiles?.email||'Unassigned'}</td><td>{formatDate(assignment.added_at)}</td><td>{days}</td></tr>})}</Table>:<EmptyState title="Not in a job pipeline" description="This candidate is not being considered for any job yet. Add them to one to start tracking their progress." action={capabilities.data?.canMovePipeline&&<Button onClick={()=>setJobOpen(true)} disabled={Boolean(candidate.deleted_at)||candidate.status==='do_not_contact'}>Add to job</Button>}/>}</Panel>
           <Panel title="Contact details" icon={<Mail size={17}/>}><dl className="record-summary"><div><dt>Email</dt><dd>{privateData?.email||'Not recorded'}</dd></div><div><dt>Phone</dt><dd>{privateData?.phone||'Not recorded'}{privateData?.phone&&canWrite&&<Button size="sm" variant="secondary" leadingIcon={<MessageSquare size={13}/>} onClick={openWhatsApp}>WhatsApp</Button>}</dd></div><div><dt>Notice period</dt><dd>{candidate.notice_period_days!=null?`${candidate.notice_period_days} days`:'Not recorded'}</dd></div><div><dt>Source</dt><dd>{candidate.source||'Not recorded'}</dd></div><div><dt>LinkedIn</dt><dd>{candidate.linkedin_url?<a className="record-link" href={candidate.linkedin_url} target="_blank" rel="noreferrer">Profile</a>:'Not recorded'}</dd></div><div><dt>Portfolio</dt><dd>{candidate.portfolio_url?<a className="record-link" href={candidate.portfolio_url} target="_blank" rel="noreferrer">Portfolio</a>:'Not recorded'}</dd></div></dl></Panel>
@@ -223,7 +217,6 @@ export function CandidateDetailPage(){
           <Panel title="Documents" icon={<FileText size={17}/>} action={canWrite&&<Button variant="secondary" leadingIcon={<Upload size={14}/>} onClick={()=>setCvOpen(true)}>Upload and parse CV</Button>}><div className="list">{documents.data?.length?documents.data.map((document)=><article className="list-row" key={document.id}><div><strong><FileText size={14}/> {document.original_filename||document.file_name}</strong><span>{document.document_type==='candidate_profile'?'Client profile · ':''}{Math.ceil(document.size_bytes/1024)} KB</span></div><div><a className="button button-secondary" href={document.signedUrl} target="_blank" rel="noreferrer">Open</a>{canWrite&&<Button variant="quiet" aria-label="Archive document" onClick={()=>removeDocument.mutate({id:document.id,storagePath:document.storage_path,filename:document.original_filename||document.file_name})}><Trash2 size={14}/></Button>}</div></article>):<PanelEmpty message="No documents uploaded" actionLabel={canWrite?'Upload a CV':undefined} onAction={()=>setCvOpen(true)}/>}</div></Panel>
           {organization?.profile_enabled&&<Panel title="Client profile history" icon={<FileSignature size={17}/>}><div className="list">{profileVersions.data?.length?profileVersions.data.map((profile)=><article className="list-row" key={profile.id}><div><strong>{profile.job_title} · Version {profile.version}</strong><span>{profile.template_name} · {profile.anonymized?'Anonymized':'Named'} · {formatDate(profile.finalized_at||profile.created_at)}</span></div><div><StatusBadge map={profileStatus} value={profile.status}/>{profile.stale&&<Badge tone="warn">Source changed</Badge>}</div></article>):<PanelEmpty message="No generated profiles yet" actionLabel={canWrite?'Generate one':undefined} onAction={()=>setProfileOpen(true)}/>}</div></Panel>}
         </div>}
-      </div>
     </>}
 
     <Modal title="Add tag" open={tagOpen} onClose={()=>{setTagOpen(false);setTagName('')}}>
@@ -237,7 +230,7 @@ export function CandidateDetailPage(){
     <Modal title="Upload and parse CV" open={cvOpen} wide onClose={()=>setCvOpen(false)}><CandidateCvParser organizationId={organization!.id} userId={user!.id} targetCandidateId={candidateId} targetCandidateName={candidate.full_name} onCancel={()=>setCvOpen(false)} onAccepted={async()=>{setCvOpen(false);await refresh()}}/></Modal>
     <Modal title="Generate client profile" open={profileOpen} wide onClose={()=>setProfileOpen(false)}><CandidateProfileGenerator organizationId={organization!.id} userId={user!.id} candidate={candidate} organizationName={organization!.name} accent={organization?.primary_color} logoUrl={organization?.logo_url} footerBannerUrl={organization?.profile_footer_banner_url} defaultPreparedBy={preparedBy} onClose={()=>setProfileOpen(false)} onFinalized={refresh}/></Modal>
     <AddCandidateToJobModal open={jobOpen} onClose={()=>setJobOpen(false)} candidates={[{id:candidate.id,full_name:candidate.full_name,current_position:candidate.current_position,status:candidate.status,consent_status:privateData?.consent_status||'unknown'}]}/>
-  </main>
+  </Page>
 }
 
 /* A dead "No X yet" line makes the reader go hunting for the panel-header Add button. This repeats
