@@ -185,7 +185,7 @@ export function CandidateDetailPage(){
     {actionItems.length>0&&<section className="readiness-action-band">
       <header><TriangleAlert size={15}/><strong>Needs action · {actionItems.length}</strong></header>
       <div className="readiness-action-grid">{actionItems.map((item)=><div className="readiness-action-card" key={item.key}>
-        <span className="readiness-action-icon">{item.key==='cv'?<Upload size={15}/>:<CalendarClock size={15}/>}</span>
+        <span className="readiness-action-icon">{item.key==='cv'?<Upload size={17}/>:<CalendarClock size={17}/>}</span>
         <div><strong>{item.title}</strong><span>{item.description}</span></div>
         <Button size="sm" variant={item.primary?'primary':'secondary'} onClick={item.onClick}>{item.cta}</Button>
       </div>)}</div>
