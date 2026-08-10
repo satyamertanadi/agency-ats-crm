@@ -129,7 +129,7 @@
   font-weight: var(--weight-semibold);
   color: var(--color-muted);
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: var(--tracking-caps);
 }
 .cv-checkbox {
   display: flex;

@@ -68,7 +68,7 @@
 .nav-section-label {
   font-size: var(--text-2xs);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-caps);
   color: var(--color-sidebar-muted);
   font-weight: var(--weight-semibold);
 }
@@ -272,7 +272,7 @@
   color: var(--color-muted);
 }
 .page {
-  padding: 30px clamp(20px, 3vw, 44px) 54px;
+  padding: var(--space-6) clamp(var(--space-5), 3vw, var(--space-10)) var(--space-14);
   max-width: 1680px;
   margin: 0 auto;
 }
@@ -296,7 +296,7 @@
 }
 .eyebrow {
   text-transform: uppercase;
-  letter-spacing: 0.145em;
+  letter-spacing: var(--tracking-caps);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
   color: var(--color-accent);

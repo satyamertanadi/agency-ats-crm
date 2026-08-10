@@ -13,6 +13,10 @@ export function Page({ title, eyebrow, description, breadcrumbs, metadata, actio
   </main>
 }
 export interface PanelProps {title?:string;subtitle?:string;icon?:ReactNode;action?:ReactNode;children:ReactNode;className?:string;elevation?:'flat'|'raised';tone?:'default'|'soft'|'dark';density?:'compact'|'comfortable';padding?:'none'|'sm'|'md'|'lg'}
+/* A Panel is a distinct record/data surface with its own identity -- a list, a form section, a
+ * board -- not a generic wrapper reached for by default. Reach for a bare <section>/`.stack` div
+ * (no border) when the goal is grouping, not a surface. See Callout.tsx for the sibling rule about
+ * not putting a Callout alone at the top of a Panel body. */
 /* icon sits inside its own flex wrapper alongside the title/subtitle block, not as a third
  * sibling of .panel-header -- that keeps .panel-header a fixed two-child space-between row
  * (title block, action) regardless of whether icon is passed, so panels with a header action

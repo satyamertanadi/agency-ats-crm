@@ -29,6 +29,12 @@
    * pixels or it hints inconsistently; above it, ratio is what creates hierarchy.
    * Replaces 36 ad-hoc values, 19 of which sat between 9.6px and 13.6px.
    * --font-editorial is display-only: --text-lg and above. Never at --text-md or below.
+   *
+   * Which rung for which role, so screens stop inventing new pairings: --text-2xs/-xs = badges,
+   * table headers, uppercase micro-labels. --text-sm/-base = body copy, the size almost
+   * everything should default to. --text-md = the ONE size for a page/section description,
+   * regardless of how long the sentence is -- length changes how much of it survives editing
+   * (see Page.tsx), never its type size. --text-lg and up = editorial headings only.
    */
   --text-2xs: 0.6875rem; /* 11px - badges, kbd, chart axis labels */
   --text-xs: 0.75rem; /*    12px - eyebrow, th, sub-lines, field labels */
@@ -51,8 +57,10 @@
   --tracking-display: -0.03em; /* serif h1 / hero */
   --tracking-tight: -0.015em; /* panel titles, KPI numbers, brand */
   --tracking-normal: 0;
-  --tracking-wide: 0.06em; /* th uppercase */
-  --tracking-caps: 0.14em; /* eyebrow, nav label */
+  --tracking-wide: 0.06em; /* th uppercase, and small inline badges at the same job */
+  --tracking-caps: 0.14em; /* eyebrow, nav label, and every other uppercase micro-label (dt, section
+     header, command-palette group). One job, one token -- do not hand-author a nearby value
+     ("0.1em looks about right") for a label that is doing this same job. */
 
   /* ---- weights ---------------------------------------------------------------------------
    * Four, replacing eleven (incl. 470/540/550/580/620/750/800). The serif gets no separate
@@ -167,6 +175,15 @@
    * hardcodes because they were wrong: --radius-sm:7px had ZERO uses while 7/8/9/10px were
    * typed by hand 21 times, and --radius-xl:22px was never used at all. --radius-circle is
    * named because `50%` was retyped 6 times and is semantically distinct from a length.
+   *
+   * Which token for which job -- the rule the four were missing:
+   *   --radius-lg  outer containers with their own identity: Panel, Modal, KpiTile. A surface
+   *                 a user reads as "a card" gets this and only this.
+   *   --radius-sm  interactive controls: Button, Input, Select, chips -- things you click or type into.
+   *   --radius-md  media/inline chrome only (avatars-as-squares, thumbnails) -- never a container.
+   *   --radius-xs  the smallest inline chrome: kbd, tiny icon buttons, and Callout (deliberately
+   *                 one step under --radius-lg, so a Callout that must stay boxed still reads as
+   *                 nested inside a Panel rather than as a sibling card).
    */
   --radius-xs: 6px;
   --radius-sm: 8px;
@@ -181,6 +198,10 @@
    * and because every existing value was authored in px, so using it demanded arithmetic on
    * every line. px also stops spacing fighting 1px borders and px-sized lucide icons. Type
    * stays in rem, which preserves the accessibility property that actually matters.
+   *
+   * Page/panel padding and the gaps between stacked sections must be built from these rungs,
+   * not a literal -- "30px" typed by hand is not self-documenting about which rung it was meant
+   * to be, and it silently drifts from every other "30px" the next time one of them changes.
    */
   --space-0: 0;
   --space-05: 2px;
