@@ -12,7 +12,7 @@ export function PersonalSettingsPage(){
   const connections=useQuery({queryKey:['calendar-connections',organization?.id],enabled:Boolean(organization),queryFn:()=>listCalendarConnections(organization!.id)})
   if(connections.isLoading)return <LoadingState/>;if(connections.error)return <ErrorState error={connections.error}/>
   const own=connections.data?.find((item)=>item.member_id===currentMember?.id)
-  return <Page title="My settings" eyebrow="Personal preferences" description="Connections and preferences that apply only to your account.">
+  return <Page title="My settings" eyebrow="Personal preferences">
     {/* The card, its two mutations and its three states used to be written out here and again in
       * SettingsPage. Only the return path differs, and it has to: Google sends the browser back, and
       * back should mean the page you left. */}

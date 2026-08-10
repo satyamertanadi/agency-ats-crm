@@ -1,7 +1,17 @@
 import { AlertCircle, CheckCircle2, Info, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-/* One inline message component, replacing four hand-written treatments that had drifted apart:
+/* Panel vs Callout vs a bare section: Panel is a distinct record/data surface with its own identity
+ * (a list, a form section, a board) -- it earns a border because it IS the thing being looked at.
+ * Callout is a transient message ABOUT the surface it sits in, never a container for other
+ * containers, and should not be the sole/first child of a Panel body -- that reproduces the Panel's
+ * own border one step in, which reads as a card inside a card rather than a message on a surface.
+ * When a Callout's subject is really the whole Panel (a blocked action, a stale record), hoist it
+ * above the Panel instead. When it is one fact among several inside a Panel that's already full of
+ * other content, it is fine where it is -- the rule is about being the box's only reason to exist,
+ * not about appearing near a Panel at all.
+ *
+ * One inline message component, replacing four hand-written treatments that had drifted apart:
  * `.warning-box` (12 uses), `.success-box` (5), `.callout.callout-info` (4, with its own dismiss), and
  * bare `.form-error` used for non-error advisories.
  *

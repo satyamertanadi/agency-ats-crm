@@ -59,7 +59,7 @@ export function AddCandidateToJobModal({open,onClose,candidates:fixedCandidates=
   return <Modal title={title} open={open} wide onClose={close}><div className="stack">
     {chooseCandidate&&<>
       <Field label="Find candidate"><div className="search-box"><Search size={15}/><Input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Name, role, company, or contact detail"/></div></Field>
-      {picked.length>0&&<div className="chip-row" aria-label="Selected candidates">{picked.map((candidate)=><button type="button" className="selection-chip" key={candidate.id} onClick={()=>toggle(candidate,false)}>{candidate.full_name}<X size={12} aria-hidden="true"/><span className="sr-only">Remove {candidate.full_name}</span></button>)}</div>}
+      {picked.length>0&&<div className="chip-row" aria-label="Selected candidates">{picked.map((candidate)=><button type="button" className="selection-chip" key={candidate.id} onClick={()=>toggle(candidate,false)}><span className="selection-chip-label">{candidate.full_name}</span><X size={12} aria-hidden="true"/><span className="sr-only">Remove {candidate.full_name}</span></button>)}</div>}
       <fieldset className="candidate-pick-list"><legend>Candidates</legend>
         {search.isLoading?<p className="muted">Searching…</p>:results.length===0&&picked.length===0?<p className="muted">{query?'No active candidates match that search.':'Search to find candidates.'}</p>:results.map((candidate)=>
           <Checkbox key={candidate.id} label={candidate.full_name} description={`${candidate.current_position||'Role not recorded'}${alreadyIn.has(candidate.id)?' · already in this job':''}`}
@@ -68,12 +68,14 @@ export function AddCandidateToJobModal({open,onClose,candidates:fixedCandidates=
       </fieldset>
     </>}
     {!chooseCandidate&&<p><strong>{fixedCandidates.map((item)=>item.full_name).join(', ')}</strong></p>}
-    {blocked.length>0&&<Callout tone="danger" title="Cannot be added">{blocked.map((candidate)=>candidate.full_name).join(', ')} {blocked.length===1?'is':'are'} archived or marked Do not contact.</Callout>}
-    {blocked.length===0&&withoutConsent.length>0&&<Callout tone="warning" title="Consent is not granted">{withoutConsent.map((candidate)=>candidate.full_name).join(', ')} can be worked internally, but client submission stays blocked until consent is granted.</Callout>}
     {chooseJob&&<Field label="Job"><Select value={jobId} disabled={!candidateIds.length||blocked.length>0||health.isLoading} onChange={(event)=>setJobId(event.target.value)}><option value="">Select open job</option>{health.data?.filter((entry)=>['open','draft','on_hold'].includes(entry.status)).map((entry)=><option value={entry.id} key={entry.id} disabled={entry.already_in_job}>{entry.title} · {entry.company_name}{entry.already_in_job?' · already added':''}</option>)}</Select></Field>}
     {selectedJob&&<div className="job-choice-context"><BriefcaseBusiness size={17}/><dl><div><dt>Owner</dt><dd>{selectedJob.owner_name||'Unassigned'}</dd></div><div><dt>Pipeline</dt><dd>{selectedJob.candidate_count} {selectedJob.candidate_count===1?'candidate':'candidates'}</dd></div><div><dt>Salary</dt><dd>{formatSalary(selectedJob.salary_min,selectedJob.currency)}{selectedJob.salary_max?` – ${formatSalary(selectedJob.salary_max,selectedJob.currency)}`:''}</dd></div><div><dt>Expected fee</dt><dd>{formatMoney(selectedJob.expected_fee,selectedJob.currency)}{selectedJob.fee_source?` · ${selectedJob.fee_source}`:''}</dd></div></dl></div>}
     {jobId&&<Field label="Starting stage"><Select value={stageId} onChange={(event)=>setStageId(event.target.value)}><option value="">Default first stage</option>{stages.data?.map((stage)=><option value={stage.id} key={stage.id}>{stage.name}</option>)}</Select></Field>}
     {mutation.error&&<p className="form-error" role="alert">{mutation.error.message}</p>}
+    {/* Placed right above the button they explain rather than mid-form, so the reason a control is
+      * disabled sits next to the control -- not stated once earlier and then left to be remembered. */}
+    {blocked.length>0&&<Callout tone="danger" title="Cannot be added">{blocked.map((candidate)=>candidate.full_name).join(', ')} {blocked.length===1?'is':'are'} archived or marked Do not contact.</Callout>}
+    {blocked.length===0&&withoutConsent.length>0&&<Callout tone="warning" title="Consent is not granted">{withoutConsent.map((candidate)=>candidate.full_name).join(', ')} can be worked internally, but client submission stays blocked until consent is granted.</Callout>}
     <div className="form-actions"><Button variant="quiet" onClick={close}>Cancel</Button><Button onClick={()=>mutation.mutate()} loading={mutation.isPending} disabled={!candidateIds.length||!jobId||blocked.length>0}>{candidateIds.length>1?`Add ${candidateIds.length} to job`:'Add to job'}</Button></div>
   </div></Modal>
 }

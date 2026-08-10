@@ -64,7 +64,7 @@ export function JobsPage(){
   })
   const loading=jobs.isLoading||companies.isLoading||team.isLoading||capabilities.isLoading
   const pageError=jobs.error||companies.error||team.error
-  return <Page title="Jobs" eyebrow="Recruitment delivery" description="See pipeline health, ownership, commercial value, and the next action before opening a job." actions={capabilities.data?.canWriteJobs?<Button leadingIcon={<Plus size={15}/>} onClick={()=>setOpen(true)} disabled={!companies.data?.length}>Create job</Button>:undefined}>
+  return <Page title="Jobs" eyebrow="Recruitment delivery" actions={capabilities.data?.canWriteJobs?<Button leadingIcon={<Plus size={15}/>} onClick={()=>setOpen(true)} disabled={!companies.data?.length}>Create job</Button>:undefined}>
     {/* Loading and error states render inside the Page shell, not in place of it -- the header used
       * to pop in only once data resolved, which reads as a layout shift on every visit. */}
     {loading?<Panel><TableSkeleton rows={8} columns={6} label="Opening job health…"/></Panel>:pageError?<ErrorState error={pageError}/>:<>

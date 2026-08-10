@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ArrowRight,BriefcaseBusiness,CalendarClock,CheckCircle2,ChevronDown,ListChecks,OctagonAlert,Plus,TriangleAlert} from 'lucide-react'
+import {ArrowRight,BriefcaseBusiness,CalendarClock,CheckCircle2,ChevronDown,ListChecks,OctagonAlert,Plus} from 'lucide-react'
 import {Link} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
@@ -8,7 +8,6 @@ import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {completeTask,dashboardSummary,listEmailDeliveryIssues,listExpiringConsent,listInterviews,listJobHealth,listJobs,listOffers,listPlacedJobCandidates,listRecentSubmissionFeedback,listSubmissionPackages,listTasks,snoozeTask} from '../core/repository'
 import {ErrorState,TableSkeleton} from '../../shared/ui/States'
 import {Page,Panel} from '../../shared/ui/Page'
-import {KpiGrid,KpiTile} from '../../shared/ui/KpiTile'
 import {formatTime} from '../../shared/lib/format'
 import {lookup,todayWorkKind} from '../../shared/lib/status'
 import {buildTodayWorkItems,type TodayConsent,type TodayFeedback,type TodayWorkItem} from '../workflow/workflow'
@@ -70,9 +69,9 @@ function TaskActions({taskId,working,onAction}:{taskId?:string;working:boolean;o
 }
 
 function WorkQueueRow({item,now,working,onTaskAction}:{item:TodayWorkItem;now:Date;working:boolean;onTaskAction:(taskId:string,action:'complete'|'snooze')=>void}){
-  if(item.group)return <li key={item.id} className={`work-queue-row work-queue-group kind-${item.kind}`}><details><summary><div className="work-queue-main"><WorkQueueBadge item={item} now={now}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><span className="work-queue-group-toggle">{item.group.length} {item.groupNoun||'items'}<ChevronDown size={14}/></span></summary><ul className="work-queue-group-list">{item.group.map((sub)=><li key={`${sub.href}-${sub.taskId||sub.label}`}><span>{sub.label}</span><div className="lifecycle-actions"><TaskActions taskId={sub.taskId} working={working} onAction={onTaskAction}/><Link className="button button-secondary button-sm" to={sub.href}>{sub.cta}<ArrowRight size={13}/></Link></div></li>)}</ul></details></li>
+  if(item.group)return <li key={item.id} className="work-queue-row work-queue-group"><details><summary><div className="work-queue-main"><WorkQueueBadge item={item} now={now}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><span className="work-queue-group-toggle">{item.group.length} {item.groupNoun||'items'}<ChevronDown size={14}/></span></summary><ul className="work-queue-group-list">{item.group.map((sub)=><li key={`${sub.href}-${sub.taskId||sub.label}`}><span>{sub.label}</span><div className="lifecycle-actions"><TaskActions taskId={sub.taskId} working={working} onAction={onTaskAction}/><Link className="button button-secondary button-sm" to={sub.href}>{sub.cta}<ArrowRight size={13}/></Link></div></li>)}</ul></details></li>
   if(item.kind==='upcoming'||item.kind==='recommended')return <li key={item.id} className="work-queue-later-row"><span className="work-queue-dot" aria-hidden="true"/><span className="work-queue-later-main"><strong>{item.title}</strong><span>{item.reason}</span></span><div className="lifecycle-actions"><TaskActions taskId={item.taskId} working={working} onAction={onTaskAction}/><Link className="icon-button" to={item.href} aria-label={item.cta}><ArrowRight size={14}/></Link></div></li>
-  return <li key={item.id} className={`work-queue-row kind-${item.kind}`}><div className="work-queue-main"><WorkQueueBadge item={item} now={now}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><div className="lifecycle-actions"><TaskActions taskId={item.taskId} working={working} onAction={onTaskAction}/><Link className="button button-secondary button-sm" to={item.href}>{item.cta}<ArrowRight size={13}/></Link></div></li>
+  return <li key={item.id} className="work-queue-row"><div className="work-queue-main"><WorkQueueBadge item={item} now={now}/><div><strong>{item.title}</strong><p>{item.reason}</p></div></div><div className="lifecycle-actions"><TaskActions taskId={item.taskId} working={working} onAction={onTaskAction}/><Link className="button button-secondary button-sm" to={item.href}>{item.cta}<ArrowRight size={13}/></Link></div></li>
 }
 
 export function TodayPage(){
@@ -114,33 +113,17 @@ export function TodayPage(){
   const later=items.filter((item)=>item.kind==='upcoming'||item.kind==='recommended')
   const activeJobs=query.data.jobs.filter((job)=>job.status==='open'&&(scope==='team'||!job.owner_member_id||job.owner_member_id===currentMember?.id))
   const healthByJob=new Map(query.data.jobHealth.map((health)=>[health.id,health]))
-  // Summed from the same job-health rows the list below renders, so the tile caption and the rows
-  // can never disagree about how many candidates are in play.
-  const pipelineCandidates=activeJobs.reduce((total,job)=>total+(healthByJob.get(job.id)?.candidate_count||0),0)
   return <Page title={name?`Today, ${name}`:'Today'} eyebrow={organization?.name} description="Your next recruitment actions, in the order they need attention." className="today-page" actions={<div className="page-scope-actions">{capabilities.data?.canViewTeamReports&&<div className="segmented-control" aria-label="Work scope"><button className={scope==='mine'?'active':''} onClick={()=>setScope('mine')}>My work</button><button className={scope==='team'?'active':''} onClick={()=>setScope('team')}>Team view</button></div>}{capabilities.data?.canWriteCandidates&&<Link className="button button-primary" to={`${base}/candidates?new=1`}><Plus size={15}/>Add candidate</Link>}</div>}>
     {showSetup&&<SetupChecklist steps={steps} onDismiss={dismissSetup}/>}
-    {/* The operating brief was one wide banner carrying two small stats. The same four numbers read
-      * faster as tiles, and every one is already computed for the queue below -- no tile states
-      * anything the page cannot prove. There is deliberately no trend line: nothing in the schema
-      * records a prior period, so a "vs yesterday" delta could only be fabricated. */}
-    {!showSetup&&<KpiGrid>
-      <KpiTile label="Do now" value={doNow.length} tone={doNow.length?'alert':undefined} icon={<TriangleAlert size={18}/>}
-        caption={items.length?`of ${items.length} open ${items.length===1?'item':'items'}`:'Nothing waiting'}
-        definition="Blocked or overdue work — the first band of the queue below."/>
-      <KpiTile label="Due today" value={todayItems.length} icon={<CalendarClock size={18}/>}
-        definition="Work scheduled to happen today."/>
-      <KpiTile label="Later" value={later.length} icon={<ListChecks size={18}/>}
-        definition="Upcoming and recommended work that is not due yet."/>
-      <KpiTile label="Active jobs" value={activeJobs.length} icon={<BriefcaseBusiness size={18}/>}
-        caption={pipelineCandidates?`${pipelineCandidates} in pipeline`:'No candidates yet'}
-        definition="Open jobs in the current scope."/>
-    </KpiGrid>}
+    {/* The KPI row this used to open with is gone -- "Do now"/"Due today"/"Later" restated the exact
+      * counts the three bands below already carry in their own labels ("Do now · 3"), one scroll
+      * apart. Same numbers, twice, before the queue that actually needed the space. */}
     <div className="today-layout">
       <Panel title="Next actions" subtitle="One click opens the right record with its context preserved." icon={<ListChecks size={16}/>} elevation="raised">
         {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<>
-          {doNow.length>0&&<div className="work-queue-band"><p className="work-queue-band-label work-queue-band-label-bad">Do now · {doNow.length}</p><ol className="work-queue">{doNow.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
-          {todayItems.length>0&&<div className="work-queue-band"><p className="work-queue-band-label work-queue-band-label-warn">Today · {todayItems.length}</p><ol className="work-queue">{todayItems.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
-          {later.length>0&&<div className="work-queue-band"><p className="work-queue-band-label work-queue-band-label-faint">Later · {later.length}</p><ol className="work-queue work-queue-later">{later.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
+          {doNow.length>0&&<div className="work-queue-band"><p className="work-queue-band-label">Do now · {doNow.length}</p><ol className="work-queue">{doNow.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
+          {todayItems.length>0&&<div className="work-queue-band"><p className="work-queue-band-label">Today · {todayItems.length}</p><ol className="work-queue">{todayItems.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
+          {later.length>0&&<div className="work-queue-band"><p className="work-queue-band-label">Later · {later.length}</p><ol className="work-queue work-queue-later">{later.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
         </>}
       </Panel>
       <Panel title={scope==='mine'?'My active jobs':'Active jobs'} subtitle="Pipeline health at a glance." icon={<BriefcaseBusiness size={16}/>}>

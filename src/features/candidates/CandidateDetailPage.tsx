@@ -1,4 +1,4 @@
-import {useState,type FocusEvent} from 'react'
+import {useEffect,useRef,useState,type FocusEvent} from 'react'
 import {useForm} from 'react-hook-form'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
@@ -82,6 +82,23 @@ export function CandidateDetailPage(){
   const saveEducation=useMutation({mutationFn:(items:EditableEducation[])=>replaceCandidateProfileSection(organization!.id,candidateId,'education',items),onSuccess:async()=>{setEducationEditing(false);await refresh()}})
   const saveLanguages=useMutation({mutationFn:(items:EditableLanguage[])=>replaceCandidateProfileSection(organization!.id,candidateId,'languages',items),onSuccess:async()=>{setLanguagesEditing(false);await refresh()}})
   const saveSkills=useMutation({mutationFn:(items:EditableSkill[])=>replaceCandidateProfileSection(organization!.id,candidateId,'skills',items),onSuccess:async()=>{setSkillsEditing(false);await refresh()}})
+  const tab=(TABS.find((item)=>item.key===params.get('tab'))?.key||'overview') as TabKey
+  const selectTab=(next:TabKey)=>{const nextParams=new URLSearchParams(params);if(next==='overview')nextParams.delete('tab');else nextParams.set('tab',next);setParams(nextParams)}
+  /* The reference strip's "In pipelines" chip used to float a bare count with no connection to the
+   * actual table below -- the same fact stated twice, one scroll apart. It now switches to the tab
+   * that has the table and scrolls it into view instead of restating the number a second time.
+   * Declared above the loading/error early-return below, with every other hook -- a hook after a
+   * conditional return fires on some renders and not others, which is exactly the bug this tripped
+   * during the redesign work (React: "Rendered more hooks than during the previous render"). */
+  const pipelinesRef=useRef<HTMLDivElement>(null)
+  const [highlightPipelines,setHighlightPipelines]=useState(false)
+  const goToPipelines=()=>{selectTab('overview');setHighlightPipelines(true)}
+  useEffect(()=>{
+    if(tab!=='overview'||!highlightPipelines)return
+    pipelinesRef.current?.scrollIntoView({behavior:'smooth',block:'start'})
+    const timer=setTimeout(()=>setHighlightPipelines(false),1600)
+    return ()=>clearTimeout(timer)
+  },[tab,highlightPipelines])
   if(detail.isLoading||documents.isLoading||members.isLoading||profileVersions.isLoading||pipelines.isLoading)return <LoadingState/>;if(detail.error||documents.error||members.error||profileVersions.error||pipelines.error||!detail.data)return <ErrorState error={detail.error||documents.error||members.error||profileVersions.error||pipelines.error}/>
   const candidate=detail.data;const privateData=Array.isArray(candidate.candidate_private_details)?candidate.candidate_private_details[0]:candidate.candidate_private_details
   const ownerOptions=(members.data||[]).filter((member)=>member.status==='active').map((member)=>({id:member.id,label:member.profiles?.full_name||member.profiles?.email||'Teammate'}))
@@ -109,8 +126,6 @@ export function CandidateDetailPage(){
     window.open(link,'_blank','noopener,noreferrer')
     logWhatsApp.mutate(candidate.full_name)
   }
-  const tab=(TABS.find((item)=>item.key===params.get('tab'))?.key||'overview') as TabKey
-  const selectTab=(next:TabKey)=>{const nextParams=new URLSearchParams(params);if(next==='overview')nextParams.delete('tab');else nextParams.set('tab',next);setParams(nextParams)}
   const pipelineCount=pipelines.data?.length||0
   /* The readiness facts a recruiter checks before doing anything else, lifted out of the old
    * mid-page panel into a band under the name. Consent borrows tone from the domain status map so
@@ -146,7 +161,7 @@ export function CandidateDetailPage(){
   // Hidden while editing: switching tabs would not change what is on screen, since the edit form
   // replaces the tab content entirely (see below).
   const detailTabs=!editing&&<div className="record-tabs" role="tablist">{TABS.map((item)=><button key={item.key} type="button" role="tab" aria-selected={tab===item.key} className={tab===item.key?'active':''} onClick={()=>selectTab(item.key)}>{item.label}</button>)}</div>
-  return <Page title={candidate.full_name} eyebrow="Candidate"
+  return <Page title={candidate.full_name}
     description={`${candidate.current_position||'Role not recorded'}${candidate.current_company?` at ${candidate.current_company}`:''}`}
     breadcrumbs={<Link className="button button-quiet" to={`/app/${organization?.slug}/candidates`}><ArrowLeft size={15}/>Candidates</Link>}
     metadata={<div className="record-metadata"><StatusBadge map={candidateStatus} value={candidate.status}/>{candidate.location&&<span>{candidate.location}</span>}</div>}
@@ -175,7 +190,7 @@ export function CandidateDetailPage(){
         <Button size="sm" variant={item.primary?'primary':'secondary'} onClick={item.onClick}>{item.cta}</Button>
       </div>)}</div>
     </section>}
-    <dl className="readiness-strip readiness-strip-reference">{referenceFacts.map((item)=><div className={`readiness-chip tone-${item.tone}`} key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>
+    <dl className="readiness-strip readiness-strip-reference">{referenceFacts.map((item)=><div className={`readiness-chip tone-${item.tone}`} key={item.label}><dt>{item.label}</dt><dd>{item.label==='In pipelines'?<button type="button" className="readiness-chip-link" onClick={goToPipelines}>{item.value}</button>:item.value}</dd></div>)}</dl>
 
     {/* While editing, the two edit panels take the place of the tab content exactly as before; the
       * tab bar is hidden because switching tabs would not change what is on screen. */}
@@ -187,7 +202,7 @@ export function CandidateDetailPage(){
       {save.error&&<p className="form-error" role="alert">{save.error.message}</p>}<div className="form-actions"><Button type="button" variant="quiet" disabled={save.isPending} onClick={()=>setEditing(false)}>Cancel</Button><Button loading={save.isPending}>{'Save candidate'}</Button></div>
     </form>:<>
         {tab==='overview'&&<>
-          <Panel title="In pipelines" icon={<Layers3 size={17}/>} subtitle="Every job this candidate is being considered for, using the same operating phases as the job board.">{pipelineCount?<Table headers={['Job','Client','Phase','Owner','Added','Days in phase']}>{pipelines.data!.map((assignment)=>{const stage=assignment.pipeline_stages;const phase=stage?pipelinePhases.find((item)=>item.key===phaseForStage(stage))?.label:'Unknown';const changed=assignment.stage_history[0]?.occurred_at||assignment.updated_at;const days=Math.max(0,Math.floor((renderedAt-new Date(changed).getTime())/86_400_000));return <tr key={assignment.id}><td><Link className="record-link" to={`/app/${organization?.slug}/jobs/${assignment.job_id}`}>{assignment.jobs?.title||'Job'}</Link></td><td>{assignment.jobs?.companies?.name||'—'}</td><td>{phase}</td><td>{assignment.jobs?.organization_members?.profiles?.full_name||assignment.jobs?.organization_members?.profiles?.email||'Unassigned'}</td><td>{formatDate(assignment.added_at)}</td><td>{days}</td></tr>})}</Table>:<EmptyState title="Not in a job pipeline" description="This candidate is not being considered for any job yet. Add them to one to start tracking their progress." action={capabilities.data?.canMovePipeline&&<Button onClick={()=>setJobOpen(true)} disabled={Boolean(candidate.deleted_at)||candidate.status==='do_not_contact'}>Add to job</Button>}/>}</Panel>
+          <div ref={pipelinesRef}><Panel title="In pipelines" icon={<Layers3 size={17}/>} subtitle="Every job this candidate is being considered for, using the same operating phases as the job board." className={highlightPipelines?'panel-highlight':''}>{pipelineCount?<Table headers={['Job','Client','Phase','Owner','Added','Days in phase']}>{pipelines.data!.map((assignment)=>{const stage=assignment.pipeline_stages;const phase=stage?pipelinePhases.find((item)=>item.key===phaseForStage(stage))?.label:'Unknown';const changed=assignment.stage_history[0]?.occurred_at||assignment.updated_at;const days=Math.max(0,Math.floor((renderedAt-new Date(changed).getTime())/86_400_000));return <tr key={assignment.id}><td><Link className="record-link" to={`/app/${organization?.slug}/jobs/${assignment.job_id}`}>{assignment.jobs?.title||'Job'}</Link></td><td>{assignment.jobs?.companies?.name||'—'}</td><td>{phase}</td><td>{assignment.jobs?.organization_members?.profiles?.full_name||assignment.jobs?.organization_members?.profiles?.email||'Unassigned'}</td><td>{formatDate(assignment.added_at)}</td><td>{days}</td></tr>})}</Table>:<EmptyState title="Not in a job pipeline" description="This candidate is not being considered for any job yet. Add them to one to start tracking their progress." action={capabilities.data?.canMovePipeline&&<Button onClick={()=>setJobOpen(true)} disabled={Boolean(candidate.deleted_at)||candidate.status==='do_not_contact'}>Add to job</Button>}/>}</Panel></div>
           <Panel title="Contact details" icon={<Mail size={17}/>}><dl className="record-summary"><div><dt>Email</dt><dd>{privateData?.email||'Not recorded'}</dd></div><div><dt>Phone</dt><dd>{privateData?.phone||'Not recorded'}{privateData?.phone&&canWrite&&<Button size="sm" variant="secondary" leadingIcon={<MessageSquare size={13}/>} onClick={openWhatsApp}>WhatsApp</Button>}</dd></div><div><dt>Notice period</dt><dd>{candidate.notice_period_days!=null?`${candidate.notice_period_days} days`:'Not recorded'}</dd></div><div><dt>Source</dt><dd>{candidate.source||'Not recorded'}</dd></div><div><dt>LinkedIn</dt><dd>{candidate.linkedin_url?<a className="record-link" href={candidate.linkedin_url} target="_blank" rel="noreferrer">Profile</a>:'Not recorded'}</dd></div><div><dt>Portfolio</dt><dd>{candidate.portfolio_url?<a className="record-link" href={candidate.portfolio_url} target="_blank" rel="noreferrer">Portfolio</a>:'Not recorded'}</dd></div></dl></Panel>
         </>}
 

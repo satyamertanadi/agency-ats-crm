@@ -38,8 +38,9 @@ export function CalendarConnectionCard({connection,returnPath,justConnected=fals
   const connect=useMutation({mutationFn:()=>startCalendarConnection(organization!.id,returnPath),onSuccess:(result)=>window.location.assign(result.authorizationUrl),onError:(error)=>toast.error(error,'Google was not contacted.')})
   const disconnect=useMutation({mutationFn:()=>disconnectCalendar(organization!.id),onSuccess:async()=>{toast.success('Calendar disconnected.','Interviews stay in the ATS but no longer sync.');await refresh()},onError:(error)=>toast.error(error,'The calendar is still connected.')})
   const connected=connection?.status==='connected'
-  return <Panel title={title} subtitle={subtitle} elevation={elevation}>
+  return <>
     {justConnected&&<Callout tone="success">Google Calendar connected.</Callout>}
+    <Panel title={title} subtitle={subtitle} elevation={elevation}>
     <div className="settings-list">
       {connected?<>
         <article><strong>{connection.google_email}</strong><p>{connection.last_synced_at?`Connected · last synced ${formatDateTime(connection.last_synced_at)}`:'Connected · not synced yet'}</p></article>
@@ -55,4 +56,5 @@ export function CalendarConnectionCard({connection,returnPath,justConnected=fals
     </div>
     {(connect.error||disconnect.error)&&<p className="form-error" role="alert">{(connect.error||disconnect.error)?.message}</p>}
   </Panel>
+  </>
 }

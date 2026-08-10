@@ -67,10 +67,15 @@ const boardKeyboardCoordinates:KeyboardCoordinateGetter=(event,{context:{droppab
 
 function PhaseColumn({id,label,count,color,stats,children}:{id:string;label:string;count:number;color:string;stats:{avgDays:number}|null;children:React.ReactNode}){
   const {setNodeRef,isOver}=useDroppable({id})
-  return <section ref={setNodeRef} data-phase-key={id} className={`kanban-column workflow-column ${isOver?'kanban-over':''}`}>
-    <div className="workflow-column-bar" style={{background:color}}/>
+  const empty=count===0
+  // An empty column used to carry the exact same header chrome (coloured top bar, a stats line
+  // reading "No candidates") as a full one, at the same grid width -- all the visual weight of a
+  // populated phase for none of its content. It keeps the drop target and the label/count, and
+  // nothing else, at a narrower share of the board (see kanbanGridColumns in the parent).
+  return <section ref={setNodeRef} data-phase-key={id} className={`kanban-column workflow-column ${isOver?'kanban-over':''}${empty?' workflow-column-empty':''}`}>
+    {!empty&&<div className="workflow-column-bar" style={{background:color}}/>}
     <header><strong>{label}</strong><span>{count}</span></header>
-    <p className="workflow-column-stats">{stats?`Average ${stats.avgDays}d in phase`:'No candidates'}</p>
+    {!empty&&<p className="workflow-column-stats">{stats?`Average ${stats.avgDays}d in phase`:'No candidates'}</p>}
     {children}
   </section>
 }
@@ -168,6 +173,24 @@ export function JobWorkspacePage(){
   const boardColumns=columns.filter((column)=>!column.stages.every((stage)=>stage.stage_type==='placed'))
   const placedCount=pipeline.data!.items.filter((item)=>item.pipeline_stages?.stage_type==='placed').length
   const now=new Date()
+  /* One pass building everything each column of the board needs, rather than re-deriving items/color/
+   * stats inline inside the render map -- this is also what lets the grid-template-columns string
+   * below give populated columns more width than empty ones, since it needs every column's item count
+   * before any of them render. */
+  const columnData=boardColumns.map((column)=>{
+    const stageIds=new Set(column.stages.map((stage)=>stage.id));const items=pipeline.data!.items.filter((item)=>stageIds.has(item.current_stage_id))
+    const color=column.stages[0]?phaseRampColor[phaseForStage(column.stages[0])]:'var(--color-faint)'
+    const stats=columnStageStats(column,pipeline.data!.items,now)
+    return {column,items,color,stats}
+  })
+  // Outcome stages get no board column of their own, but they used to float as a separate chip row
+  // above the board, disconnected from it even though they read the exact same pipeline items. They
+  // now render as trailing, dimmed columns in the same grid instead -- part of the board, not a
+  // second toolbar next to it. Zero-count stages are left out entirely, matching OutcomesDrawer's own
+  // filter over the same items, so a job with no withdrawals never shows a "Withdrawn 0" column.
+  const outcomeCounts=outcomeStages.map((stage)=>({stage,count:pipeline.data!.items.filter((item)=>item.current_stage_id===stage.id).length})).filter((entry)=>entry.count>0)
+  const kanbanGridColumns=[...columnData.map(({items})=>items.length>0?'minmax(186px,1fr)':'minmax(96px,0.4fr)'),
+    ...outcomeCounts.map(()=>'minmax(96px,0.5fr)'),...(placedCount>0?['minmax(96px,0.5fr)']:[])].join(' ')
   const moveToColumn=(item:JobCandidate,columnKey:string)=>{const stageId=resolveStageForColumn(columns,columnKey,item.current_stage_id);if(stageId)move.mutate({itemId:item.id,stageId,name:item.candidates?.full_name,label:columns.find((column)=>column.key===columnKey)?.label||'the next phase'})}
   /* Reinstating lands on the first active stage of the board rather than the stage they were closed
    * from: that stage is often deep in the pipeline and putting someone straight back into, say,
@@ -193,21 +216,12 @@ export function JobWorkspacePage(){
   const openCandidate=(item:JobCandidate)=>{const nextParams=new URLSearchParams(params);nextParams.set('candidate',item.id);nextParams.delete('action');setParams(nextParams)}
   const composeCandidate=(item:JobCandidate)=>{setComposerCandidates([{jobCandidateId:item.id,name:item.candidates?.full_name||'Candidate'}]);const nextParams=new URLSearchParams(params);nextParams.delete('candidate');nextParams.delete('action');setParams(nextParams)}
   const jobHealth=health.data?.find((item)=>item.id===jobId)
-  return <Page title={job.title} eyebrow={job.companies?.name||'Client job'} description="Pipeline, client review, interviews, offers, and placement in one workspace." metadata={<div className="record-metadata"><StatusBadge map={jobStatus} value={job.status}/><StatusBadge map={jobPriority} value={job.priority}/>{job.location&&<span>{job.location}</span>}{jobHealth&&<span>{jobHealth.days_open} days open · {formatMoney(jobHealth.expected_fee,jobHealth.currency)} fee</span>}</div>} actions={<><Link className="button button-quiet" to={`/app/${organization!.slug}/jobs`}><ArrowLeft size={14}/>Jobs</Link><TaskButton linkType="job" linkId={jobId}/>{next&&canRecruit&&<Button leadingIcon={<Plus size={14}/>} onClick={()=>setAddOpen(true)}>{next.label}</Button>}</>} tabs={<nav className="record-tabs" aria-label="Job workspace views"><button className={view==='pipeline'?'active':''} onClick={()=>setView('pipeline')}>Pipeline</button><button className={view==='activity'?'active':''} onClick={()=>setView('activity')}>Activity</button><button className={view==='details'?'active':''} onClick={()=>setView('details')}>Details</button></nav>}>
+  return <Page title={job.title} eyebrow={job.companies?.name||'Client job'} metadata={<div className="record-metadata"><StatusBadge map={jobStatus} value={job.status}/><StatusBadge map={jobPriority} value={job.priority}/>{job.location&&<span>{job.location}</span>}{jobHealth&&<span>{jobHealth.days_open} days open · {formatMoney(jobHealth.expected_fee,jobHealth.currency)} fee</span>}</div>} actions={<><Link className="button button-quiet" to={`/app/${organization!.slug}/jobs`}><ArrowLeft size={14}/>Jobs</Link><TaskButton linkType="job" linkId={jobId}/>{next&&canRecruit&&<Button leadingIcon={<Plus size={14}/>} onClick={()=>setAddOpen(true)}>{next.label}</Button>}</>} tabs={<nav className="record-tabs" aria-label="Job workspace views"><button className={view==='pipeline'?'active':''} onClick={()=>setView('pipeline')}>Pipeline</button><button className={view==='activity'?'active':''} onClick={()=>setView('activity')}>Activity</button><button className={view==='details'?'active':''} onClick={()=>setView('details')}>Details</button></nav>}>
     {job.status!=='open'&&<p className="warning-box">This job is {lookup(jobStatus,job.status).label.toLowerCase()}. Recruitment actions are read-only until it is reopened.</p>}
     {view==='pipeline'&&<>
       <div className="workflow-toolbar">
         <div><strong>{pipeline.data!.items.length} in pipeline</strong><span>Move candidates between phases, then open a card for the next action.</span></div>
         <div className="table-actions">
-          {/* The counts were the only trace a closed candidate left -- a number with nothing behind
-            * it. They are buttons now, because "3 rejected" invites exactly one question and the
-            * drawer is the answer to it. Placed stays inert: a placement is reached through the
-            * candidate's own card, not reinstated from here. */}
-          {(outcomeStages.length>0||placedCount>0)&&<div className="outcome-summary">
-            {outcomeStages.map((stage)=>{const count=pipeline.data!.items.filter((item)=>item.current_stage_id===stage.id).length
-              return <button type="button" className="outcome-chip" key={stage.id} disabled={count===0} onClick={()=>setOutcomesOpen(true)}>{stage.name} <strong>{count}</strong></button>})}
-            {placedCount>0&&<span className="outcome-chip outcome-chip-good">Placed <strong>{placedCount}</strong></span>}
-          </div>}
           {capabilities.data?.canSubmit&&shortlisted.length>0&&job.status==='open'&&<Button size="sm" variant="secondary" leadingIcon={<Send size={14}/>} onClick={()=>setComposerCandidates(shortlisted)}>Send {shortlisted.length} to client</Button>}
           {canRecruit&&<Button variant="secondary" leadingIcon={<Plus size={14}/>} onClick={()=>setAddOpen(true)}>Add candidates</Button>}
         </div>
@@ -215,11 +229,8 @@ export function JobWorkspacePage(){
       <Panel padding="sm">
         <PhaseJump containerRef={boardRef} columns={boardColumns.map((column)=>({key:column.key,label:column.label,count:pipeline.data!.items.filter((item)=>column.stages.some((stage)=>stage.id===item.current_stage_id)).length}))}/>
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-          <div ref={boardRef} className="kanban workflow-kanban" style={{'--kanban-columns':boardColumns.length} as React.CSSProperties}>
-            {boardColumns.map((column)=>{
-              const stageIds=new Set(column.stages.map((stage)=>stage.id));const items=pipeline.data!.items.filter((item)=>stageIds.has(item.current_stage_id))
-              const color=column.stages[0]?phaseRampColor[phaseForStage(column.stages[0])]:'var(--color-faint)'
-              const stats=columnStageStats(column,pipeline.data!.items,now)
+          <div ref={boardRef} className="kanban workflow-kanban" style={{gridTemplateColumns:kanbanGridColumns} as React.CSSProperties}>
+            {columnData.map(({column,items,color,stats})=>{
               // 6 matches the cap Today's active-jobs list already uses: enough to see the column at
               // a glance without an inner scroll, few enough that a heavily-worked phase does not
               // push every column after it below the fold.
@@ -232,15 +243,22 @@ export function JobWorkspacePage(){
                 {expanded&&items.length>6&&<button type="button" className="workflow-column-more workflow-column-more-collapse" onClick={()=>toggleColumnExpanded(column.key)}>Show fewer<ChevronDown size={13}/></button>}
               </PhaseColumn>
             })}
+            {/* Outcome/placed counts, as trailing columns of the same board rather than a chip row
+              * disconnected from it. Placed stays inert -- not a button -- a placement is reached
+              * through the candidate's own card, not reinstated from here. */}
+            {outcomeCounts.map(({stage,count})=><button type="button" className="kanban-column workflow-outcome-column" key={stage.id} onClick={()=>setOutcomesOpen(true)}><header><strong>{stage.name}</strong><span>{count}</span></header></button>)}
+            {placedCount>0&&<div className="kanban-column workflow-outcome-column workflow-outcome-column-good"><header><strong>Placed</strong><span>{placedCount}</span></header></div>}
           </div>
         </DndContext>
-      </Panel>
-      {/* Sits under the board rather than in a tab: what you already sent a client is context for
-        * what you do next on it, and a tab would hide the expired link that is the reason nobody has
-        * replied. */}
-      <Panel title="Sent to this client">
-        <JobSubmissionsRail packages={(packages.data||[]) as SubmissionPackageRow[]} jobId={jobId} organizationId={organization!.id}
-          canSubmit={Boolean(capabilities.data?.canSubmit)} onChanged={refresh} onResend={()=>setComposerCandidates(shortlisted)}/>
+        {/* Sits under the board as a second section of the same Panel rather than its own card: what
+          * you already sent a client is context for what you do next on it, and a second bordered
+          * surface directly under the first read as two disconnected features instead of one flow. */}
+        <div className="panel-section-divider"/>
+        <div className="workflow-submissions-section">
+          <h3>Sent to this client</h3>
+          <JobSubmissionsRail packages={(packages.data||[]) as SubmissionPackageRow[]} jobId={jobId} organizationId={organization!.id}
+            canSubmit={Boolean(capabilities.data?.canSubmit)} onChanged={refresh} onResend={()=>setComposerCandidates(shortlisted)}/>
+        </div>
       </Panel>
     </>}
     {view==='activity'&&<ActivityFeed links={[{job_id:jobId}]} title="Job activity" subtitle="Calls, client updates, submissions, feedback, and stage movement in one history." readOnly={capabilities.data?.readOnly}/>}

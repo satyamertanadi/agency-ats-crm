@@ -24,6 +24,12 @@ import type {
  *   warn    - needs a human eventually (on_hold, overdue-soon, pending consent)
  *   bad     - a loss or a failure someone should look at (declined, failed, do_not_contact)
  *   neutral - inert. Drafts, and states that are over without being a loss (closed, withdrawn).
+ *
+ * Two facts about one identity (a candidate's lifecycle status AND consent status, say) are not
+ * duplicates and both may be real -- but they should not both render as a full StatusBadge next to
+ * each other. Pick whichever currently blocks or explains the next action as the badge; the other
+ * fact stays as plain text beside it. Two badges of equal weight reads as "we were not sure which
+ * one mattered," which is the opposite of what a badge is for.
  */
 /* The five tonal roles, each backed by a --tone-*-{bg,fg,border} triplet in tokens.css. Lives here
  * rather than beside Badge so the dependency runs one way (ui -> lib): this module is where meaning
