@@ -8,6 +8,7 @@ import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {completeTask,dashboardSummary,listEmailDeliveryIssues,listExpiringConsent,listInterviews,listJobHealth,listJobs,listOffers,listPlacedJobCandidates,listRecentSubmissionFeedback,listSubmissionPackages,listTasks,snoozeTask} from '../core/repository'
 import {ErrorState,TableSkeleton} from '../../shared/ui/States'
 import {Page,Panel} from '../../shared/ui/Page'
+import {KpiGrid,KpiTile} from '../../shared/ui/KpiTile'
 import {formatTime} from '../../shared/lib/format'
 import {lookup,todayWorkKind} from '../../shared/lib/status'
 import {buildTodayWorkItems,type TodayConsent,type TodayFeedback,type TodayWorkItem} from '../workflow/workflow'
@@ -106,7 +107,6 @@ export function TodayPage(){
   // was stuck on a permanently unfinished list with the operating brief suppressed behind it.
   const showSetup=!setupComplete&&!setupHidden
   const dismissSetup=()=>{writeSetupDismissed(organization?.id);setSetupHidden(true)}
-  const urgent=items.filter((item)=>item.kind==='blocked'||item.kind==='overdue').length
   // Three bands, split by the same `kind` buildTodayWorkItems already assigns -- no second urgency
   // model to keep in sync with the first.
   const doNow=items.filter((item)=>item.kind==='blocked'||item.kind==='overdue')
@@ -114,9 +114,27 @@ export function TodayPage(){
   const later=items.filter((item)=>item.kind==='upcoming'||item.kind==='recommended')
   const activeJobs=query.data.jobs.filter((job)=>job.status==='open'&&(scope==='team'||!job.owner_member_id||job.owner_member_id===currentMember?.id))
   const healthByJob=new Map(query.data.jobHealth.map((health)=>[health.id,health]))
+  // Summed from the same job-health rows the list below renders, so the tile caption and the rows
+  // can never disagree about how many candidates are in play.
+  const pipelineCandidates=activeJobs.reduce((total,job)=>total+(healthByJob.get(job.id)?.candidate_count||0),0)
   return <Page title={name?`Today, ${name}`:'Today'} eyebrow={organization?.name} description="Your next recruitment actions, in the order they need attention." className="today-page" actions={<div className="page-scope-actions">{capabilities.data?.canViewTeamReports&&<div className="segmented-control" aria-label="Work scope"><button className={scope==='mine'?'active':''} onClick={()=>setScope('mine')}>My work</button><button className={scope==='team'?'active':''} onClick={()=>setScope('team')}>Team view</button></div>}{capabilities.data?.canWriteCandidates&&<Link className="button button-primary" to={`${base}/candidates?new=1`}><Plus size={15}/>Add candidate</Link>}</div>}>
     {showSetup&&<SetupChecklist steps={steps} onDismiss={dismissSetup}/>}
-    {!showSetup&&<section className={`today-brief ${urgent?'today-brief-alert':''}`}><div className="today-brief-main"><span>{urgent?<TriangleAlert size={21}/>:<CheckCircle2 size={21}/>}</span><div><p className="eyebrow">Operating brief</p><h2>{urgent?`${urgent} action${urgent===1?'':'s'} need attention`:'You are clear for today'}</h2>{items.length===0&&<p>No overdue or upcoming work is waiting.</p>}</div></div>{items.length>0&&<div className="today-brief-stats"><div className="today-brief-stat"><strong>{items.length}</strong><span>total items</span></div><div className="today-brief-stat"><strong>{activeJobs.length}</strong><span>active jobs</span></div></div>}</section>}
+    {/* The operating brief was one wide banner carrying two small stats. The same four numbers read
+      * faster as tiles, and every one is already computed for the queue below -- no tile states
+      * anything the page cannot prove. There is deliberately no trend line: nothing in the schema
+      * records a prior period, so a "vs yesterday" delta could only be fabricated. */}
+    {!showSetup&&<KpiGrid>
+      <KpiTile label="Do now" value={doNow.length} tone={doNow.length?'alert':undefined} icon={<TriangleAlert size={18}/>}
+        caption={items.length?`of ${items.length} open ${items.length===1?'item':'items'}`:'Nothing waiting'}
+        definition="Blocked or overdue work — the first band of the queue below."/>
+      <KpiTile label="Due today" value={todayItems.length} icon={<CalendarClock size={18}/>}
+        definition="Work scheduled to happen today."/>
+      <KpiTile label="Later" value={later.length} icon={<ListChecks size={18}/>}
+        definition="Upcoming and recommended work that is not due yet."/>
+      <KpiTile label="Active jobs" value={activeJobs.length} icon={<BriefcaseBusiness size={18}/>}
+        caption={pipelineCandidates?`${pipelineCandidates} in pipeline`:'No candidates yet'}
+        definition="Open jobs in the current scope."/>
+    </KpiGrid>}
     <div className="today-layout">
       <Panel title="Next actions" subtitle="One click opens the right record with its context preserved." icon={<ListChecks size={16}/>} elevation="raised">
         {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<>

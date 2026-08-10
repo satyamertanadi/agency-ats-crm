@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
  *
  * `.kpi-grid` was pinned to `repeat(6, ...)`, which is why Clients' five tiles leave a hole at wide
  * widths -- KpiGrid below uses auto-fit so any count fills the row. */
-export function KpiTile({label,value,tone,definition,icon}:{
+export function KpiTile({label,value,tone,definition,icon,caption}:{
   label:string
   value:ReactNode
   /* 'alert' draws the bad-tone border, for a number that is a problem when non-zero (overdue tasks,
@@ -15,10 +15,14 @@ export function KpiTile({label,value,tone,definition,icon}:{
    * `metricDefinitions` so a consultant and their manager read the same number the same way. */
   definition?:string
   icon?:ReactNode
+  /* A second fact under the number, and only ever a fact this workspace can prove -- a breakdown of
+   * the same figure, or what it is counted against. Deliberately NOT a trend: nothing in the schema
+   * records a prior period, so "up 14% on last week" could only be invented. */
+  caption?:ReactNode
 }){
   return <div className={['kpi',tone==='alert'?'kpi-alert':''].filter(Boolean).join(' ')} title={definition}>
-    {icon&&<span aria-hidden="true">{icon}</span>}
-    <div><p>{label}</p><strong>{value}</strong></div>
+    {icon&&<span className="kpi-icon" aria-hidden="true">{icon}</span>}
+    <div><p>{label}</p><strong>{value}</strong>{caption&&<small className="kpi-caption">{caption}</small>}</div>
   </div>
 }
 
