@@ -94,18 +94,28 @@
   --color-line: #dae0e8;
   --color-line-strong: #c2cbd6;
 
-  --color-accent: #1d5a94;
-  --color-accent-hover: #164a7c;
-  --color-accent-soft: #e7eef7;
-  /* The accent is a mid-navy chosen for 7:1 on white, which makes it far too dark to sit ON a
-     dark surface. The auth hero, review header, and sidebar rail are dark in BOTH themes, so
-     they need an accent that is light in both -- this is that value, not a theme override. */
-  --color-accent-on-dark: #86b8e8;
+  /* Saturation raised from the original ~67% to ~90% at the same ~211° hue -- more vivid on
+     purpose, not a re-palette. Contrast recomputed, not assumed: 6.88:1 on white (was 7.14:1),
+     still well clear of the 4.5:1 AA floor the axe gate actually enforces, with margin held back
+     deliberately since this token renders as small (12-13px) text in ~10 different places the
+     gate never visits (see the per-role list this comment used to need -- now covered by the
+     redesign plan instead of repeated here). */
+  --color-accent: #0959ae;
+  --color-accent-hover: #084a91;
+  --color-accent-soft: #e4eff9;
+  /* The accent is a saturated navy chosen for ~6.9:1 on white, which makes it far too dark to sit
+     ON a dark surface. The auth hero, review header, and sidebar rail are dark in BOTH themes, so
+     they need an accent that is light in both -- this is that value, not a theme override.
+     Recomputed alongside the accent bump above: 7.20:1 vs --color-slate, 8.15:1 vs --color-sidebar
+     (both slightly above the pre-bump values, not just preserved). */
+  --color-accent-on-dark: #81bbf8;
   /* The filled active-nav pill. Declared once for both themes for the same reason as
      --color-accent-on-dark above: the sidebar rail is dark in light AND dark mode, so a themed accent
      would be unreadable in one of them. Lifted off --color-accent so the pill separates from the
-     #16202b rail (2.8:1) while white nav text on it still clears AA comfortably (5.8:1). */
-  --color-sidebar-active: #2367ab;
+     #16202b rail (2.80:1, matching the pre-bump 2.82:1) while white nav text on it still clears AA
+     comfortably (5.87:1, matching the pre-bump 5.83:1) -- re-derived at the new hue/saturation
+     rather than left stale, then re-measured against both floors, not just carried forward. */
+  --color-sidebar-active: #0a63c2;
   --color-on-accent: #ffffff;
   --color-on-dark: #ffffff;
 
@@ -259,11 +269,14 @@
   --color-line: #303945;
   --color-line-strong: #434e5c;
 
-  /* Lifted well above the light theme's #1d5a94: that navy on a dark surface lands near 2:1 and is
-     unreadable as body text or a small-button background. */
-  --color-accent: #5aa2e0;
-  --color-accent-hover: #74b4ea;
-  --color-accent-soft: #16283a;
+  /* Lifted well above the light theme's #0959ae: that navy on a dark surface lands near 2:1 and is
+     unreadable as body text or a small-button background. Saturation raised alongside the light
+     theme's bump (~68%->90%, same ~211deg hue), re-measured rather than mechanically transformed:
+     6.34:1 vs --color-canvas (was 6.70:1), 5.86:1 vs --color-surface (was 6.19:1) -- both still
+     clear of the 4.5:1 floor with the same margin the light theme was tuned to hold. */
+  --color-accent: #479bf5;
+  --color-accent-hover: #69aef7;
+  --color-accent-soft: #12273e;
   --color-on-accent: #0a1a28;
 
   --color-mist: #232c37;
