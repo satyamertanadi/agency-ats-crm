@@ -6,16 +6,19 @@
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
+/* Border dropped -- the box-shadow already signals "these are related, elevated tiles" on its own;
+   a border on top of a shadow was two affordances doing one job. .kpi-alert (below) is the one
+   exception, on different grounds: it needs its own border back to keep the "this is a problem"
+   signal since there's no longer a base border for it to just recolor. */
 .kpi {
   position: relative;
   background: var(--color-surface);
-  border: 1px solid var(--color-line);
-  padding: 16px;
+  padding: var(--space-3);
   border-radius: var(--radius-lg);
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-2);
   align-items: center;
   box-shadow: var(--shadow-xs);
   overflow: hidden;
@@ -53,6 +56,7 @@
   display: block;
   margin-top: 3px;
   font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
   color: var(--color-muted);
   line-height: var(--leading-snug);
 }
@@ -60,19 +64,21 @@
   display: block;
   font-family: var(--font-editorial);
   font-size: var(--text-2xl);
-  font-weight: var(--weight-semibold);
+  /* Bumped to bold -- the KPI number is the one figure on a KPI tile actually worth reading, and
+     it was sitting at the same semibold weight as most of the rest of the UI. */
+  font-weight: var(--weight-bold);
   letter-spacing: -0.025em;
   overflow-wrap: anywhere;
 }
 .kpi > div {min-width:0}
 .report-context {margin:0;color:var(--color-muted);font-size:var(--text-sm)}
 .kpi-alert {
-  border-color: var(--tone-bad-border);
+  border: 1px solid var(--tone-bad-border);
 }
 .two-column {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 .setup-checklist .panel-body {
   padding: 0;
@@ -88,7 +94,6 @@
   align-items: center;
   gap: var(--space-3);
   padding: 14px 18px;
-  border-bottom: 1px solid var(--color-line-soft);
 }
 .setup-step:last-child {
   border-bottom: 0;
@@ -178,7 +183,6 @@
   display: flex;
   gap: var(--space-3);
   padding: 14px 18px;
-  border-bottom: 1px solid var(--color-line-soft);
 }
 .activity-item:last-child {
   border-bottom: 0;
@@ -245,7 +249,6 @@
   align-items: center;
   gap: var(--space-4);
   padding: 13px 17px;
-  border-bottom: 1px solid var(--color-line-soft);
   font-size: var(--text-sm);
 }
 .list-row:last-child {
@@ -393,7 +396,6 @@
 }
 .candidate-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-line);
   padding: 12px;
   border-radius: var(--radius-md);
   margin-bottom: 8px;
@@ -401,14 +403,13 @@
   box-shadow: var(--shadow-xs);
   transition:
     box-shadow var(--motion-fast),
-    transform var(--motion-fast),
-    border-color var(--motion-fast);
+    transform var(--motion-fast);
 }
 /* No translateY on hover: this card is draggable, and a card that lifts on mere hover fights the
-   drag affordance and reads as fidgety when you sweep across a column. Shadow + border is enough. */
+   drag affordance and reads as fidgety when you sweep across a column. Border dropped (the shadow
+   was already doing the same "this is a card" job); hover now just deepens the shadow. */
 .candidate-card:hover {
   box-shadow: var(--shadow-sm);
-  border-color: color-mix(in srgb, var(--color-line-strong) 85%, var(--color-ink));
 }
 .candidate-card:active {
   cursor: grabbing;
@@ -456,7 +457,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-5);
 }
 .review-brand img {
   height: 34px;
@@ -504,7 +505,7 @@
   background: var(--color-surface);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
-  padding: var(--space-5);
+  padding: var(--space-4);
   box-shadow: var(--shadow-sm);
 }
 /* Had no font-size at all, so it rendered at the browser's default 1.5em (24px) -- a size
@@ -566,7 +567,7 @@
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
-  margin-top: var(--space-5);
+  margin-top: var(--space-4);
   padding-top: var(--space-4);
   border-top: 1px solid rgb(255 255 255 / 0.14);
 }
@@ -951,13 +952,13 @@
 .inline-form{display:flex;align-items:flex-end;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-4)}
 .inline-form .field{flex:1;min-width:220px}
 
-.today-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.75fr);gap:var(--space-6)}
+.today-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.75fr);gap:var(--space-5)}
 /* ---- Today redesign: three urgency bands instead of one flat list -------------------------------
  * Urgency now has exactly one visual carrier: the row's WorkQueueBadge (solid fill for Do now,
  * outline for Today, none for Later). The band label is wayfinding text, not a second colour-coded
  * signal on top of the same fact -- it used to paint the row border red/amber AND tint the label,
  * which was the badge's job stated twice. */
-.work-queue-band+.work-queue-band{margin-top:var(--space-5)}
+.work-queue-band+.work-queue-band{margin-top:var(--space-4)}
 .work-queue-band-label{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-caps);font-weight:var(--weight-bold);margin:0 0 var(--space-2);color:var(--color-muted)}
 .work-queue{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-2)}
 .work-queue-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:13px var(--space-4);border-radius:var(--radius-md);border:1px solid transparent;transition:background var(--motion-fast)}
@@ -1008,7 +1009,7 @@
 .panel-footer-action{padding-top:var(--space-3)}
 .today-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}.today-shortcuts a{gap:var(--space-3);padding:var(--space-4);border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface);color:inherit;text-decoration:none}.today-shortcuts a:hover{border-color:var(--color-accent)}.today-shortcuts strong,.today-shortcuts small{display:block}.today-shortcuts small{color:var(--color-muted);margin-top:2px}
 
-.admin-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4)}.admin-grid a{gap:var(--space-4);align-items:flex-start;padding:var(--space-5);border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface);color:inherit;text-decoration:none}.admin-grid a:hover{border-color:var(--color-accent);box-shadow:var(--shadow-sm)}.admin-grid svg{color:var(--color-accent)}.admin-grid strong,.admin-grid small{display:block}.admin-grid small{margin-top:4px;color:var(--color-muted);line-height:1.45}
+.admin-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4)}.admin-grid a{gap:var(--space-4);align-items:flex-start;padding:var(--space-4);border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface);color:inherit;text-decoration:none}.admin-grid a:hover{border-color:var(--color-accent);box-shadow:var(--shadow-sm)}.admin-grid svg{color:var(--color-accent)}.admin-grid strong,.admin-grid small{display:block}.admin-grid small{margin-top:4px;color:var(--color-muted);line-height:1.45}
 .progressive-section{display:grid;gap:var(--space-3);padding:var(--space-4);border:1px solid var(--color-line-soft);border-radius:var(--radius-md);background:var(--color-surface-soft)}.progressive-section>div:first-child{gap:var(--space-3)}.progressive-section strong,.progressive-section small{display:block}.progressive-section small{color:var(--color-muted)}.inline-stat{display:inline-flex;align-items:center;gap:6px}
 
 .record-metadata{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}.record-metadata>span:not(.badge){color:var(--color-muted);font-size:var(--text-sm)}
@@ -1040,7 +1041,7 @@
 .workflow-column-stats{font-size:var(--text-2xs);color:var(--color-faint);margin:3px 0 var(--space-2)}
 .workflow-column-empty{min-height:80px;opacity:.72}
 /* Section header for the submissions rail folded into the board's own Panel. */
-.workflow-submissions-section h3{margin:var(--space-5) 0 var(--space-3);font-family:var(--font-editorial);font-size:var(--text-lg);font-weight:var(--weight-semibold)}
+.workflow-submissions-section h3{margin:var(--space-4) 0 var(--space-3);font-family:var(--font-editorial);font-size:var(--text-lg);font-weight:var(--weight-semibold)}
 /* The collapse toggle. A plain text link rather than a button-styled control -- it is not a
  * destination, it is more of the same list, so it should read as lightweight as "show more" always
  * has on the web. */
@@ -1067,10 +1068,10 @@
 .workflow-candidate-card .workflow-days-badge.tone-warn{background:var(--tone-warn-bg);color:var(--tone-warn-fg);border-color:var(--tone-warn-border)}
 .workflow-candidate-card .workflow-days-badge.tone-bad{background:var(--tone-bad-bg);color:var(--tone-bad-fg);border-color:var(--tone-bad-border)}
 .workflow-candidate-card .workflow-card-owner{margin-left:auto;display:grid;place-items:center;width:20px;height:20px;border-radius:var(--radius-circle);background:var(--color-canvas-deep);color:var(--color-muted);font-size:var(--text-2xs);font-weight:var(--weight-bold);flex:0 0 auto}
-.record-overview-grid,.candidate-overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5)}.record-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4);margin:0}.record-summary div{min-width:0}.record-summary .full{grid-column:1/-1}.record-summary dt{font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:var(--tracking-caps)}.record-summary dd{margin:4px 0 0;color:var(--color-ink);overflow-wrap:anywhere}
+.record-overview-grid,.candidate-overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}.record-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4);margin:0}.record-summary div{min-width:0}.record-summary .full{grid-column:1/-1}.record-summary dt{font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:var(--tracking-caps)}.record-summary dd{margin:4px 0 0;color:var(--color-ink);overflow-wrap:anywhere}
 /* A divider between two sections sharing one Panel -- e.g. Client overview and Commercial terms,
  * which are two facts about one account rather than two separate records needing their own cards. */
-.panel-section-divider{border-top:1px solid var(--color-line);margin:var(--space-5) 0}
+.panel-section-divider{border-top:1px solid var(--color-line-soft);margin:var(--space-4) 0}
 .commercial-terms-section-header{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-3);margin-bottom:var(--space-3)}
 .commercial-terms-section-header h3{margin:0;font-family:var(--font-editorial);font-size:var(--text-lg);font-weight:var(--weight-semibold)}
 .commercial-terms-section-header p{margin:2px 0 0;color:var(--color-muted);font-size:var(--text-sm)}
@@ -1080,8 +1081,8 @@
 .phase-progress-cleared{background:var(--color-surface-soft)}.phase-progress-cleared span{text-decoration:line-through;text-decoration-color:var(--color-faint)}
 .phase-progress-live{border-color:var(--color-accent);background:var(--color-accent-soft);color:var(--color-accent);font-weight:var(--weight-semibold)}.phase-progress-live strong{color:var(--color-accent)}.advanced-fields{border:1px solid var(--color-line-soft);border-radius:var(--radius-sm);padding:var(--space-3)}.advanced-fields summary{cursor:pointer;font-weight:var(--weight-semibold);color:var(--color-ink-soft);margin-bottom:var(--space-3)}
 
-.candidate-context{display:grid;gap:var(--space-3);padding-bottom:var(--space-5);border-bottom:1px solid var(--color-line)}.candidate-context-summary{gap:var(--space-3)}.candidate-context-avatar{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--color-accent-soft);color:var(--color-accent);font-weight:var(--weight-bold)}.candidate-context-summary p{margin:3px 0 0;color:var(--color-muted)}.context-badges{display:flex;gap:var(--space-2);flex-wrap:wrap}
-.next-action-card{align-items:flex-start;gap:var(--space-3);margin:var(--space-5) 0;padding:var(--space-4);border:1px solid var(--color-accent);border-radius:var(--radius-md);background:var(--color-accent-soft)}.next-action-card>span{color:var(--color-accent)}.next-action-card>div{flex:1}.next-action-card p{margin:2px 0}.next-action-card .eyebrow{margin-bottom:3px}
+.candidate-context{display:grid;gap:var(--space-3);padding-bottom:var(--space-4);border-bottom:1px solid var(--color-line-soft)}.candidate-context-summary{gap:var(--space-3)}.candidate-context-avatar{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--color-accent-soft);color:var(--color-accent);font-weight:var(--weight-bold)}.candidate-context-summary p{margin:3px 0 0;color:var(--color-muted)}.context-badges{display:flex;gap:var(--space-2);flex-wrap:wrap}
+.next-action-card{align-items:flex-start;gap:var(--space-3);margin:var(--space-4) 0;padding:var(--space-4);border:1px solid var(--color-accent);border-radius:var(--radius-md);background:var(--color-accent-soft)}.next-action-card>span{color:var(--color-accent)}.next-action-card>div{flex:1}.next-action-card p{margin:2px 0}.next-action-card .eyebrow{margin-bottom:3px}
 /* Neutral tone for the SAME box once it is showing a form instead of a recommendation -- the accent
  * tint means "this is our suggestion"; a form the recruiter is actively filling in is not that. */
 .next-action-card-form{border-color:var(--color-line);background:var(--color-surface-soft)}
@@ -1093,8 +1094,8 @@
 .action-fact-good{color:var(--tone-good-fg)}
 .action-fact-warn{color:var(--tone-warn-fg)}
 .action-fact-info{justify-content:space-between;flex-wrap:wrap}
-.context-history{display:grid;gap:var(--space-4)}.milestone-list{display:grid}.milestone-list article{gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--color-line-soft)}.milestone-list svg{color:var(--color-accent)}.milestone-list strong,.milestone-list small{display:block}.milestone-list small{margin-top:2px;color:var(--color-muted)}.context-secondary-actions{display:flex;gap:var(--space-2);flex-wrap:wrap}
-.readiness-list{display:grid;gap:var(--space-3);margin-bottom:var(--space-4)}.readiness-list article{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding-bottom:var(--space-3);border-bottom:1px solid var(--color-line-soft)}
+.context-history{display:grid;gap:var(--space-4)}.milestone-list{display:grid}.milestone-list article{gap:var(--space-3);padding:var(--space-3) 0}.milestone-list svg{color:var(--color-accent)}.milestone-list strong,.milestone-list small{display:block}.milestone-list small{margin-top:2px;color:var(--color-muted)}.context-secondary-actions{display:flex;gap:var(--space-2);flex-wrap:wrap}
+.readiness-list{display:grid;gap:var(--space-3);margin-bottom:var(--space-4)}.readiness-list article{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding-bottom:var(--space-3)}
 /* The "In pipelines" chip's value is a link to the table that actually answers it, rather than a
  * second, disconnected restatement of the same count. */
 .readiness-chip-link{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
@@ -1109,7 +1110,7 @@
 
 /* Tone-coded facts a recruiter checks first, lifted to a scannable band under the header. Colours
  * come from the same --tone-*-fg role tokens the badges use, so nothing is a hand-picked hex. */
-.readiness-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);margin:0 0 var(--space-5)}
+.readiness-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);margin:0 0 var(--space-4)}
 .readiness-chip{display:flex;flex-direction:column;gap:3px;padding:var(--space-3) var(--space-4);border:1px solid var(--color-line);border-left:3px solid var(--color-line-strong);border-radius:var(--radius-md);background:var(--color-surface-soft)}
 .readiness-chip dt{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-caps);color:var(--color-faint);font-weight:var(--weight-semibold)}
 .readiness-chip dd{margin:0;font-size:var(--text-sm);font-weight:var(--weight-semibold);color:var(--color-ink);overflow-wrap:anywhere}
@@ -1121,7 +1122,7 @@
 /* ---- candidate detail redesign: two-tier readiness (act now vs reference) -----------------------
  * The action band only renders when something is genuinely actionable, so a fully-ready candidate
  * skips straight to the deprioritized reference strip -- no empty "all clear" card. */
-.readiness-action-band{border:1px solid var(--tone-warn-border);background:var(--tone-warn-bg);border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);margin-bottom:var(--space-3);display:grid;gap:var(--space-3)}
+.readiness-action-band{border:1px solid var(--tone-warn-border);background:var(--tone-warn-bg);border-radius:var(--radius-lg);padding:var(--space-3) var(--space-4);margin-bottom:var(--space-3);display:grid;gap:var(--space-3)}
 .readiness-action-band>header{display:flex;align-items:center;gap:var(--space-2);color:var(--tone-warn-fg)}
 .readiness-action-band>header strong{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:var(--tracking-caps)}
 .readiness-action-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--space-3)}
@@ -1157,7 +1158,7 @@
 .record-actions-menu-divider{height:1px;background:var(--color-line-soft);margin:var(--space-1) 0}
 
 /* Actionable empty state: instead of a dead "No X yet" line, repeat the add affordance in the body. */
-.panel-empty{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-4) var(--space-5);color:var(--color-muted);font-size:var(--text-sm)}
+.panel-empty{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-3) var(--space-4);color:var(--color-muted);font-size:var(--text-sm)}
 .panel-empty>span{display:flex;align-items:center;gap:var(--space-2);min-width:0}
 .panel-empty svg{color:var(--color-faint);flex-shrink:0}
 
@@ -1190,7 +1191,7 @@
 .bd-risk-banner{display:flex;align-items:center;gap:var(--space-2);margin:0 0 var(--space-4);padding:var(--space-3) var(--space-4);border:1px solid var(--tone-warn-border);background:var(--tone-warn-bg);color:var(--tone-warn-fg);border-radius:var(--radius-md);font-size:var(--text-sm)}
 
 /* ---- saved views ----------------------------------------------------------------------------- */
-.saved-views{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);padding-bottom:var(--space-3);margin-bottom:var(--space-3);border-bottom:1px solid var(--color-line-soft)}
+.saved-views{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);padding-bottom:var(--space-3);margin-bottom:var(--space-3)}
 .saved-view-chips{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);min-width:0}
 .saved-view-chip{display:inline-flex;align-items:center;border:1px solid var(--color-line);border-radius:var(--radius-pill);background:var(--color-surface-soft);overflow:hidden}
 .saved-view-chip button{display:inline-flex;align-items:center;gap:var(--space-1);border:0;background:transparent;padding:5px 11px;font:inherit;font-size:var(--text-xs);color:var(--color-ink);cursor:pointer}
@@ -1241,7 +1242,7 @@
    eye somewhere to stop, and matches the order a consultant learns these facts in. */
 .candidate-form {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-4);
 }
 .candidate-form-section {
   display: grid;
