@@ -148,7 +148,7 @@
   height: var(--topbar-height);
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
   backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line-soft);
   display: flex;
   align-items: center;
   padding: 0 28px;
@@ -272,7 +272,7 @@
   color: var(--color-muted);
 }
 .page {
-  padding: var(--space-6) clamp(var(--space-5), 3vw, var(--space-10)) var(--space-14);
+  padding: var(--space-5) clamp(var(--space-4), 2.5vw, var(--space-8)) var(--space-10);
   max-width: 1680px;
   margin: 0 auto;
 }
@@ -280,15 +280,18 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: var(--space-6);
-  margin-bottom: 24px;
+  gap: var(--space-5);
+  margin-bottom: var(--space-4);
 }
 .page-heading {
   min-width: 0;
 }
 .page-header h1 {
   font-family: var(--font-editorial);
-  font-weight: var(--weight-medium);
+  /* Bumped from medium to semibold: at --weight-semibold-heavy UI (79% of the app's font-weight
+     declarations already sit there), a medium-weight h1 read as LIGHTER than its own surroundings
+     despite being the largest text on the page. */
+  font-weight: var(--weight-semibold);
   margin: 3px 0 5px;
   font-size: var(--text-3xl);
   line-height: 1.05;
@@ -317,7 +320,7 @@
 }
 .page-content {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 .page-metadata,
 .breadcrumbs,
@@ -332,7 +335,7 @@
   margin-bottom: 8px;
 }
 .page-tabs {
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line-soft);
   margin-bottom: 18px;
 }
 .page-tabs a,

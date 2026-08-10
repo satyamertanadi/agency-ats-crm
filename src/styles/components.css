@@ -49,13 +49,13 @@
   padding: 12px 16px;
 }
 .panel-padding-sm .panel-body {
-  padding: 12px;
+  padding: var(--space-3);
 }
 .panel-padding-md .panel-body {
-  padding: 18px;
+  padding: var(--space-4);
 }
 .panel-padding-lg .panel-body {
-  padding: 24px;
+  padding: var(--space-5);
 }
 .panel-header {
   display: flex;
@@ -63,7 +63,7 @@
   align-items: center;
   gap: var(--space-4);
   padding: 16px 18px;
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line-soft);
   /* Theme-aware header band. A hardcoded translucent-white gradient used to live here; it
    * painted a near-white strip under --color-ink, so in dark mode the light title text sat on a
    * light band and washed out. --color-surface-soft is a real token that inverts per theme, so the
@@ -260,7 +260,7 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: var(--space-6);
+  padding: var(--space-5);
   background: var(--color-canvas);
 }
 .error-page .state {max-width: 560px;background:var(--color-surface);border:1px solid var(--tone-bad-border);border-radius:var(--radius-lg);box-shadow:var(--shadow-md)}
@@ -334,7 +334,7 @@
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 .form-grid .full {
   grid-column: 1/-1;
@@ -347,7 +347,7 @@
 }
 .stack {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 .modal-backdrop,
 .drawer-backdrop {
@@ -386,7 +386,7 @@
   justify-content: space-between;
   align-items: flex-start;
   padding: 18px 20px;
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line-soft);
   background: var(--color-surface-soft);
   flex-shrink: 0;
 }
@@ -428,7 +428,7 @@
 }
 .drawer > footer {
   padding: 14px 20px;
-  border-top: 1px solid var(--color-line);
+  border-top: 1px solid var(--color-line-soft);
   background: var(--color-surface-soft);
 }
 @keyframes drawer-in {
@@ -465,13 +465,15 @@ th {
   background: var(--color-surface-soft);
   font-weight: var(--weight-semibold);
 }
-/* Row height was 12px/14px. Vertical padding drops ~25% so a 1440px screen shows materially more
-   rows; horizontal padding is untouched, since squeezing columns together costs readability without
-   buying any rows. Restored to the roomier value under 720px in responsive.css, where rows are
-   touch targets rather than scan targets. */
+/* Row height was originally 12px/14px, then 9px/14px. The bolder-visual-pass mandate ("fewer
+   borders and tighter spacing everywhere, not just the flagged instances") supersedes the earlier
+   restraint on horizontal padding recorded here -- the cut stops at 12px, not further, for the
+   same readability reason the original note gave: squeezing columns together costs readability
+   without buying any rows. Restored to the roomier value under 720px in responsive.css, where
+   rows are touch targets rather than scan targets. */
 th,
 td {
-  padding: 9px 14px;
+  padding: 7px 12px;
   border-bottom: 1px solid var(--color-line-soft);
   vertical-align: middle;
 }
@@ -492,6 +494,7 @@ td span:not([class]) {
 }
 td span:not([class]) {
   font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
   color: var(--color-muted);
   margin-top: var(--space-05);
 }
@@ -702,7 +705,7 @@ td span:not([class]) {
 .pagination {
   justify-content: flex-end;
   padding: 13px 15px;
-  border-top: 1px solid var(--color-line);
+  border-top: 1px solid var(--color-line-soft);
 }
 .command-backdrop {
   position: fixed;

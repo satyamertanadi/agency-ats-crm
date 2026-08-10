@@ -36,7 +36,7 @@ export function linkState(link:SubmissionLink,now:Date):{label:string;tone:'good
   return {label:'Live',tone:'good'}
 }
 
-export function JobSubmissionsRail({packages,jobId,organizationId,canSubmit,onChanged,onResend}:{
+export function JobSubmissionsRail({packages,jobId,organizationId,canSubmit,onChanged,onResend,now=new Date()}:{
   packages:SubmissionPackageRow[]
   jobId:string
   organizationId:string
@@ -45,10 +45,13 @@ export function JobSubmissionsRail({packages,jobId,organizationId,canSubmit,onCh
   /* Sending a replacement is the composer's job, not a second send path -- the rail hands back to it
    * rather than growing its own form that could drift from the real one. */
   onResend:()=>void
+  /* Injectable so a test's link fixtures can be pinned as "live" or "expired" relative to a fixed
+   * instant instead of the real clock -- a link.expires_at hardcoded against `new Date()` is a date
+   * bomb that silently flips the rendered button once the calendar catches up to the fixture. */
+  now?:Date
 }){
   const toast=useToast()
   const [revoking,setRevoking]=useState<{link:SubmissionLink;title:string}|null>(null)
-  const now=new Date()
   const forJob=packages.filter((entry)=>entry.job_id===jobId)
 
   const revoke=useMutation({
