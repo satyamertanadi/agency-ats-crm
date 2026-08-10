@@ -272,7 +272,12 @@
   color: var(--color-muted);
 }
 .page {
-  padding: var(--space-5) clamp(var(--space-4), 2.5vw, var(--space-8)) var(--space-10);
+  /* Horizontal clamp eased back up from clamp(16px,2.5vw,32px): combined with .record-summary now
+     having its own padding, the tightest version of this was leaving content with nothing but a
+     thin Panel border between it and the browser edge. 36px has no exact rung on the --space scale,
+     so it's a literal here rather than a token -- a deliberate middle value between the pre-bolder-
+     pass 40px max and the 32px this was tightened to, not a token that happens to round wrong. */
+  padding: var(--space-5) clamp(var(--space-5), 2.75vw, 36px) var(--space-10);
   max-width: 1680px;
   margin: 0 auto;
 }
