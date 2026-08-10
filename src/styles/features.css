@@ -20,26 +20,41 @@
   box-shadow: var(--shadow-xs);
   overflow: hidden;
 }
-/* The bronze underline is an accent, so it accents ONE thing. On all six KPIs it was noise
-   pretending to be emphasis -- if everything is accented, nothing is. */
-.kpi:first-child::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--color-accent), transparent);
-  opacity: 0.55;
-}
-.kpi > span {
+/* The tinted icon square. KpiTile has always accepted an `icon`, but no product page passed one, so
+   the slot rendered a bare accent-coloured glyph that sat at the same visual weight as the label.
+   Giving it a soft-accent plate makes the tile scannable by shape before the number is read. */
+.kpi-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft);
   color: var(--color-accent);
+}
+/* An alert tile's plate follows its border, so the tile reads as a problem in one glance rather than
+   pairing a red edge with a calm blue icon. */
+.kpi-alert .kpi-icon {
+  background: var(--tone-bad-bg);
+  color: var(--tone-bad-fg);
 }
 .kpi p {
   font-size: var(--text-xs);
   text-transform: uppercase;
-  letter-spacing: 0.055em;
+  letter-spacing: var(--tracking-caps);
   color: var(--color-muted);
   margin: 0 0 4px;
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
+}
+/* The supporting fact under the number. Muted and small on purpose: it explains the figure, it does
+   not compete with it. */
+.kpi-caption {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  line-height: var(--leading-snug);
 }
 .kpi strong {
   display: block;
@@ -935,14 +950,6 @@
 .inline-form{display:flex;align-items:flex-end;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-4)}
 .inline-form .field{flex:1;min-width:220px}
 
-.today-brief{display:flex;align-items:stretch;border:1px solid var(--color-line);border-left:3px solid var(--color-accent);border-radius:var(--radius-lg);overflow:hidden;background:var(--color-surface)}
-.today-brief-main{display:flex;gap:var(--space-4);align-items:center;padding:var(--space-5) var(--space-6);flex:1;min-width:0}
-.today-brief-main>span{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:var(--color-accent-soft);color:var(--color-accent);flex-shrink:0}
-.today-brief h2,.today-brief-main p{margin:0}.today-brief .eyebrow{margin-bottom:3px}
-.today-brief-alert{border-left-color:var(--color-danger)}.today-brief-alert .today-brief-main>span{background:var(--color-danger-soft);color:var(--color-danger)}
-.today-brief-stats{display:flex;align-items:center;gap:var(--space-6);padding:0 var(--space-6);border-left:1px solid var(--color-line-soft)}
-.today-brief-stat{text-align:center}.today-brief-stat strong{display:block;font-size:var(--text-xl);font-weight:var(--weight-semibold)}.today-brief-stat span{display:block;font-size:var(--text-xs);color:var(--color-faint);margin-top:2px}
-@media(max-width:720px){.today-brief{flex-direction:column}.today-brief-stats{border-left:0;border-top:1px solid var(--color-line-soft);padding:var(--space-4) var(--space-6)}}
 .today-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.75fr);gap:var(--space-6)}
 /* ---- Today redesign: three urgency bands instead of one flat list -------------------------------
  * Weight, not just colour, separates the bands: Do now gets a heavy 4px border and a tinted

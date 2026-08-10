@@ -1,5 +1,5 @@
 import {useEffect,useState} from 'react'
-import {ChevronDown,Plus,Search,Trash2} from 'lucide-react'
+import {BriefcaseBusiness,CalendarClock,ChevronDown,Plus,Search,Trash2,TriangleAlert,UserRoundSearch} from 'lucide-react'
 import {Avatar} from '../../shared/ui/Avatar'
 import {Button} from '../../shared/ui/Button'
 import {Callout} from '../../shared/ui/Callout'
@@ -225,12 +225,12 @@ export function StyleguidePage(){
     {/* Five, not six, and without the icon slot: the grid is auto-fit so any count fills the row, and
         the previous six-up-with-icons specimen showed a treatment no product page used -- which is
         how a specimen stops being evidence. */}
-    <Section id="kpi" title="KPI tiles" note="KpiGrid is auto-fit: five tiles fill the row, and a sixth or seventh reflows rather than overflowing. 'alert' tone is for a number that is a problem when non-zero.">
+    <Section id="kpi" title="KPI tiles" note="KpiGrid is auto-fit: five tiles fill the row, and a sixth or seventh reflows rather than overflowing. 'alert' tone is for a number that is a problem when non-zero, and recolours the icon plate as well as the border. `caption` is a second fact about the same number -- never a trend, because no prior period is recorded anywhere in the schema.">
       <KpiGrid>
-        <KpiTile label="Active vacancies" value="12"/>
-        <KpiTile label="Candidates" value="40"/>
-        <KpiTile label="Overdue actions" value="3" tone="alert" definition="Tasks past their due date, owned by you."/>
-        <KpiTile label="Interviews / 7d" value="5"/>
+        <KpiTile label="Active vacancies" value="12" icon={<BriefcaseBusiness size={18}/>} caption="4 unowned"/>
+        <KpiTile label="Candidates" value="40" icon={<UserRoundSearch size={18}/>}/>
+        <KpiTile label="Overdue actions" value="3" tone="alert" icon={<TriangleAlert size={18}/>} definition="Tasks past their due date, owned by you."/>
+        <KpiTile label="Interviews / 7d" value="5" icon={<CalendarClock size={18}/>}/>
         <KpiTile label="Placement fees / YTD" value="IDR 512.5M"/>
       </KpiGrid>
     </Section>

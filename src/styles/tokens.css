@@ -93,6 +93,11 @@
      dark surface. The auth hero, review header, and sidebar rail are dark in BOTH themes, so
      they need an accent that is light in both -- this is that value, not a theme override. */
   --color-accent-on-dark: #86b8e8;
+  /* The filled active-nav pill. Declared once for both themes for the same reason as
+     --color-accent-on-dark above: the sidebar rail is dark in light AND dark mode, so a themed accent
+     would be unreadable in one of them. Lifted off --color-accent so the pill separates from the
+     #16202b rail (2.8:1) while white nav text on it still clears AA comfortably (5.8:1). */
+  --color-sidebar-active: #2367ab;
   --color-on-accent: #ffffff;
   --color-on-dark: #ffffff;
 
