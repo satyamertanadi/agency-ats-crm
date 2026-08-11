@@ -1203,7 +1203,13 @@
 .bd-risk-banner{display:flex;align-items:center;gap:var(--space-2);margin:0 0 var(--space-4);padding:var(--space-3) var(--space-4);border:1px solid var(--tone-warn-border);background:var(--tone-warn-bg);color:var(--tone-warn-fg);border-radius:var(--radius-md);font-size:var(--text-sm)}
 
 /* ---- saved views ----------------------------------------------------------------------------- */
-.saved-views{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);padding-bottom:var(--space-3);margin-bottom:var(--space-3)}
+/* Horizontal padding added -- this renders as a direct child of a padding:none Panel body (the
+ * table/toolbar layout needs the Panel edge-to-edge for its own internal padding), so without its
+ * own padding "No saved views yet." and the Export/Save buttons sat flush against the Panel's
+ * border with nothing but its 1px line between them and the page. Matches the toolbar's own
+ * horizontal rhythm (var(--space-4)) directly below it, so the two rows share one left/right edge
+ * instead of the toolbar looking indented and this row looking flush. */
+.saved-views{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-3) var(--space-4) var(--space-3);margin-bottom:var(--space-3)}
 .saved-view-chips{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);min-width:0}
 .saved-view-chip{display:inline-flex;align-items:center;border:1px solid var(--color-line);border-radius:var(--radius-pill);background:var(--color-surface-soft);overflow:hidden}
 .saved-view-chip button{display:inline-flex;align-items:center;gap:var(--space-1);border:0;background:transparent;padding:5px 11px;font:inherit;font-size:var(--text-xs);color:var(--color-ink);cursor:pointer}

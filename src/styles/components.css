@@ -465,15 +465,17 @@ th {
   background: var(--color-surface-soft);
   font-weight: var(--weight-semibold);
 }
-/* Row height was originally 12px/14px, then 9px/14px. The bolder-visual-pass mandate ("fewer
-   borders and tighter spacing everywhere, not just the flagged instances") supersedes the earlier
-   restraint on horizontal padding recorded here -- the cut stops at 12px, not further, for the
-   same readability reason the original note gave: squeezing columns together costs readability
-   without buying any rows. Restored to the roomier value under 720px in responsive.css, where
-   rows are touch targets rather than scan targets. */
+/* Row height was originally 12px/14px, then 9px/14px, then briefly 7px/12px. Horizontal padding
+   moved back up to 16px: a table lives in a padding:none Panel with only its own cell padding as
+   the buffer to the Panel's border, and 12px measured visibly tighter than every other edge on the
+   same page (the toolbar directly above it pads at 16px) -- it read as the first column's text
+   sitting closer to the edge than everything around it, not as a deliberately denser table.
+   Vertical padding stays at 7px; row height density was never the complaint. Restored to the
+   roomier value under 720px in responsive.css, where rows are touch targets rather than scan
+   targets. */
 th,
 td {
-  padding: 7px 12px;
+  padding: 7px 16px;
   border-bottom: 1px solid var(--color-line-soft);
   vertical-align: middle;
 }
@@ -1055,7 +1057,11 @@ td span:not([class]) {
 .skeleton-table {
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-2) 0;
+  /* Horizontal padding added to match the real table's own cell padding -- this renders in the same
+     padding:none Panel while loading, so without it the placeholder bars sat flush against the
+     Panel edge and then visibly jumped inward once the real table (with its own padding) replaced
+     it. */
+  padding: var(--space-2) var(--space-4);
 }
 .skeleton-row {
   display: grid;
