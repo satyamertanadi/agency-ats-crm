@@ -11,7 +11,10 @@ export interface CandidateProfileViewModel {
   preparedBy:string;preparedDate:string;confidentialityText:string;confidentialLabel:string;anonymized:boolean;
   /* Section labels, not section order. The client template is mandatory, so the document's order is
    * fixed in the renderer; the template's `sections` survive only to supply bilingual wording. */
-  sectionLabels:Record<ProfileSectionKey,string>;information:Array<[string,string]>;
+  /* Information rows are [label, value], with an optional third element marking the value as a
+   * bulleted list -- true only for the two AI judgment rows, which are newline-separated points
+   * rather than a single value. A trailing optional slot keeps the fifteen factual rows unchanged. */
+  sectionLabels:Record<ProfileSectionKey,string>;information:Array<[string,string,boolean?]>;
   summary:string[];currentRoleLine:string;summaryBullets:string[];
   employment:Array<{companyName:string;title:string;date:string;website:string;relevance:string[]}>;
 }
@@ -42,6 +45,33 @@ function educationText(candidate:ProfileCandidate,language:ProfileLanguage){
   return candidate.education.map((item)=>[item.degree,item.field_of_study,item.institution].filter(Boolean).join(' - ')).filter(Boolean).map(String).concat(candidate.education.length?[]:[copy[language].unknown])
 }
 
+/* Strengths and risks are one free-text field each, with newline separating the points -- the shape
+ * predates this and cannot change, since finalized profile versions store the draft verbatim and are
+ * immutable. This turns that text into at most MAX_JUDGEMENT_POINTS display lines.
+ *
+ * The count is capped here rather than trusted to the prompt: a model that ignores the instruction
+ * would otherwise put a nine-point list into a table cell, which is the exact failure this fixes.
+ * Word length is NOT capped -- truncating a sentence mid-clause on a client-facing document reads
+ * worse than one slightly long bullet, so that stays a prompt instruction.
+ *
+ * Leading markers are stripped because the renderer supplies the bullet glyph: a model that emits
+ * "- Ran operations" despite the prompt would otherwise print as "• - Ran operations".
+ *
+ * A legacy value written before the bulleted contract is a single prose blob with no newlines. It
+ * returns as one long point, which is honest -- deliberately not sentence-split, because splitting on
+ * ". " mangles "15-20%." and "Ltd." and guessing wrong here is worse than one untidy line. */
+const MAX_JUDGEMENT_POINTS=3
+export function judgementPoints(value:string,max=MAX_JUDGEMENT_POINTS){
+  return value.split('\n').map((line)=>line.replace(/^\s*[•\-–—*]+\s*/,'').trim()).filter(Boolean).slice(0,max)
+}
+
+/* Builds one information row for a judgment field. An empty field keeps the plain "To be confirmed"
+ * placeholder every other blank row uses -- bulleting a placeholder would imply a point was made. */
+function judgementRow(label:string,value:string,unknown:string):[string,string,boolean?]{
+  const points=judgementPoints(value)
+  return points.length?[label,points.join('\n'),true]:[label,unknown]
+}
+
 export function buildCandidateProfileViewModel(input:{candidate:ProfileCandidate;job:{title:string;company_name:string|null};draft:CandidateProfileDraft;template:CandidateProfileTemplateConfig;preparedBy:string;preparedDate:string;organizationName:string;accent?:string;logo?:ProfileLogo;footerBanner?:ProfileLogo;anonymized:boolean;details?:ProfileDetails;websites?:RoleWebsites}):CandidateProfileViewModel{
   const {candidate,job,draft,template}=input;const language=template.output_language;const labels=copy[language];const current=[candidate.current_position,candidate.current_company].filter(Boolean).join(language==='id'?' di ':' at ')
   const candidateName=input.anonymized?labels.anonymous:(candidate.full_name||labels.unknown)
@@ -52,7 +82,7 @@ export function buildCandidateProfileViewModel(input:{candidate:ProfileCandidate
    * judge. Withholding those would leave a document with nothing to decide on. */
   const withheld=(value:string)=>input.anonymized?labels.withheld:(value.trim()||labels.unknown)
   const row=(key:ProfileDetailKey):[string,string]=>[detailLabel(key,language),details[key].trim()||labels.unknown]
-  const information:Array<[string,string]>=[
+  const information:Array<[string,string,boolean?]>=[
     [`${labels.name}\n${labels.photo}`,candidateName],
     [detailLabel('age',language),withheld(details.age)],
     [labels.currentEmployment,current||labels.unknown],
@@ -62,8 +92,8 @@ export function buildCandidateProfileViewModel(input:{candidate:ProfileCandidate
     row('current_salary'),row('other_benefits'),row('expected_salary'),row('notice_period'),
     [labels.languages,candidate.languages.length?candidate.languages.join(', '):labels.unknown],
     row('motivation_to_move'),row('other_interview_process'),row('first_impression_company'),row('first_impression_job'),
-    [labels.strengths,draft.strengths_opportunities.trim()||labels.unknown],
-    [labels.risks,draft.risks_challenges.trim()||labels.unknown],
+    judgementRow(labels.strengths,draft.strengths_opportunities,labels.unknown),
+    judgementRow(labels.risks,draft.risks_challenges,labels.unknown),
   ]
   /* The summary reads as one intro paragraph, a current-role line, then bullets, with the points to
    * validate collapsed into the final bullet rather than standing as their own section. */
