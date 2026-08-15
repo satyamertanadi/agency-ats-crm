@@ -50,11 +50,14 @@ function smallCapsName(name:string):ParagraphChild[]{
 }
 function cell(children:Paragraph[],width:number,edges:Edges,bottomAuto=false){return new TableCell({width:{size:width,type:WidthType.DXA},borders:edgeBorders(edges,bottomAuto),margins:{top:100,bottom:100,left:120,right:120},verticalAlign:VerticalAlign.CENTER,children})}
 // A label may carry more than one line -- the first information row is literally "Name" over "Photo".
-function row(label:string,value:string,position:RowPosition,closingRow=false){
+/* `bullets` renders the value's lines as a real bulleted list rather than plain paragraphs. Only the
+ * two AI judgment rows set it (see judgementRow in candidateProfileViewModel), where the value is a
+ * list of points; every factual row stays a plain value. */
+function row(label:string,value:string,position:RowPosition,closingRow=false,bullets=false){
   const top=position==='top';const bottom=position==='bottom'
   return new TableRow({cantSplit:true,children:[
     cell(label.split('\n').map((line)=>textParagraph(line,{bold:true,after:0})),LABEL_WIDTH,{top,bottom,right:true},closingRow),
-    cell(value.split('\n').map((line)=>textParagraph(line,{after:0})),VALUE_WIDTH,{top,bottom,left:true},closingRow),
+    cell(value.split('\n').map((line)=>textParagraph(line,{after:bullets?60:0,bullet:bullets})),VALUE_WIDTH,{top,bottom,left:true},closingRow),
   ]})
 }
 function headerRow(label:string){return new TableRow({tableHeader:true,cantSplit:true,children:[new TableCell({columnSpan:2,width:{size:CONTENT_WIDTH,type:WidthType.DXA},borders:edgeBorders({bottom:true}),margins:{top:100,bottom:100,left:120,right:120},children:[textParagraph(label,{bold:true,after:0})]})]})}
@@ -88,7 +91,7 @@ export function buildProfileDocument(view:CandidateProfileViewModel){
   // org that hasn't uploaded one yet gets no placeholder here rather than a mismatched text line.
   if(view.logo)cover.push(new Paragraph({spacing:{before:200,after:200},children:[new ImageRun({data:view.logo.bytes,type:view.logo.type,transformation:COVER_LOGO,altText:{title:`${view.organizationName} logo`,description:'Organization logo',name:'Organization logo'}})]}))
   const lastRow=view.information.length-1
-  cover.push(table([headerRow(informationLabel(view)),...view.information.map(([label,value],index)=>row(label,value,index===0?'top':index===lastRow?'bottom':'middle',index===lastRow))]))
+  cover.push(table([headerRow(informationLabel(view)),...view.information.map(([label,value,bullets],index)=>row(label,value,index===0?'top':index===lastRow?'bottom':'middle',index===lastRow,bullets))]))
   const children:(Paragraph|Table)[]=[]
   children.push(heading(view.sectionLabels.summary.toUpperCase()),rule(true))
   for(const paragraph of view.summary)children.push(textParagraph(paragraph))

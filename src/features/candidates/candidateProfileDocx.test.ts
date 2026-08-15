@@ -11,14 +11,17 @@ const draft=candidateProfileDraftSchema.parse({candidate_summary:['Experienced h
 const candidate:ProfileCandidate={full_name:'Franco George Wenas',current_position:'Hotel Manager',current_company:'Betterplace',location:'Bali, Indonesia',employment:[{company_name:'Betterplace',title:'Hotel Manager',started_on:'2025-11-01',ended_on:null,started_on_precision:'month',ended_on_precision:null,is_current:true}],education:[{degree:'Diploma III',field_of_study:'Hotel Management',institution:'AKPAR NHI'}],languages:['Indonesian','English','Italian']}
 const filled:ProfileDetails={...emptyProfileDetails(),age:'40',nationality:'Indonesian',current_salary:'To be confirmed',expected_salary:'To be confirmed'}
 
-function view(options:{anonymized?:boolean;language?:'en'|'id';details?:ProfileDetails;websites?:Record<string,string>}={}){
-  return buildCandidateProfileViewModel({candidate,job:{title:'Operations Manager',company_name:'House of Kairos'},draft,template:defaultCandidateProfileTemplate(options.language||'en'),preparedBy:'Felina Kuswanto',preparedDate:'June 2026',organizationName:'Agency ATS',accent:'#1d5a94',anonymized:Boolean(options.anonymized),details:options.details||filled,websites:options.websites})
+function view(options:{anonymized?:boolean;language?:'en'|'id';details?:ProfileDetails;websites?:Record<string,string>;draft?:typeof draft}={}){
+  return buildCandidateProfileViewModel({candidate,job:{title:'Operations Manager',company_name:'House of Kairos'},draft:options.draft||draft,template:defaultCandidateProfileTemplate(options.language||'en'),preparedBy:'Felina Kuswanto',preparedDate:'June 2026',organizationName:'Agency ATS',accent:'#1d5a94',anonymized:Boolean(options.anonymized),details:options.details||filled,websites:options.websites})
 }
 async function documentXml(blob:Blob){const zip=await JSZip.loadAsync(await blob.arrayBuffer());return zip.file('word/document.xml')!.async('string')}
 async function partXml(blob:Blob,path:string){const zip=await JSZip.loadAsync(await blob.arrayBuffer());return zip.file(path)?.async('string')||''}
 // Entities are decoded so assertions read as the text Word shows -- "Risks & Challenge", not "&amp;".
 const decode=(value:string)=>value.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'")
 const textRuns=(xml:string)=>[...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((match)=>decode(match[1]!))
+// The <w:p> block carrying a given line, so a test can assert on that paragraph's own properties
+// (numbering, in this case) rather than on document-wide counts that other bulleted sections share.
+const paragraphWith=(xml:string,text:string)=>[...xml.matchAll(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g)].map((match)=>match[0]).find((block)=>decode(block).includes(text))
 
 /* The client template is mandatory: a consultant may not send a profile that deviates from it, and
  * the whole point of this generator is that nobody has to rework the output by hand. So these
@@ -72,6 +75,33 @@ describe('mandatory client profile format',()=>{
     expect(headings).not.toContain('POINTS TO VALIDATE')
     // The points to validate survive as the closing summary bullet.
     expect(textRuns(xml).some((text)=>text.startsWith('Points to validate: '))).toBe(true)
+  })
+
+  /* These two rows are the only judgment the model writes onto the document, and they land in a
+   * narrow table cell. Unbounded prose there is what made the profile unscannable for a client. */
+  it('caps a judgment field at three points and drops the rest',async()=>{
+    const many=candidateProfileDraftSchema.parse({...draft,strengths_opportunities:'Point one.\nPoint two.\nPoint three.\nPoint four.\nPoint five.'})
+    const runs=textRuns(await documentXml(await buildCandidateProfileDocx(view({draft:many}))))
+    expect(runs).toContain('Point one.')
+    expect(runs).toContain('Point three.')
+    expect(runs).not.toContain('Point four.')
+    expect(runs).not.toContain('Point five.')
+  })
+
+  it('bullets the two judgment rows and leaves the factual rows plain',async()=>{
+    const xml=await documentXml(await buildCandidateProfileDocx(view()))
+    expect(paragraphWith(xml,'Direct property operations experience.')).toContain('<w:numPr')
+    expect(paragraphWith(xml,'P&L ownership remains to be confirmed.')).toContain('<w:numPr')
+    // A factual value must not pick up a bullet just because it shares the same table.
+    expect(paragraphWith(xml,'Bali, Indonesia')).not.toContain('<w:numPr')
+  })
+
+  it('strips a leading marker so the model cannot produce a doubled bullet',async()=>{
+    const marked=candidateProfileDraftSchema.parse({...draft,risks_challenges:'- No plant engineering evidence.\n• Leadership scope unstated.'})
+    const runs=textRuns(await documentXml(await buildCandidateProfileDocx(view({draft:marked}))))
+    expect(runs).toContain('No plant engineering evidence.')
+    expect(runs).toContain('Leadership scope unstated.')
+    expect(runs.some((text)=>text.startsWith('-')||text.startsWith('•'))).toBe(false)
   })
 
   it('centres the headings and keeps them at outline level zero',async()=>{
