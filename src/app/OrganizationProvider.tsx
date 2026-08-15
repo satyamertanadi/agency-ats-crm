@@ -22,6 +22,18 @@ import { useAuth } from './AuthProvider'
 type Value={membership:Membership|null;organization:Organization|null;loading:boolean;error:Error|null;refresh:()=>Promise<unknown>}
 const Context=createContext<Value|null>(null)
 
+/* The membership query returns every active member of the workspace, not just the caller -- RLS lets
+ * members see each other so the team pickers work -- so the caller's own row must be selected by
+ * user_id, not by position. This used to be `query.data?.[0]`, which returned whichever member sorted
+ * first (in practice the owner, created first): that silently mis-scoped every "my work" / "my active
+ * jobs" view and every default-owner pick for all non-owner consultants. The final `[0]` fallback
+ * only matters if the caller somehow is not in the returned set, so a mis-provisioned project still
+ * renders rather than white-screening. */
+export function selectOwnMembership(rows:Membership[]|undefined,userId:string|undefined):Membership|null{
+  if(!rows||rows.length===0)return null
+  return rows.find((row)=>row.user_id===userId)??rows[0]??null
+}
+
 export function OrganizationProvider({children}:{children:ReactNode}){
   const {user}=useAuth()
   const query=useQuery({queryKey:['memberships',user?.id],enabled:Boolean(user),queryFn:async()=>{
@@ -39,11 +51,7 @@ export function OrganizationProvider({children}:{children:ReactNode}){
       return {...membership,organizations:{id:raw.id,name:raw.name,slug:raw.slug,base_currency:raw.base_currency,salary_period:raw.salary_period,timezone:raw.timezone,pilot_status:raw.pilot_status,primary_color:settings?.primary_color,logo_path:settings?.logo_path,logo_url:logoUrl,migration_complete:settings?.migration_complete===true,profile_footer_banner_path:footerBannerPath,profile_footer_banner_url:publicUrl(footerBannerPath),profile_enabled:settings?.settings?.profile_v1===true,whatsapp_country_code:typeof settings?.settings?.whatsapp_country_code==='string'?settings.settings.whatsapp_country_code as string:null,whatsapp_template:typeof settings?.settings?.whatsapp_template==='string'?settings.settings.whatsapp_template as string:null}} as Membership
     })
   }})
-  /* RLS already restricts this query to the caller's own active memberships, and a dedicated
-   * instance holds one organization -- so the first row is the workspace. Taking [0] rather than
-   * asserting length keeps a mis-provisioned project (two orgs seeded by accident) rendering the
-   * first one instead of white-screening. */
-  const membership=query.data?.[0]??null
+  const membership=selectOwnMembership(query.data,user?.id)
   const organization=membership?.organizations??null
   // Deliberately not an effect. Effects run after children have painted, so the first render of any
   // money or date would use format.ts's en-GB/USD defaults and then flip once the effect landed.

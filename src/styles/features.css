@@ -929,10 +929,8 @@
 .segmented-control button.active{background:var(--color-surface);color:var(--color-ink);box-shadow:var(--shadow-xs)}
 .page-scope-actions{gap:var(--space-3);flex-wrap:wrap;justify-content:flex-end}
 
-/* Referrals: an info banner (accept-outcome + minted link), the status filter, a table row-action
- * cluster, and the create-link inline form. Tone colours come from the same --tone-info triplet the
- * badges use, so the callout reads as the same "informational, no action needed" register. */
-.referral-filter{margin-bottom:var(--space-4);flex-wrap:wrap}
+/* Tone colours come from the same --tone-info triplet the badges use, so the callout reads as the
+ * same "informational, no action needed" register. */
 .callout{display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3) var(--space-4);border-radius:var(--radius-xs);border:1px solid var(--color-line);margin-bottom:var(--space-4);flex-wrap:wrap}
 /* The remaining three tones of <Callout>, kept HERE beside the base rule rather than in components.css
  * with the rest of the shared kit. `.callout` above sets the shorthand `border`, and every tone
