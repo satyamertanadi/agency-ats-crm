@@ -69,11 +69,11 @@ export function AddCandidateModal({open,onClose,organizationId,organizationSlug,
   const form=useForm<CandidateFormInput,unknown,CandidateFormOutput>({resolver:zodResolver(candidateFormSchema),
     defaultValues:{full_name:'',email:'',phone:'',current_company:'',current_position:'',location:'',source:'',
       linkedin_url:'',portfolio_url:'',availability:'',status:'active',owner_member_id:defaultOwnerMemberId||'',
-      work_authorization:'',consent_status:'unknown',consent_expires_at:'',salary_currency:baseCurrency}})
+      work_authorization:'',salary_currency:baseCurrency}})
   const profileEmpty=employment.length===0&&education.length===0&&skills.length===0&&languages.length===0
   const resetAll=()=>{form.reset({full_name:'',email:'',phone:'',current_company:'',current_position:'',location:'',source:'',
     linkedin_url:'',portfolio_url:'',availability:'',status:'active',owner_member_id:defaultOwnerMemberId||'',
-    work_authorization:'',consent_status:'unknown',consent_expires_at:'',salary_currency:baseCurrency});
+    work_authorization:'',salary_currency:baseCurrency});
     setEmployment([]);setEducation([]);setSkills([]);setLanguages([]);setDuplicate(null)}
   // Reopening is always a new candidate, so the defaults are re-read here rather than held stale.
   useEffect(()=>{if(open)resetAll()},[open])
@@ -109,7 +109,7 @@ export function AddCandidateModal({open,onClose,organizationId,organizationSlug,
     linkedin_url:data.linkedin_url,portfolio_url:data.portfolio_url,availability:data.availability,
     notice_period_days:data.notice_period_days,status:data.status,owner_member_id:data.owner_member_id,
     current_salary:data.current_salary,expected_salary:data.expected_salary,salary_currency:data.salary_currency,
-    work_authorization:data.work_authorization,consent_status:data.consent_status,consent_expires_at:data.consent_expires_at})
+    work_authorization:data.work_authorization})
 
   const create=useMutation({mutationFn:async(data:CandidateFormOutput)=>{
     return createCandidate(organizationId,userId,toInput(data),profileLists())
@@ -132,7 +132,7 @@ export function AddCandidateModal({open,onClose,organizationId,organizationSlug,
         source:data.source,availability:data.availability,notice_period_days:data.notice_period_days??null},
       {email:data.email,phone:data.phone,current_salary:data.current_salary??null,expected_salary:data.expected_salary??null,
         salary_currency:data.salary_currency,work_authorization:data.work_authorization,
-        consent_status:data.consent_status,consent_expires_at:data.consent_expires_at||null},profileLists())
+        },profileLists())
     return id
   },onSuccess:async(id,data)=>{toast.success(`${data.full_name} was updated.`,'The existing record was kept — no duplicate was created.');resetAll();await onSaved(id)},
     onError:(error)=>toast.error(error,'The existing record was not updated.')})

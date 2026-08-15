@@ -62,8 +62,7 @@ export const importBatchSchema=z.object({
 const candidatePrivateDetailFullSchema=z.object({
   email:z.string().nullable(),phone:z.string().nullable(),current_salary:z.number().nullable(),
   expected_salary:z.number().nullable(),salary_currency:z.string().nullable(),
-  consent_status:z.enum(['unknown','requested','granted','withdrawn','expired']),
-  work_authorization:z.string().nullable().optional(),consent_expires_at:z.string().nullable().optional(),
+  work_authorization:z.string().nullable().optional(),
 }).passthrough()
 const candidateEmploymentSchema=z.object({
   id:z.string(),company_name:z.string(),title:z.string(),started_on:z.string().nullable(),ended_on:z.string().nullable(),
@@ -134,8 +133,8 @@ export const submissionCandidateDocumentRowSchema=z.object({
      * to-many for the same reason documented on candidatePrivateEmbed, so it accepts both shapes. */
     status:z.string().optional(),availability:z.string().nullable().optional(),notice_period_days:z.number().nullable().optional(),
     candidate_private_details:z.union([
-      z.object({consent_status:z.string(),expected_salary:z.number().nullable(),salary_currency:z.string().nullable()}),
-      z.array(z.object({consent_status:z.string(),expected_salary:z.number().nullable(),salary_currency:z.string().nullable()})),
+      z.object({expected_salary:z.number().nullable(),salary_currency:z.string().nullable()}),
+      z.array(z.object({expected_salary:z.number().nullable(),salary_currency:z.string().nullable()})),
     ]).nullable().optional(),
     document_links:z.array(z.object({documents:z.union([submissionDocumentSchema,z.array(submissionDocumentSchema)]).nullable()})).optional(),
   }).nullable(),

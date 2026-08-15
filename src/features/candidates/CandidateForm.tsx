@@ -3,7 +3,7 @@ import type {ReactNode} from 'react'
 import {useController,type Control,type UseFormReturn} from 'react-hook-form'
 import type {z} from 'zod'
 import {candidateFormSchema} from '../core/schemas'
-import {candidateStatus,consentStatus} from '../../shared/lib/status'
+import {candidateStatus} from '../../shared/lib/status'
 import {currencyOptions} from '../../shared/lib/currencies'
 import {candidateAvailability,candidateSource,workAuthorization} from '../../shared/lib/optionSets'
 import type {OptionSet} from '../../shared/lib/optionSet'
@@ -14,7 +14,7 @@ import {OptionSelect} from '../../shared/ui/OptionSelect'
 export type CandidateFormInput=z.input<typeof candidateFormSchema>
 export type CandidateFormOutput=z.output<typeof candidateFormSchema>
 /* 'cv-review' differs from the other two in exactly one way: `accept_candidate_cv_parse` writes the
- * extraction, and the extraction has no ownership or consent columns, so offering those fields there
+ * extraction, and the extraction has no ownership columns, so offering those fields there
  * would collect values the save then silently drops. Everything else is identical across the three
  * hosts by design -- the whole point of this component is that the form you get is not a function of
  * how you arrived at it. */
@@ -44,7 +44,7 @@ export type CandidateFormProps={
  *
  * There were three forms over this record with three different field sets (9 / ~20 / 19 fields), and
  * the richest one was the one you reached by having a CV parse fail. Consolidating them is mostly
- * about what manual entry could not previously set at all: owner, status, consent and currency, each
+ * about what manual entry could not previously set at all: owner, status and currency, each
  * of which had to be fixed on a second visit to the record -- or, in currency's case, was never
  * noticed.
  *
@@ -64,8 +64,7 @@ export function CandidateForm({form,mode='create',owners=[],salaryPeriod,baseCur
    * ambiguous -- so they carry the noun ("Consent granted"). Inside a select that already has a
    * "Consent" label the noun repeats, so it is dropped here rather than duplicating the wording in a
    * second place, which is the thing labels.ts and these maps exist to prevent. */
-  const consentLabel=(label:string)=>label.replace(/^Consent /,'').replace(/^./,(first)=>first.toUpperCase())
-  /* Ownership, status and consent are all writes on columns the parse-accept path does not touch. */
+  /* Ownership and status are both writes on columns the parse-accept path does not touch. */
   const showsOwnership=mode!=='cv-review'
   const currencies=currencyOptions(baseCurrency)
 
@@ -115,16 +114,6 @@ export function CandidateForm({form,mode='create',owners=[],salaryPeriod,baseCur
         <FormField label="Email" error={errors.email?.message} low={lowConfidence?.('email')}><Input type="email" disabled={disabled} {...register('email')}/></FormField>
         <FormField label="Phone" low={lowConfidence?.('phone')}><Input type="tel" disabled={disabled} {...register('phone')}/></FormField>
         {showsOwnership&&<>
-          {/* Consent belongs beside the contact details, not in a compliance section of its own:
-            * it is the answer to "may I use these", and asking at the moment the number is typed is
-            * the only time the consultant actually knows. Defaulting to 'unknown' and fixing it later
-            * is how every hand-entered candidate ended up flagged as a compliance gap. */}
-          <FormField label="Consent status">
-            <Select disabled={disabled} {...register('consent_status')}>
-              {Object.entries(consentStatus).map(([value,item])=><option key={value} value={value}>{consentLabel(item.label)}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Consent expires"><Input type="date" disabled={disabled} {...register('consent_expires_at')}/></FormField>
         </>}
         <p className="candidate-form-note muted full">Email, phone and salary stay behind the candidate-private permission boundary — teammates without it see this candidate, but not these fields.</p>
       </div>

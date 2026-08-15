@@ -2,7 +2,7 @@ import { supabase } from '../../shared/lib/supabase'
 import { AppError, DUPLICATE_CANDIDATE, humanizeRpcError } from '../../shared/lib/errors'
 import { row, rows } from '../../shared/lib/rows'
 import { activitySchema, candidatePipelineAssignmentSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
-import type { Activity, CandidateStatus, ConsentStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReview, Task } from '../../shared/types/domain'
+import type { Activity, CandidateStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReview, Task } from '../../shared/types/domain'
 import type {Json} from '../../generated/database.types'
 
 function fail(error:{message:string;code?:string}|null,fallback:string):never{
@@ -25,16 +25,15 @@ function fail(error:{message:string;code?:string}|null,fallback:string):never{
  * constraint or a column rather than describing anything a user did. */
 const CONSTRAINT_CODES=new Set(['23505','23503','23514','23502'])
 
-export interface CandidateListFilters {query?:string;status?:string;location?:string;source?:string;ownerMemberId?:string;tag?:string;skill?:string;availability?:string;consentStatus?:string;sort?:'updated'|'created'|'name'|'location';direction?:'asc'|'desc'}
+export interface CandidateListFilters {query?:string;status?:string;location?:string;source?:string;ownerMemberId?:string;tag?:string;skill?:string;availability?:string;sort?:'updated'|'created'|'name'|'location';direction?:'asc'|'desc'}
 export async function listCandidatesPage(organizationId:string,filters:CandidateListFilters={},page=0,pageSize=50){
-  const {data,error}=await supabase.rpc('search_candidates_page',{p_organization_id:organizationId,p_query:filters.query||undefined,p_status:filters.status||undefined,p_location:filters.location||undefined,p_source:filters.source||undefined,p_owner_member_id:filters.ownerMemberId||undefined,p_tag:filters.tag||undefined,p_skill:filters.skill||undefined,p_availability:filters.availability||undefined,p_consent_status:filters.consentStatus||undefined,p_sort:filters.sort||'updated',p_direction:filters.direction||'desc',p_limit:pageSize,p_offset:page*pageSize})
+  const {data,error}=await supabase.rpc('search_candidates_page',{p_organization_id:organizationId,p_query:filters.query||undefined,p_status:filters.status||undefined,p_location:filters.location||undefined,p_source:filters.source||undefined,p_owner_member_id:filters.ownerMemberId||undefined,p_tag:filters.tag||undefined,p_skill:filters.skill||undefined,p_availability:filters.availability||undefined,p_sort:filters.sort||'updated',p_direction:filters.direction||'desc',p_limit:pageSize,p_offset:page*pageSize})
   if(error)fail(error,'Could not load candidates');const resultRows=rows(data,candidateSearchRowSchema,'Candidate search rows did not match the expected shape') as CandidateSearchRow[];return {rows:resultRows,count:Number(resultRows[0]?.total_count||0)}
 }
 
 /* Accepts the whole field set the shared CandidateForm collects, not the nine columns the old add modal
- * happened to render. Owner, status, consent and the contact/salary details are all writable at
- * creation now, which is what stops every hand-entered candidate arriving unassigned with consent
- * 'unknown' and needing a second visit.
+ * happened to render. Owner, status and the contact/salary details are all writable at creation now,
+ * which is what stops every hand-entered candidate arriving unassigned and needing a second visit.
  *
  * Candidate, private details, and profile lists now commit through one RPC transaction, so a failed
  * write cannot leave a half-created candidate. On a duplicate email the error names the collision so
@@ -68,7 +67,7 @@ export interface CreateCandidateInput {
   full_name:string;email?:string;phone?:string;current_company?:string;current_position?:string;location?:string
   source?:string;linkedin_url?:string;portfolio_url?:string;availability?:string;notice_period_days?:number
   status?:CandidateStatus;owner_member_id?:string;current_salary?:number;expected_salary?:number;salary_currency?:string
-  work_authorization?:string;consent_status?:ConsentStatus;consent_expires_at?:string
+  work_authorization?:string
 }
 export interface CandidateProfileLists {
   employment?:readonly unknown[]
@@ -81,8 +80,7 @@ export async function createCandidate(organizationId:string,_userId:string,input
     location:input.location||null,source:input.source||null,linkedin_url:input.linkedin_url||null,portfolio_url:input.portfolio_url||null,
     availability:input.availability||null,notice_period_days:input.notice_period_days??null,status:input.status||'active',owner_member_id:input.owner_member_id||null}
   const privateDetails={email:input.email||null,phone:input.phone||null,current_salary:input.current_salary??null,
-    expected_salary:input.expected_salary??null,salary_currency:input.salary_currency||null,work_authorization:input.work_authorization||null,
-    consent_status:input.consent_status||'unknown',consent_expires_at:input.consent_expires_at||null}
+    expected_salary:input.expected_salary??null,salary_currency:input.salary_currency||null,work_authorization:input.work_authorization||null}
   const {data,error}=await supabase.rpc('create_candidate_with_profile',{p_organization_id:organizationId,
     p_candidate:candidate as Json,p_private:privateDetails as Json,p_employment:(profile.employment||[]) as unknown as Json,
     p_education:(profile.education||[]) as unknown as Json,p_languages:(profile.languages||[]) as unknown as Json,
@@ -220,21 +218,6 @@ export async function listRecentSubmissionFeedback(organizationId:string,sinceIs
   return data??[]
 }
 
-/* Consent that is about to lapse, which is a commercial deadline rather than an administrative one:
- * the moment it expires the candidate cannot be submitted, and a shortlist assembled the day before
- * becomes unsendable.
- *
- * It reads candidate_private_details, so a member without `candidates_private.read` gets an empty list
- * rather than an error -- correct, because renewing consent is not an action they can take either. */
-export async function listExpiringConsent(organizationId:string,beforeIso:string){
-  const {data,error}=await supabase.from('candidate_private_details')
-    .select('candidate_id,consent_expires_at,candidates!inner(id,full_name,status,owner_member_id)')
-    .eq('organization_id',organizationId).eq('consent_status','granted')
-    .not('consent_expires_at','is',null).lte('consent_expires_at',beforeIso)
-    .order('consent_expires_at')
-  if(error)fail(error,'Could not load consent expiry')
-  return data??[]
-}
 
 /* Every stage change this candidate has been through, in the words that were recorded at the time.
  * Written on every move since the initial schema and never once displayed.

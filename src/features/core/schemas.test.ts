@@ -1,11 +1,10 @@
 import { describe,expect,it } from 'vitest'
-import { candidateConsentSchema,candidateFormSchema,candidateSchema,companySchema,taskSchema } from './schemas'
+import { candidateFormSchema,candidateSchema,companySchema,taskSchema } from './schemas'
 
-/* The one field set every candidate form now validates against. `status` and `consent_status` are
- * required rather than optional-with-a-default on purpose: they used to be unsettable at creation, and
- * a default here would quietly reintroduce exactly that -- every hand-entered candidate born 'active'
- * with consent 'unknown' because nobody was asked. */
-const valid={full_name:'Aisha Rahman',email:'aisha@example.com',status:'active',consent_status:'granted'}
+/* The one field set every candidate form now validates against. `status` is required rather than
+ * optional-with-a-default on purpose: it used to be unsettable at creation, and a default here would
+ * quietly reintroduce exactly that -- every hand-entered candidate born 'active' by omission. */
+const valid={full_name:'Aisha Rahman',email:'aisha@example.com',status:'active'}
 
 describe('domain validation',()=>{
   it('coerces the numeric fields the inputs submit as strings',()=>{
@@ -33,11 +32,6 @@ describe('domain validation',()=>{
     expect(candidateFormSchema.safeParse({...valid,notice_period_days:'-5'}).success).toBe(false)
     expect(candidateFormSchema.safeParse({...valid,salary_currency:'rupiah'}).success).toBe(false)
     expect(candidateFormSchema.safeParse({...valid,salary_currency:'IDR'}).success).toBe(true)
-  })
-  // The detail page's "Update consent" used to open all nineteen fields to change one of them.
-  it('validates the consent slice on its own',()=>{
-    expect(candidateConsentSchema.safeParse({consent_status:'granted',consent_expires_at:'2027-01-31'}).success).toBe(true)
-    expect(candidateConsentSchema.safeParse({consent_status:'maybe'}).success).toBe(false)
   })
   // The add form and the detail edit form are the same object now, so they cannot drift apart again.
   it('keeps the retained aliases pointing at the one schema',()=>{expect(candidateSchema).toBe(candidateFormSchema)})
