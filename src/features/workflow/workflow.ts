@@ -17,8 +17,6 @@ export interface TodayWorkItem {id:string;kind:TodayWorkKind;title:string;reason
  * tested, and threading `candidate_submissions.job_candidates.jobs.owner_member_id` through it would
  * make every test fixture a four-level object to express one string. */
 export interface TodayFeedback {id:string;decision:string;createdAt:string;jobCandidateId:string;jobId:string|null;jobTitle:string|null;jobOwnerMemberId:string|null;candidateName:string|null}
-export interface TodayConsent {candidateId:string;fullName:string;expiresAt:string;status:string;ownerMemberId:string|null}
-
 export const pipelinePhases:Array<{key:PipelinePhaseKey;label:string}>=[
   {key:'sourcing',label:'Sourcing'},
   {key:'screening',label:'Screening'},
@@ -163,7 +161,6 @@ export function buildTodayWorkItems(input:{
   deliveryIssues?:Array<{id:string;status:string;email_type:string;related_entity_id:string|null;error_message:string|null;updated_at:string}>
   submissions?:Array<{id:string;job_id:string;title:string;public_submission_links:Array<{id:string;expires_at:string;revoked_at:string|null}>}>
   feedback?:TodayFeedback[]
-  consentExpiring?:TodayConsent[]
 }):TodayWorkItem[]{
   const {base,now,currentMemberId}=input
   const items:TodayWorkItem[]=[]
@@ -307,22 +304,6 @@ export function buildTodayWorkItems(input:{
       reason:`Client responded: ${lookup(feedbackDecision,entry.decision).label.toLowerCase()}.`,
       href:entry.jobId?`${base}/jobs/${entry.jobId}?candidate=${entry.jobCandidateId}`:`${base}/today`,
       cta:'Open feedback',dueAt:entry.createdAt,
-    })
-  }
-  /* Consent expiry is a commercial deadline wearing an administrative costume: the day it lapses the
-   * candidate cannot be submitted, so a shortlist assembled the evening before becomes unsendable.
-   * Already-expired is 'blocked' because a submission genuinely is; approaching is a heads-up that
-   * sorts by the date it actually falls due. */
-  for(const entry of input.consentExpiring||[]){
-    if(entry.status==='archived'||entry.status==='do_not_contact')continue
-    if(currentMemberId&&entry.ownerMemberId&&entry.ownerMemberId!==currentMemberId)continue
-    const days=Math.ceil((new Date(entry.expiresAt).getTime()-now.getTime())/86_400_000)
-    items.push({
-      id:`consent-${entry.candidateId}`,
-      kind:days<=0?'blocked':days<=3?'today':'upcoming',
-      title:entry.fullName,
-      reason:days<=0?'Consent has expired — this candidate cannot be sent to a client until it is renewed.':`Consent expires in ${days} day${days===1?'':'s'}.`,
-      href:`${base}/candidates/${entry.candidateId}`,cta:'Renew consent',dueAt:entry.expiresAt,
     })
   }
   const order:Record<TodayWorkKind,number>={blocked:0,overdue:1,today:2,upcoming:3,recommended:4}

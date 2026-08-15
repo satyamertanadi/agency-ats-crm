@@ -1,18 +1,16 @@
 import { z } from 'zod'
-import {blankToUndefined,consentStatusField,currencyField,emailField,optionalText,phoneField,salaryField} from '../../shared/validation/candidateFields'
+import {blankToUndefined,currencyField,emailField,optionalText,phoneField,salaryField} from '../../shared/validation/candidateFields'
 
 /* One schema for every candidate form in the product.
  *
  * There used to be three, over the same record, with three different field sets: the manual add form
  * (9 fields), the CV review form (~20), and the detail-page edit form (19). The gaps were not
- * cosmetic -- manual entry could not set owner, status, consent, LinkedIn, availability or notice
- * period, so every hand-entered candidate was born unassigned with consent 'unknown' and needed a
- * second visit to fix. It could not set salary_currency either, despite submitting the field, because
- * the form rendered no input for it: an IDR salary in a USD workspace was stored as USD silently.
+ * cosmetic -- manual entry could not set owner, status, LinkedIn, availability or notice period, so
+ * every hand-entered candidate was born unassigned and needed a second visit to fix. It could not set
+ * salary_currency either, despite submitting the field, because the form rendered no input for it: an
+ * IDR salary in a USD workspace was stored as USD silently.
  *
- * Consequence of one schema: the widest form is no longer the one you reach by having a CV parse fail.
- * `candidateFormSchema` is the whole field set; `candidateConsentSchema` is the slice the detail page's
- * focused consent editor uses, so "update consent" stops meaning "open all nineteen fields". */
+ * Consequence of one schema: the widest form is no longer the one you reach by having a CV parse fail. */
 export const candidateFormSchema=z.object({
   full_name:z.string().trim().min(2,'Enter at least two characters.'),
   current_company:optionalText,current_position:optionalText,location:optionalText,source:optionalText,
@@ -23,11 +21,10 @@ export const candidateFormSchema=z.object({
   owner_member_id:optionalText,
   email:emailField,phone:phoneField,
   current_salary:salaryField,expected_salary:salaryField,salary_currency:currencyField,
-  work_authorization:optionalText,consent_status:consentStatusField,consent_expires_at:optionalText,
+  work_authorization:optionalText,
 })
 export type CandidateFormValues=z.infer<typeof candidateFormSchema>
 
-export const candidateConsentSchema=candidateFormSchema.pick({consent_status:true,consent_expires_at:true})
 
 /* Retained under their old names because the CV parser and the detail page still import them; both are
  * now the same object, so the three forms cannot drift apart again. */

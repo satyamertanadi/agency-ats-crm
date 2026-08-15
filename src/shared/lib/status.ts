@@ -1,6 +1,6 @@
 import type {
   AccountStatus, BusinessDevelopmentStage, CalendarConnectionStatus, CalendarSyncStatus,
-  CandidateStatus, ConsentStatus, ContactStatus, DeliveryStatus, FeedbackDecision, ImportStatus, InterviewStatus,
+  CandidateStatus, ContactStatus, DeliveryStatus, FeedbackDecision, ImportStatus, InterviewStatus,
   InvoiceStatus, JobPriority, JobStatus, MemberStatus, OfferStatus, PilotStatus, PlacementStatus,
   ProfileStatus, SubmissionPackageStatus, TaskPriority, TaskStatus, TodayWorkKind,
 } from '../types/domain'
@@ -21,11 +21,11 @@ import type {
  * Tone semantics, applied consistently below:
  *   good    - a desirable terminal state (open, accepted, paid, placed)
  *   info    - in flight, going well, no action needed (presented, sent, filled)
- *   warn    - needs a human eventually (on_hold, overdue-soon, pending consent)
+ *   warn    - needs a human eventually (on_hold, overdue-soon, missing CV)
  *   bad     - a loss or a failure someone should look at (declined, failed, do_not_contact)
  *   neutral - inert. Drafts, and states that are over without being a loss (closed, withdrawn).
  *
- * Two facts about one identity (a candidate's lifecycle status AND consent status, say) are not
+ * Two facts about one identity (a candidate's lifecycle status AND their pipeline stage, say) are not
  * duplicates and both may be real -- but they should not both render as a full StatusBadge next to
  * each other. Pick whichever currently blocks or explains the next action as the badge; the other
  * fact stays as plain text beside it. Two badges of equal weight reads as "we were not sure which
@@ -115,15 +115,6 @@ export const candidateStatus=map<CandidateStatus>({
   archived:{tone:'neutral',label:'Archived'},
 })
 
-/* Consent is the one place where 'unknown' is not inert: no recorded consent is a compliance gap,
- * not a blank. It warns rather than sitting neutral for that reason. */
-export const consentStatus=map<ConsentStatus>({
-  unknown:{tone:'warn',label:'Consent unknown'},
-  requested:{tone:'info',label:'Consent requested'},
-  granted:{tone:'good',label:'Consent granted'},
-  withdrawn:{tone:'bad',label:'Consent withdrawn'},
-  expired:{tone:'bad',label:'Consent expired'},
-})
 
 export const offerStatus=map<OfferStatus>({
   draft:{tone:'neutral',label:'Draft'},

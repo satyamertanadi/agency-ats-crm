@@ -249,9 +249,9 @@ export function StyleguidePage(){
 
     <Section id="callout" title="Callouts" note="One component over four tones, each drawn entirely from its own tone triplet. Replaces .warning-box / .success-box / .callout-info, and fixes the success surface that mixed a blue background with a green border.">
       <div className="sg-stack">
-        <Callout tone="info">Internal pipeline work is allowed while consent is pending.</Callout>
+        <Callout tone="info">This candidate is already on two other shortlists.</Callout>
         <Callout tone="success" title="Placement recorded">The fee was taken from the account agreement.</Callout>
-        <Callout tone="warning" title="Consent is not granted">Client submission stays blocked until consent is granted.</Callout>
+        <Callout tone="warning" title="Marked do not contact">Client submission stays blocked until the candidate record is updated.</Callout>
         <Callout tone="danger" title="Candidate already exists" action={<Button size="sm" variant="secondary">Open existing record</Button>}>This CV can fill blanks on the existing profile, but a duplicate cannot be created.</Callout>
       </div>
     </Section>

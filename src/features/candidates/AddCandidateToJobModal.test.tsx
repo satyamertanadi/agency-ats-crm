@@ -12,8 +12,8 @@ const listCandidatesPage=vi.fn().mockResolvedValue({rows:[],count:0})
 vi.mock('../core/repository',()=>({addCandidatesToJob:(...args:unknown[])=>addCandidatesToJob(...args),listCandidatesPage:(...args:unknown[])=>listCandidatesPage(...args),listJobHealth:(...args:unknown[])=>listJobHealth(...args),listPipelineStagesForJob:(...args:unknown[])=>listPipelineStagesForJob(...args)}))
 vi.mock('../../app/OrganizationProvider',()=>({useOrganization:()=>({organization:{id:'org-1',slug:'ravalli',name:'Ravalli Talent Hub',base_currency:'IDR'}})}))
 
-const candidate={id:'cand-1',full_name:'Galih Insan Cendekia',current_position:'Brand Manager',status:'active' as const,consent_status:'granted' as const}
-const searchRow=(id:string,full_name:string)=>({id,full_name,current_position:'Brand Manager',status:'active',consent_status:'granted'})
+const candidate={id:'cand-1',full_name:'Galih Insan Cendekia',current_position:'Brand Manager',status:'active' as const}
+const searchRow=(id:string,full_name:string)=>({id,full_name,current_position:'Brand Manager',status:'active'})
 
 function renderModal(props:Partial<Parameters<typeof AddCandidateToJobModal>[0]>={}){
   const cache=new QueryClient({defaultOptions:{queries:{retry:false}}})

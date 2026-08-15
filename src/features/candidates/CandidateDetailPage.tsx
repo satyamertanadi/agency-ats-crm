@@ -14,7 +14,7 @@ import {Button} from '../../shared/ui/Button'
 import {Field,Input,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
 import {Badge,Page,Panel,StatusBadge} from '../../shared/ui/Page'
-import {candidateStatus,consentStatus,lookup,profileStatus,type Tone} from '../../shared/lib/status'
+import {candidateStatus,profileStatus,type Tone} from '../../shared/lib/status'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
 import {formatCvDate,formatDate,formatSalary} from '../../shared/lib/format'
 import {renderWhatsAppMessage,whatsAppLink} from '../../shared/lib/whatsapp'
@@ -53,8 +53,8 @@ export function CandidateDetailPage(){
   const refresh=()=>Promise.all([cache.invalidateQueries({queryKey:['candidate-detail',organization?.id,candidateId]}),cache.invalidateQueries({queryKey:['candidate-documents',organization?.id,candidateId]}),cache.invalidateQueries({queryKey:['candidate-profile-versions',organization?.id,candidateId]}),cache.invalidateQueries({queryKey:['candidates-page',organization?.id]})])
   // candidateProfileEditSchema didn't exist before -- this panel previously saved via a raw
   // FormData read with only native `required` attributes, so a bad email or phone saved silently.
-  const editForm=useForm<EditFormInput,unknown,EditFormData>({resolver:zodResolver(candidateProfileEditSchema),defaultValues:{full_name:'',status:'active',consent_status:'unknown'}})
-  const save=useMutation({mutationFn:(data:EditFormData)=>updateCandidateProfile(organization!.id,candidateId,{full_name:data.full_name,current_company:data.current_company,current_position:data.current_position,location:data.location,linkedin_url:data.linkedin_url,portfolio_url:data.portfolio_url,status:data.status,owner_member_id:data.owner_member_id||null,source:data.source,availability:data.availability,notice_period_days:data.notice_period_days??null},{email:data.email,phone:data.phone,current_salary:data.current_salary??null,expected_salary:data.expected_salary??null,salary_currency:data.salary_currency,work_authorization:data.work_authorization,consent_status:data.consent_status,consent_expires_at:data.consent_expires_at||null}),onSuccess:async(_result,data)=>{setEditing(false);toast.success(`${data.full_name} was saved.`);await refresh()},onError:(error)=>toast.error(error,'The changes were not saved.')})
+  const editForm=useForm<EditFormInput,unknown,EditFormData>({resolver:zodResolver(candidateProfileEditSchema),defaultValues:{full_name:'',status:'active'}})
+  const save=useMutation({mutationFn:(data:EditFormData)=>updateCandidateProfile(organization!.id,candidateId,{full_name:data.full_name,current_company:data.current_company,current_position:data.current_position,location:data.location,linkedin_url:data.linkedin_url,portfolio_url:data.portfolio_url,status:data.status,owner_member_id:data.owner_member_id||null,source:data.source,availability:data.availability,notice_period_days:data.notice_period_days??null},{email:data.email,phone:data.phone,current_salary:data.current_salary??null,expected_salary:data.expected_salary??null,salary_currency:data.salary_currency,work_authorization:data.work_authorization}),onSuccess:async(_result,data)=>{setEditing(false);toast.success(`${data.full_name} was saved.`);await refresh()},onError:(error)=>toast.error(error,'The changes were not saved.')})
   const archive=useMutation({mutationFn:(archived:boolean)=>setCandidateArchived(organization!.id,candidateId,archived),onSuccess:refresh})
   const legalHold=useMutation({mutationFn:({hold,reason}:{hold:boolean;reason:string})=>setCandidateLegalHold(organization!.id,candidateId,hold,reason),onSuccess:async(_result,{hold})=>{toast.success(hold?'Legal hold applied.':'Legal hold removed.',hold?'Automated retention will skip this candidate.':'The normal retention policy applies again.');setLegalHoldOpen(false);setLegalHoldReason('');await refresh()},onError:(error)=>toast.error(error,'The legal hold was not changed.')})
   const removeItem=useMutation({mutationFn:({table,id}:{table:'candidate_employment'|'candidate_education'|'candidate_languages';id:string})=>deleteCandidateProfileItem(table,organization!.id,id),onSuccess:refresh})
@@ -102,7 +102,7 @@ export function CandidateDetailPage(){
   if(detail.isLoading||documents.isLoading||members.isLoading||profileVersions.isLoading||pipelines.isLoading)return <LoadingState/>;if(detail.error||documents.error||members.error||profileVersions.error||pipelines.error||!detail.data)return <ErrorState error={detail.error||documents.error||members.error||profileVersions.error||pipelines.error}/>
   const candidate=detail.data;const privateData=Array.isArray(candidate.candidate_private_details)?candidate.candidate_private_details[0]:candidate.candidate_private_details
   const ownerOptions=(members.data||[]).filter((member)=>member.status==='active').map((member)=>({id:member.id,label:member.profiles?.full_name||member.profiles?.email||'Teammate'}))
-  const startEditing=()=>{editForm.reset({full_name:candidate.full_name,owner_member_id:candidate.owner_member_id||'',current_company:candidate.current_company||'',current_position:candidate.current_position||'',location:candidate.location||'',source:candidate.source||'',linkedin_url:candidate.linkedin_url||'',portfolio_url:candidate.portfolio_url||'',availability:candidate.availability||'',notice_period_days:candidate.notice_period_days??undefined,status:candidate.status,email:privateData?.email||'',phone:privateData?.phone||'',current_salary:privateData?.current_salary??undefined,expected_salary:privateData?.expected_salary??undefined,salary_currency:privateData?.salary_currency||organization?.base_currency||'',work_authorization:privateData?.work_authorization||'',consent_status:privateData?.consent_status||'unknown',consent_expires_at:privateData?.consent_expires_at?.slice(0,10)||''});setEditing(true)}
+  const startEditing=()=>{editForm.reset({full_name:candidate.full_name,owner_member_id:candidate.owner_member_id||'',current_company:candidate.current_company||'',current_position:candidate.current_position||'',location:candidate.location||'',source:candidate.source||'',linkedin_url:candidate.linkedin_url||'',portfolio_url:candidate.portfolio_url||'',availability:candidate.availability||'',notice_period_days:candidate.notice_period_days??undefined,status:candidate.status,email:privateData?.email||'',phone:privateData?.phone||'',current_salary:privateData?.current_salary??undefined,expected_salary:privateData?.expected_salary??undefined,salary_currency:privateData?.salary_currency||organization?.base_currency||'',work_authorization:privateData?.work_authorization||''});setEditing(true)}
   // Entering edit mode from an empty panel seeds one blank row so "Add the first role" (etc.) lands
   // straight on a fillable form, the same as the old one-entry-at-a-time modal did, rather than an
   // empty editor that needs its own internal "+Add" clicked first.
@@ -128,15 +128,9 @@ export function CandidateDetailPage(){
   }
   const pipelineCount=pipelines.data?.length||0
   /* The readiness facts a recruiter checks before doing anything else, lifted out of the old
-   * mid-page panel into a band under the name. Consent borrows tone from the domain status map so
-   * this strip cannot drift from how consent is coloured everywhere else. */
-  const consentMeta=lookup(consentStatus,privateData?.consent_status||'unknown')
+   * mid-page panel into a band under the name. */
   const cvMissing=!documents.data?.length
-  const consentExpiresInDays=privateData?.consent_expires_at?Math.ceil((new Date(privateData.consent_expires_at).getTime()-renderedAt)/86_400_000):null
-  const consentNeedsAction=['unknown','withdrawn','expired'].includes(privateData?.consent_status||'unknown')
-  const consentExpiringSoon=!consentNeedsAction&&consentExpiresInDays!=null&&consentExpiresInDays>=0&&consentExpiresInDays<=30
   const readiness:{label:string;value:string;tone:Tone}[]=[
-    {label:'Consent',value:consentMeta.label,tone:consentMeta.tone},
     {label:'Contactable',value:candidate.status==='do_not_contact'?'Do not contact':'Yes',tone:candidate.status==='do_not_contact'?'bad':'good'},
     {label:'CV',value:documents.data?.length?'Available':'Upload required',tone:documents.data?.length?'good':'warn'},
     {label:'Availability',value:candidate.availability||'Not recorded',tone:candidate.availability?'neutral':'warn'},
@@ -144,14 +138,12 @@ export function CandidateDetailPage(){
     {label:'In pipelines',value:String(pipelineCount),tone:pipelineCount?'info':'neutral'},
   ]
   /* Only genuinely actionable facts get promoted into the action band -- everything else (including
-   * CV/consent when they're already fine) stays in the reference strip below. Built from the exact
-   * same `readiness` array rather than a second data source, per the redesign handoff. */
+   * the CV when it is already there) stays in the reference strip below. Built from the exact same
+   * `readiness` array rather than a second data source, per the redesign handoff. */
   type ActionItem={key:string;title:string;description:string;cta:string;primary?:boolean;onClick:()=>void}
   const actionItems:ActionItem[]=[]
   if(cvMissing)actionItems.push({key:'cv',title:'CV missing',description:'This candidate cannot be submitted to a client without one.',cta:'Upload CV',primary:true,onClick:()=>setCvOpen(true)})
-  if(consentNeedsAction)actionItems.push({key:'consent-status',title:consentMeta.label,description:'Update this candidate’s consent before further outreach.',cta:'Update consent',onClick:startEditing})
-  else if(consentExpiringSoon)actionItems.push({key:'consent-expiring',title:`Consent expires in ${consentExpiresInDays} day${consentExpiresInDays===1?'':'s'}`,description:`Renew before ${formatDate(privateData!.consent_expires_at!)}.`,cta:'Renew',onClick:startEditing})
-  const referenceFacts=readiness.filter((item)=>!((item.label==='CV'&&cvMissing)||(item.label==='Consent'&&(consentNeedsAction||consentExpiringSoon))))
+  const referenceFacts=readiness.filter((item)=>!(item.label==='CV'&&cvMissing))
   const closeMenu=(event:FocusEvent<HTMLDivElement>)=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setMenuOpen(false)}
   const runFromMenu=(action:()=>void)=>{setMenuOpen(false);action()}
   /* Every overflow entry is write-gated, so a reader sees no menu button at all rather than one
@@ -244,7 +236,7 @@ export function CandidateDetailPage(){
     <Modal title={privateData?.legal_hold?'Remove legal hold':'Set legal hold'} open={legalHoldOpen} onClose={()=>setLegalHoldOpen(false)}><div className="stack"><p className="muted">{privateData?.legal_hold?'Removing this hold makes the candidate eligible for the normal retention policy.':'A legal hold prevents automated anonymization regardless of age.'}</p><Field label="Reason"><Textarea rows={3} value={legalHoldReason} onChange={(event)=>setLegalHoldReason(event.target.value)} required/></Field>{legalHold.error&&<p className="form-error" role="alert">{legalHold.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={()=>setLegalHoldOpen(false)}>Cancel</Button><Button variant={privateData?.legal_hold?'danger':'secondary'} loading={legalHold.isPending} disabled={legalHoldReason.trim().length<5} onClick={()=>legalHold.mutate({hold:!privateData?.legal_hold,reason:legalHoldReason})}>{privateData?.legal_hold?'Remove hold':'Apply hold'}</Button></div></div></Modal>
     <Modal title="Upload and parse CV" open={cvOpen} wide onClose={()=>setCvOpen(false)}><CandidateCvParser organizationId={organization!.id} userId={user!.id} targetCandidateId={candidateId} targetCandidateName={candidate.full_name} onCancel={()=>setCvOpen(false)} onAccepted={async()=>{setCvOpen(false);await refresh()}}/></Modal>
     <Modal title="Generate client profile" open={profileOpen} wide onClose={()=>setProfileOpen(false)}><CandidateProfileGenerator organizationId={organization!.id} userId={user!.id} candidate={candidate} organizationName={organization!.name} accent={organization?.primary_color} logoUrl={organization?.logo_url} footerBannerUrl={organization?.profile_footer_banner_url} defaultPreparedBy={preparedBy} onClose={()=>setProfileOpen(false)} onFinalized={refresh}/></Modal>
-    <AddCandidateToJobModal open={jobOpen} onClose={()=>setJobOpen(false)} candidates={[{id:candidate.id,full_name:candidate.full_name,current_position:candidate.current_position,status:candidate.status,consent_status:privateData?.consent_status||'unknown'}]}/>
+    <AddCandidateToJobModal open={jobOpen} onClose={()=>setJobOpen(false)} candidates={[{id:candidate.id,full_name:candidate.full_name,current_position:candidate.current_position,status:candidate.status}]}/>
   </Page>
 }
 

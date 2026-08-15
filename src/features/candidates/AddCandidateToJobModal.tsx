@@ -3,7 +3,7 @@ import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {BriefcaseBusiness,Search,X} from 'lucide-react'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {formatMoney,formatSalary} from '../../shared/lib/format'
-import type {CandidateStatus,ConsentStatus} from '../../shared/types/domain'
+import type {CandidateStatus} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
 import {Callout} from '../../shared/ui/Callout'
 import {Checkbox,Field,Input,Select} from '../../shared/ui/Field'
@@ -11,7 +11,7 @@ import {Modal} from '../../shared/ui/Modal'
 import {addCandidatesToJob,listCandidatesPage,listJobHealth,listPipelineStagesForJob} from '../core/repository'
 import {useToast} from '../../shared/ui/Toast'
 
-export interface PlacementCandidate {id:string;full_name:string;current_position:string|null;status:CandidateStatus;consent_status:ConsentStatus|null}
+export interface PlacementCandidate {id:string;full_name:string;current_position:string|null;status:CandidateStatus}
 /* The job side of this modal knows its job already, so it hands one over rather than making the
  * consultant pick the job they are standing inside. `excludeIds` is that side's other piece of
  * knowledge: the workspace holds the pipeline, so it can say who is already on the board and spare
@@ -47,7 +47,6 @@ export function AddCandidateToJobModal({open,onClose,candidates:fixedCandidates=
   const mutation=useMutation({mutationFn:()=>addCandidatesToJob(organization!.id,jobId,candidateIds,stageId||undefined),onSuccess:async()=>{const count=candidateIds.length;const name=job?.title||health.data?.find((entry)=>entry.id===jobId)?.title;close();await Promise.all([cache.invalidateQueries({queryKey:['pipeline',jobId]}),cache.invalidateQueries({queryKey:['job-health',organization?.id]}),cache.invalidateQueries({queryKey:['candidate-pipelines',organization?.id]}),cache.invalidateQueries({queryKey:['today',organization?.id]})]);await onAdded?.();toast.success(count===1?`Candidate added to ${name||'the job'}.`:`${count} candidates added to ${name||'the job'}.`)},onError:(error)=>toast.error(error,'No candidate was added to this job.')})
   const selectedJob=health.data?.find((entry)=>entry.id===jobId)
   const blocked=chosen.filter((candidate)=>candidate.status==='do_not_contact'||candidate.status==='archived')
-  const withoutConsent=chosen.filter((candidate)=>candidate.consent_status!=='granted')
   /* Anyone already on this board is listed but not selectable. Hiding them would read as "we could
    * not find them" for a candidate the consultant can see on the board behind the modal. */
   const alreadyIn=new Set(excludeIds)
@@ -64,7 +63,7 @@ export function AddCandidateToJobModal({open,onClose,candidates:fixedCandidates=
         {search.isLoading?<p className="muted">Searching…</p>:results.length===0&&picked.length===0?<p className="muted">{query?'No active candidates match that search.':'Search to find candidates.'}</p>:results.map((candidate)=>
           <Checkbox key={candidate.id} label={candidate.full_name} description={`${candidate.current_position||'Role not recorded'}${alreadyIn.has(candidate.id)?' · already in this job':''}`}
             checked={false} disabled={alreadyIn.has(candidate.id)}
-            onChange={(event)=>toggle({id:candidate.id,full_name:candidate.full_name,current_position:candidate.current_position,status:candidate.status,consent_status:candidate.consent_status},event.target.checked)}/>)}
+            onChange={(event)=>toggle({id:candidate.id,full_name:candidate.full_name,current_position:candidate.current_position,status:candidate.status},event.target.checked)}/>)}
       </fieldset>
     </>}
     {!chooseCandidate&&<p><strong>{fixedCandidates.map((item)=>item.full_name).join(', ')}</strong></p>}
@@ -75,7 +74,6 @@ export function AddCandidateToJobModal({open,onClose,candidates:fixedCandidates=
     {/* Placed right above the button they explain rather than mid-form, so the reason a control is
       * disabled sits next to the control -- not stated once earlier and then left to be remembered. */}
     {blocked.length>0&&<Callout tone="danger" title="Cannot be added">{blocked.map((candidate)=>candidate.full_name).join(', ')} {blocked.length===1?'is':'are'} archived or marked Do not contact.</Callout>}
-    {blocked.length===0&&withoutConsent.length>0&&<Callout tone="warning" title="Consent is not granted">{withoutConsent.map((candidate)=>candidate.full_name).join(', ')} can be worked internally, but client submission stays blocked until consent is granted.</Callout>}
     <div className="form-actions"><Button variant="quiet" onClick={close}>Cancel</Button><Button onClick={()=>mutation.mutate()} loading={mutation.isPending} disabled={!candidateIds.length||!jobId||blocked.length>0}>{candidateIds.length>1?`Add ${candidateIds.length} to job`:'Add to job'}</Button></div>
   </div></Modal>
 }

@@ -14,7 +14,7 @@ describe('realtime query mapping',()=>{
   })
 
   /* Private details stay off the publication entirely. `candidates` carries name, status and owner;
-   * salary, email, phone and consent live in candidate_private_details, and broadcasting those to
+   * salary, email and phone live in candidate_private_details, and broadcasting those to
    * every subscribed client to keep a name fresh would be a bad trade. */
   it('ignores tables it does not track rather than refetching everything',()=>{
     expect(queriesForTable('candidate_private_details')).toEqual([])

@@ -32,7 +32,6 @@ export type AccountStatus='prospect'|'active_client'|'inactive'|'do_not_contact'
 export type BusinessDevelopmentStage='lead'|'qualifying'|'pitching'|'negotiating'|'won'|'lost'|'dormant'
 export type ContactStatus='active'|'inactive'|'do_not_contact' /* NOT db-constrained; see lookup() */
 export type CandidateStatus='active'|'passive'|'placed'|'do_not_contact'|'archived'
-export type ConsentStatus='unknown'|'requested'|'granted'|'withdrawn'|'expired'
 export type OfferStatus='draft'|'presented'|'accepted'|'declined'|'withdrawn'
 export type InterviewStatus='scheduled'|'completed'|'cancelled'|'no_show'
 // What a client answered on a submitted candidate, per submission_feedback.decision's check constraint.
@@ -64,8 +63,8 @@ export type Candidate = {
   location: string | null; linkedin_url: string | null; status: CandidateStatus; source: string | null; availability: string | null;
   owner_member_id: string | null; created_at: string; updated_at?: string; candidate_private_details?: CandidatePrivate | CandidatePrivate[] | null
 }
-export type CandidateSearchRow=Candidate&{consent_status:ConsentStatus|null;owner_name:string|null;tag_names:string[];skill_names:string[];total_count:number}
-export type CandidatePrivate = { email: string | null; phone: string | null; current_salary: number | null; expected_salary: number | null; salary_currency: string | null; work_authorization?:string|null;consent_status: ConsentStatus;consent_expires_at?:string|null;legal_hold?:boolean }
+export type CandidateSearchRow=Candidate&{owner_name:string|null;tag_names:string[];skill_names:string[];total_count:number}
+export type CandidatePrivate = { email: string | null; phone: string | null; current_salary: number | null; expected_salary: number | null; salary_currency: string | null; work_authorization?:string|null;legal_hold?:boolean }
 export type Company = { id: string; organization_id: string; name: string; industry: string | null; location: string | null; website: string | null; account_status: AccountStatus; business_development_stage: string; updated_at: string }
 /* One company as the BD board sees it. Mirrors list_company_pipeline exactly -- the aggregation is
  * done in the database so the board cannot disagree with the records it summarises. */

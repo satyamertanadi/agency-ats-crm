@@ -53,7 +53,7 @@ describe('commercialRepositorySchemas',()=>{
       id:'c1',organization_id:'o1',full_name:'Test Candidate',current_company:null,current_position:null,location:null,
       linkedin_url:null,status:'active',source:null,availability:null,owner_member_id:null,created_at:'2026-07-01T00:00:00Z',
       updated_at:'2026-07-01T00:00:00Z',portfolio_url:null,notice_period_days:null,last_contacted_at:null,deleted_at:null,
-      candidate_private_details:[{email:null,phone:null,current_salary:null,expected_salary:null,salary_currency:null,consent_status:'unknown'}],
+      candidate_private_details:[{email:null,phone:null,current_salary:null,expected_salary:null,salary_currency:null}],
       candidate_employment:[{id:'e1',company_name:'Acme',title:'Engineer',started_on:null,ended_on:null,started_on_precision:null,ended_on_precision:null,is_current:true,summary:null,location:'Bali',extra_column_from_star_select:'kept'}],
       candidate_education:[],candidate_languages:[],candidate_skills:[],candidate_tags:[],
     }

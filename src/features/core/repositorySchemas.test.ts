@@ -12,7 +12,7 @@ describe('repositorySchemas against confirmed production shapes',()=>{
       id:'c1',organization_id:'o1',full_name:'Test Candidate',current_company:'Acme',current_position:'Engineer',
       location:'Bali',linkedin_url:null,status:'active',source:'LinkedIn',availability:null,owner_member_id:null,
       created_at:'2026-07-18T06:31:33.639526+00:00',
-      candidate_private_details:[{email:'test@example.com',phone:null,current_salary:null,expected_salary:null,salary_currency:null,consent_status:'unknown'}],
+      candidate_private_details:[{email:'test@example.com',phone:null,current_salary:null,expected_salary:null,salary_currency:null}],
     }
     expect(candidateSchema.safeParse(row).success).toBe(true)
   })
@@ -30,7 +30,7 @@ describe('repositorySchemas against confirmed production shapes',()=>{
     const row={
       id:'c1',organization_id:'o1',full_name:'Test Candidate',current_company:null,current_position:null,
       location:null,linkedin_url:null,status:'active',source:null,availability:null,owner_member_id:null,
-      created_at:'2026-07-18T06:31:33.639526+00:00',consent_status:'unknown',owner_name:null,
+      created_at:'2026-07-18T06:31:33.639526+00:00',owner_name:null,
       tag_names:[],skill_names:[],total_count:'42',
     }
     const result=candidateSearchRowSchema.safeParse(row)

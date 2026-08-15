@@ -21,11 +21,11 @@ vi.mock('../../app/OrganizationProvider',()=>({useOrganization:()=>({organizatio
 const job={id:'job-1',title:'Head of Brand',company_id:'co-1',currency:'IDR',status:'open',
   companies:{id:'co-1',name:'Sembada Pangan'}} as Job
 
-const candidateRow=(id:string,name:string,consent='granted',status='active')=>({
+const candidateRow=(id:string,name:string,status='active')=>({
   id,candidate_id:`cand-${id}`,
   candidates:{id:`cand-${id}`,full_name:name,current_company:'Acme',current_position:'Brand Manager',status,
     availability:'Within 2 weeks',notice_period_days:30,
-    candidate_private_details:{consent_status:consent,expected_salary:45_000_000,salary_currency:'IDR'},
+    candidate_private_details:{expected_salary:45_000_000,salary_currency:'IDR'},
     document_links:[{documents:{id:`doc-${id}`,file_name:'cv.pdf',original_filename:`${name}-cv.pdf`,mime_type:'application/pdf',storage_path:'p',size_bytes:1024,created_at:'2026-07-01T00:00:00Z',deleted_at:null}}]},
 })
 
@@ -122,10 +122,10 @@ describe('SubmissionComposerDrawer',()=>{
     expect(sentItems()[0]).toMatchObject({expected_salary:'45000000',currency:'IDR',notice_period:'30 days',availability:'Within 2 weeks'})
   })
 
-  /* Consent is per candidate, so it has to gate per candidate. Silently dropping someone from a
-   * shortlist would be worse than refusing: the consultant would believe they had been sent. */
-  it('excludes a candidate without consent, names them, and still sends the rest',async()=>{
-    listSubmissionCandidateDocuments.mockResolvedValue([candidateRow('jc-1','Ana Chen'),candidateRow('jc-2','Budi Hartono','unknown')])
+  /* Do-not-contact is per candidate, so it has to gate per candidate. Silently dropping someone from
+   * a shortlist would be worse than refusing: the consultant would believe they had been sent. */
+  it('excludes a do-not-contact candidate, names them, and still sends the rest',async()=>{
+    listSubmissionCandidateDocuments.mockResolvedValue([candidateRow('jc-1','Ana Chen'),candidateRow('jc-2','Budi Hartono','do_not_contact')])
     renderComposer([{jobCandidateId:'jc-1',name:'Ana Chen'},{jobCandidateId:'jc-2',name:'Budi Hartono'}])
     await waitFor(()=>expect(screen.getByText('1 candidate cannot be sent')).toBeInTheDocument())
     expect(screen.getByRole('status')).toHaveTextContent('Budi Hartono')
@@ -137,11 +137,25 @@ describe('SubmissionComposerDrawer',()=>{
     expect(sentItems()[0]!.job_candidate_id).toBe('jc-1')
   })
 
-  it('refuses to send when nobody in the package has consent',async()=>{
-    listSubmissionCandidateDocuments.mockResolvedValue([candidateRow('jc-1','Ana Chen','withdrawn')])
+  it('refuses to send when everyone in the package is do not contact',async()=>{
+    listSubmissionCandidateDocuments.mockResolvedValue([candidateRow('jc-1','Ana Chen','do_not_contact')])
     renderComposer([{jobCandidateId:'jc-1',name:'Ana Chen'}])
     await waitFor(()=>expect(screen.getByLabelText('Recipient email')).toBeInTheDocument())
     fireEvent.change(screen.getByLabelText('Recipient email'),{target:{value:'rani@sembada.example'}})
     expect(screen.getByRole('button',{name:'Send 0 candidates'})).toBeDisabled()
+  })
+
+  /* The point of removing consent tracking: a candidate carrying no consent record whatsoever is a
+   * normal, sendable candidate. This used to be the default state of every hand-entered candidate,
+   * and it blocked the shortlist until someone opened the record and changed a dropdown. */
+  it('sends a candidate that has no consent record at all',async()=>{
+    listSubmissionCandidateDocuments.mockResolvedValue([candidateRow('jc-1','Ana Chen')])
+    renderComposer([{jobCandidateId:'jc-1',name:'Ana Chen'}])
+    await waitFor(()=>expect(screen.getByLabelText('Recipient email')).toBeInTheDocument())
+    expect(screen.queryByText(/cannot be sent/)).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Recipient email'),{target:{value:'rani@sembada.example'}})
+    fireEvent.click(screen.getByRole('button',{name:'Send 1 candidate'}))
+    await waitFor(()=>expect(sendClientSubmission).toHaveBeenCalled())
+    expect(sentItems()[0]!.job_candidate_id).toBe('jc-1')
   })
 })

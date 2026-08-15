@@ -7,7 +7,6 @@ import {z} from 'zod'
 // exceed Number.MAX_SAFE_INTEGER, so Supabase's own tooling treats it as string-or-number depending on
 // path, and the repository already defensively wraps one of these in Number(...) for that reason.
 const candidateStatus=z.enum(['active','passive','placed','do_not_contact','archived'])
-const consentStatus=z.enum(['unknown','requested','granted','withdrawn','expired'])
 const jobStatus=z.enum(['draft','open','on_hold','filled','cancelled','closed'])
 const jobPriority=z.enum(['low','normal','high','urgent'])
 const phaseKey=z.enum(['sourcing','screening','shortlist','client_review','interview','offer','placed','other'])
@@ -20,7 +19,7 @@ const phaseKey=z.enum(['sourcing','screening','shortlist','client_review','inter
 // normalizing it away, so none of those call sites need to change.
 const candidatePrivateSchema=z.object({
   email:z.string().nullable(),phone:z.string().nullable(),current_salary:z.number().nullable(),
-  expected_salary:z.number().nullable(),salary_currency:z.string().nullable(),consent_status:consentStatus,
+  expected_salary:z.number().nullable(),salary_currency:z.string().nullable(),
   legal_hold:z.boolean().optional(),
 })
 const candidatePrivateEmbed=z.union([candidatePrivateSchema,z.array(candidatePrivateSchema)]).nullable().optional()
@@ -34,7 +33,7 @@ export const candidateSchema=z.object({
 })
 
 export const candidateSearchRowSchema=candidateSchema.omit({candidate_private_details:true}).extend({
-  consent_status:consentStatus.nullable(),owner_name:z.string().nullable(),
+  owner_name:z.string().nullable(),
   tag_names:z.array(z.string()),skill_names:z.array(z.string()),total_count:z.coerce.number(),
 })
 

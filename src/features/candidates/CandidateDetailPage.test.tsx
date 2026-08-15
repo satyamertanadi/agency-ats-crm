@@ -31,7 +31,7 @@ vi.mock('../../app/OrganizationProvider',()=>({useOrganization:()=>({organizatio
 const candidate={id:'cand-1',full_name:'Maya Rodriguez',current_position:'Backend Engineer',current_company:'Acme',location:'Lombok',
   status:'active',availability:'Two weeks',notice_period_days:14,source:'Referral',linkedin_url:null,portfolio_url:null,
   owner_member_id:null,deleted_at:null,updated_at:'2026-07-01T00:00:00Z',
-  candidate_private_details:[{email:'maya@example.com',phone:'+62 811',expected_salary:90000,salary_currency:'USD',consent_status:'granted'}],
+  candidate_private_details:[{email:'maya@example.com',phone:'+62 811',expected_salary:90000,salary_currency:'USD'}],
   candidate_employment:[{id:'e1',title:'Backend Engineer',company_name:'Acme',started_on:'2022-01-01',is_current:true,ended_on:null}],
   candidate_education:[],candidate_languages:[],candidate_skills:[],candidate_tags:[]}
 
@@ -58,7 +58,8 @@ describe('CandidateDetailPage',()=>{
     expect(await screen.findByRole('heading',{name:'Maya Rodriguez'})).toBeInTheDocument()
     expect(screen.getByText('Backend Engineer at Acme')).toBeInTheDocument()
     // The facts a recruiter checks first, stated once at the top rather than mid-scroll.
-    expect(screen.getByText('Consent').closest('.readiness-chip')).toHaveClass('tone-good')
+    // 'Contactable' carries the do-not-contact signal, which is the only bar left on a submission.
+    expect(screen.getByText('Contactable').closest('.readiness-chip')).toHaveClass('tone-good')
     expect(screen.getByText('Available')).toBeInTheDocument()
     expect(screen.getByText('Two weeks')).toBeInTheDocument()
   })

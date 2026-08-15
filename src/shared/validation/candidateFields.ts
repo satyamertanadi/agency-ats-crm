@@ -18,7 +18,6 @@ export const phoneField=optionalText
 export const blankToUndefined=(value:unknown)=>value===''||value===null?undefined:value
 export const salaryField=z.preprocess(blankToUndefined,z.coerce.number().nonnegative().optional())
 export const currencyField=z.string().trim().length(3).optional().or(z.literal(''))
-export const consentStatusField=z.enum(['unknown','requested','granted','withdrawn','expired'])
 
 export const cvEmploymentSchema=z.object({
   company_name:z.string().trim().min(1),title:z.string().trim().min(1),location:optionalString,

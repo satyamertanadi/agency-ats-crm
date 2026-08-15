@@ -19,7 +19,7 @@ import {useToast} from '../../shared/ui/Toast'
 import type {ImportBatch} from '../../shared/types/domain'
 
 const entityHeaders:Record<string,string[]>= {
-  candidates:['legacy_id','full_name','email','phone','current_company','current_position','location','linkedin_url','status','source','availability','notice_period_days','current_salary','expected_salary','salary_currency','work_authorization','consent_status','owner_email'],
+  candidates:['legacy_id','full_name','email','phone','current_company','current_position','location','linkedin_url','status','source','availability','notice_period_days','current_salary','expected_salary','salary_currency','work_authorization','owner_email'],
   candidate_employment:['legacy_id','candidate_legacy_id','company_name','title','location','started_on','ended_on','is_current','summary'],
   candidate_education:['legacy_id','candidate_legacy_id','institution','degree','field_of_study','started_on','ended_on'],
   candidate_languages:['legacy_id','candidate_legacy_id','language','proficiency'],

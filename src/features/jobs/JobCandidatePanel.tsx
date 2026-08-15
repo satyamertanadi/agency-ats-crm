@@ -14,9 +14,8 @@ import {Drawer} from '../../shared/ui/Drawer'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {OptionSelect} from '../../shared/ui/OptionSelect'
 import {interviewType} from '../../shared/lib/optionSets'
-import {Badge,StatusBadge} from '../../shared/ui/Page'
+import {Badge} from '../../shared/ui/Page'
 import {useToast} from '../../shared/ui/Toast'
-import {consentStatus} from '../../shared/lib/status'
 import {formatMoney} from '../../shared/lib/format'
 import {groupPipelineStages,isOutcomeStage,recommendedCandidateAction} from '../workflow/workflow'
 import type {StageMoveInput} from '../core/useStageMove'
@@ -54,7 +53,9 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
   const expectedSource:PlacementFeeSource|null=jobHealth?.fee_source==='Job override'?'job_override':jobHealth?.fee_source==='Account agreement'?'account_agreement':null
   const acceptedOffer=offers.find((offer)=>offer.status==='accepted');const recommendation=recommendedCandidateAction({stage,hasSubmission,interviews,offers,hasPlacement:Boolean(placement)})
   const calendarConnected=connections.data?.some((connection)=>connection.member_id===currentMemberId&&connection.status==='connected')||false
-  const compliant=details.isSuccess&&item.candidates?.status!=='do_not_contact'&&privateData?.consent_status==='granted'
+  /* Reads the pipeline row rather than the details query, so it no longer waits on a fetch to decide:
+   * the status is already in hand, and gating on a pending query made the button flash disabled. */
+  const contactable=item.candidates?.status!=='do_not_contact'
   const trackAction=(eventName:'action_started'|'action_completed'|'action_abandoned',actionKey:string)=>recordWorkflowEvent({organizationId:organization!.id,eventName,surface:'job_candidate_panel',actionKey})
   const refresh=async()=>{await Promise.all([cache.invalidateQueries({queryKey:['interviews',organization?.id]}),cache.invalidateQueries({queryKey:['offers',organization?.id]}),cache.invalidateQueries({queryKey:['placements',organization?.id]}),cache.invalidateQueries({queryKey:['submissions',organization?.id]}),onUpdated()])}
   const candidateName=item.candidates?.full_name||'The candidate'
@@ -110,7 +111,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
    * than piling up underneath it. */
   const showForm=action==='interview'||action==='offer'||action==='placement'||action==='move'
   return <Drawer title={item.candidates?.full_name||'Candidate'} description={`${stage.name} · ${job.title}`} eyebrow="Candidate action" open onClose={closePanel}>
-    <div className="candidate-context"><div className="candidate-context-summary"><span className="candidate-context-avatar">{item.candidates?.full_name?.split(/\s+/).slice(0,2).map((part)=>part[0]).join('')}</span><div><strong>{item.candidates?.current_position||'Role not recorded'}</strong><p>{[item.candidates?.current_company,item.candidates?.location].filter(Boolean).join(' · ')||'Profile details need review'}</p></div></div><div className="context-badges"><Badge tone="info">{stage.name}</Badge>{privateData&&<StatusBadge map={consentStatus} value={privateData.consent_status}/>}</div><Link className="record-link" to={`/app/${organization!.slug}/candidates/${item.candidate_id}`}>Open full candidate profile</Link></div>
+    <div className="candidate-context"><div className="candidate-context-summary"><span className="candidate-context-avatar">{item.candidates?.full_name?.split(/\s+/).slice(0,2).map((part)=>part[0]).join('')}</span><div><strong>{item.candidates?.current_position||'Role not recorded'}</strong><p>{[item.candidates?.current_company,item.candidates?.location].filter(Boolean).join(' · ')||'Profile details need review'}</p></div></div><div className="context-badges"><Badge tone="info">{stage.name}</Badge></div><Link className="record-link" to={`/app/${organization!.slug}/candidates/${item.candidate_id}`}>Open full candidate profile</Link></div>
     {/* Recommendation and active form are the same box now (see showForm above) -- never both drawn
       * at once, so there is exactly one bordered region here, not two stacked ones. */}
     <section className={`next-action-card${showForm?' next-action-card-form':''}`}>
@@ -137,10 +138,10 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
       </div>:<>
         <span><MoveRight size={18}/></span>
         <div><p className="eyebrow">Recommended next action</p><strong>{readOnly?'Waiting':recommendation.label}</strong><p>{readOnly?'This job is closed to recruitment actions. Its history remains available.':recommendation.reason}</p></div>
-        {!readOnly&&<>{recommendation.key==='submit'&&capabilities.data?.canSubmit&&<Button disabled={!compliant} onClick={composeSubmission}>Submit to client</Button>}{recommendation.key==='schedule_interview'&&capabilities.data?.canManageInterviews&&<Button onClick={()=>chooseAction('interview')}>Schedule interview</Button>}{recommendation.key==='record_outcome'&&capabilities.data?.canManageInterviews&&<Button onClick={()=>chooseAction('outcome')}>Record outcome</Button>}{recommendation.key==='record_offer'&&capabilities.data?.canManageOffers&&<Button onClick={()=>chooseAction('offer')}>Record offer</Button>}{recommendation.key==='check_offer'&&capabilities.data?.canManageOffers&&<Button onClick={()=>chooseAction('check_offer')}>Open offer</Button>}{recommendation.key==='create_placement'&&capabilities.data?.canManagePlacements&&<Button onClick={()=>chooseAction('placement')}>Create placement</Button>}{recommendation.key==='check_feedback'&&<Button onClick={()=>chooseAction('check_feedback')}>Check feedback</Button>}</>}
+        {!readOnly&&<>{recommendation.key==='submit'&&capabilities.data?.canSubmit&&<Button disabled={!contactable} onClick={composeSubmission}>Submit to client</Button>}{recommendation.key==='schedule_interview'&&capabilities.data?.canManageInterviews&&<Button onClick={()=>chooseAction('interview')}>Schedule interview</Button>}{recommendation.key==='record_outcome'&&capabilities.data?.canManageInterviews&&<Button onClick={()=>chooseAction('outcome')}>Record outcome</Button>}{recommendation.key==='record_offer'&&capabilities.data?.canManageOffers&&<Button onClick={()=>chooseAction('offer')}>Record offer</Button>}{recommendation.key==='check_offer'&&capabilities.data?.canManageOffers&&<Button onClick={()=>chooseAction('check_offer')}>Open offer</Button>}{recommendation.key==='create_placement'&&capabilities.data?.canManagePlacements&&<Button onClick={()=>chooseAction('placement')}>Create placement</Button>}{recommendation.key==='check_feedback'&&<Button onClick={()=>chooseAction('check_feedback')}>Check feedback</Button>}</>}
       </>}
     </section>
-    {!compliant&&<Callout tone="warning">Submission is unavailable because consent is not granted or the candidate is marked do not contact. Update the candidate record before sharing information.</Callout>}
+    {!contactable&&<Callout tone="warning">Submission is unavailable because the candidate is marked do not contact. Update the candidate record before sharing information.</Callout>}
     {/* Replaces a four-line milestone list that could only say "Recorded" or "Not recorded" -- true
       * statements with no way to act on any of them. Submission and placement stay as one-line facts
       * because both already have their own affordances above; the other four each ended a loop that

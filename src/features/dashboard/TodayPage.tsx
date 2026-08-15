@@ -5,23 +5,20 @@ import {Link} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {completeTask,dashboardSummary,listEmailDeliveryIssues,listExpiringConsent,listInterviews,listJobHealth,listJobs,listOffers,listPlacedJobCandidates,listRecentSubmissionFeedback,listSubmissionPackages,listTasks,snoozeTask} from '../core/repository'
+import {completeTask,dashboardSummary,listEmailDeliveryIssues,listInterviews,listJobHealth,listJobs,listOffers,listPlacedJobCandidates,listRecentSubmissionFeedback,listSubmissionPackages,listTasks,snoozeTask} from '../core/repository'
 import {ErrorState,TableSkeleton} from '../../shared/ui/States'
 import {Page,Panel} from '../../shared/ui/Page'
 import {formatTime} from '../../shared/lib/format'
 import {lookup,todayWorkKind} from '../../shared/lib/status'
-import {buildTodayWorkItems,type TodayConsent,type TodayFeedback,type TodayWorkItem} from '../workflow/workflow'
+import {buildTodayWorkItems,type TodayFeedback,type TodayWorkItem} from '../workflow/workflow'
 import {nextActionDetail,phaseSegments} from '../jobs/jobHealth'
 import {SetupChecklist,buildSetupSteps} from './SetupChecklist'
 import {Button} from '../../shared/ui/Button'
 import {useToast} from '../../shared/ui/Toast'
 
-/* Both windows are deliberately short. This is a work queue: a client response from three weeks ago
- * has either been actioned or turned into a different problem, and consent lapsing next quarter is not
- * a thing to do today. Two weeks is roughly the notice a consultant needs to reach a candidate, get a
- * reply and record it before a live shortlist becomes unsendable. */
+/* Deliberately short. This is a work queue: a client response from three weeks ago has either been
+ * actioned or turned into a different problem, so surfacing it today is noise rather than work. */
 const FEEDBACK_WINDOW_HOURS=72
-const CONSENT_WINDOW_DAYS=14
 /* Today is a work queue, not an archive. Interviews and submission packages older than this cannot
  * produce an action anyone is still going to take -- an outcome unrecorded for three months is a
  * data-quality job, not today's -- and leaving them unbounded means the queue's cost grows with the
@@ -38,12 +35,6 @@ const toTodayFeedback=(rows:unknown[]):TodayFeedback[]=>rows.map((entry)=>{
     jobId:assignment?.jobs?.id??null,jobTitle:assignment?.jobs?.title??null,jobOwnerMemberId:assignment?.jobs?.owner_member_id??null,
     candidateName:assignment?.candidates?.full_name??null}
 })
-const toTodayConsent=(rows:unknown[]):TodayConsent[]=>rows.map((entry)=>{
-  const row=entry as {candidate_id:string;consent_expires_at:string;candidates?:{full_name:string;status:string;owner_member_id:string|null}|null}
-  return {candidateId:row.candidate_id,fullName:row.candidates?.full_name||'Candidate',expiresAt:row.consent_expires_at,
-    status:row.candidates?.status||'active',ownerMemberId:row.candidates?.owner_member_id??null}
-})
-
 /* Dismissal is per workspace and local to the browser. It records a preference about a checklist, not
  * a fact about the organization -- a second consultant joining should still get their own onboarding
  * -- so it does not warrant a column, a migration, or an RLS policy. */
@@ -79,18 +70,16 @@ export function TodayPage(){
   const currentMember=membership
   const [setupHidden,setSetupHidden]=useState(()=>readSetupDismissed(organization?.id))
   const query=useQuery({queryKey:['today',organization?.id],enabled:Boolean(organization),queryFn:async()=>{
-    /* The two windows the notification-lite items are built from. Both are bounded on the server: an
-     * unbounded feedback list would be an archive rather than a queue, and consent that lapses in six
-     * months is not today's problem. */
+    /* The windows the notification-lite items are built from, bounded on the server: an unbounded
+     * feedback list would be an archive rather than a queue. */
     const feedbackSince=new Date(Date.now()-FEEDBACK_WINDOW_HOURS*3_600_000).toISOString()
-    const consentBefore=new Date(Date.now()+CONSENT_WINDOW_DAYS*86_400_000).toISOString()
     const workQueueSince=new Date(Date.now()-WORK_QUEUE_LOOKBACK_DAYS*86_400_000).toISOString()
     /* Offers are bounded by status rather than by date: the queue only ever builds items from
      * 'presented' and 'accepted', so the other statuses were fetched and discarded. Placements are
      * needed only as a set of already-placed job candidates, which is two columns rather than the
      * full rows with their revenue splits and invoices. */
-    const [tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth,feedback,consent]=await Promise.all([listTasks(organization!.id),listInterviews(organization!.id,{since:workQueueSince}),listOffers(organization!.id,{statuses:['presented','accepted']}),listPlacedJobCandidates(organization!.id),listJobs(organization!.id),dashboardSummary(organization!.id),listEmailDeliveryIssues(organization!.id),listSubmissionPackages(organization!.id,{since:workQueueSince}),listJobHealth(organization!.id),listRecentSubmissionFeedback(organization!.id,feedbackSince),listExpiringConsent(organization!.id,consentBefore)])
-    return {tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth,feedback,consent}
+    const [tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth,feedback]=await Promise.all([listTasks(organization!.id),listInterviews(organization!.id,{since:workQueueSince}),listOffers(organization!.id,{statuses:['presented','accepted']}),listPlacedJobCandidates(organization!.id),listJobs(organization!.id),dashboardSummary(organization!.id),listEmailDeliveryIssues(organization!.id),listSubmissionPackages(organization!.id,{since:workQueueSince}),listJobHealth(organization!.id),listRecentSubmissionFeedback(organization!.id,feedbackSince)])
+    return {tasks,interviews,offers,placements,jobs,summary,deliveryIssues,submissions,jobHealth,feedback}
   }})
   const taskAction=useMutation({mutationFn:({taskId,action}:{taskId:string;action:'complete'|'snooze'})=>{if(action==='complete')return completeTask(organization!.id,taskId);const due=new Date();due.setDate(due.getDate()+1);due.setHours(9,0,0,0);return snoozeTask(organization!.id,taskId,due.toISOString())},onSuccess:async(_result,variables)=>{toast.success(variables.action==='complete'?'Follow-up completed.':'Follow-up moved to tomorrow.');await Promise.all([cache.invalidateQueries({queryKey:['today',organization?.id]}),cache.invalidateQueries({queryKey:['tasks',organization?.id]}),cache.invalidateQueries({queryKey:['agency-performance',organization?.id]})])},onError:(error)=>toast.error(error,'The follow-up was not changed.')})
   const actOnTask=(taskId:string,action:'complete'|'snooze')=>taskAction.mutate({taskId,action})
@@ -99,7 +88,7 @@ export function TodayPage(){
   if(query.error||!query.data)return <ErrorState error={query.error} retry={()=>void query.refetch()}/>
   const base=`/app/${organization!.slug}`
   const now=new Date()
-  const items=buildTodayWorkItems({base,now,currentMemberId:scope==='mine'?currentMember?.id:undefined,tasks:query.data.tasks,interviews:query.data.interviews,offers:query.data.offers,placements:query.data.placements,jobs:query.data.jobs,deliveryIssues:query.data.deliveryIssues,submissions:query.data.submissions,feedback:toTodayFeedback(query.data.feedback),consentExpiring:toTodayConsent(query.data.consent)})
+  const items=buildTodayWorkItems({base,now,currentMemberId:scope==='mine'?currentMember?.id:undefined,tasks:query.data.tasks,interviews:query.data.interviews,offers:query.data.offers,placements:query.data.placements,jobs:query.data.jobs,deliveryIssues:query.data.deliveryIssues,submissions:query.data.submissions,feedback:toTodayFeedback(query.data.feedback)})
   const steps=buildSetupSteps(query.data.summary,base);const setupComplete=steps.length>0&&steps.every((step)=>step.done)
   // Complete or hidden both mean the same thing to the page below: show the brief. The checklist used
   // to render a `onDismiss` prop nobody passed, so a solo consultant who would never invite a team

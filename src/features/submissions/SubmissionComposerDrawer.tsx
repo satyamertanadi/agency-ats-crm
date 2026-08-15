@@ -41,7 +41,7 @@ const factSalary=(draft?:ItemDraft)=>{
   return [amount,draft?.currency?.trim()].filter(Boolean).join(' ')
 }
 
-type SubmissionPrivate={consent_status:string;expected_salary:number|null;salary_currency:string|null}
+type SubmissionPrivate={expected_salary:number|null;salary_currency:string|null}
 const privateOf=(candidate?:{candidate_private_details?:SubmissionPrivate|SubmissionPrivate[]|null}|null)=>{
   const value=candidate?.candidate_private_details
   return Array.isArray(value)?value[0]:value
@@ -52,7 +52,7 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
   onClose:()=>void
   job:Job
   organizationId:string
-  /* Who the caller wants in the package. The composer still resolves each one's documents and consent
+  /* Who the caller wants in the package. The composer still resolves each one's documents and status
    * itself, so the board can pass nothing richer than ids and names. */
   candidates:ComposerCandidate[]
   onSent:()=>Promise<unknown>
@@ -110,16 +110,15 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
     const row=(rows.data||[]).find((entry)=>entry.id===candidate.jobCandidateId)
     const documents=(row?.candidates?.document_links||[]).flatMap((link)=>Array.isArray(link.documents)?link.documents:link.documents?[link.documents]:[])
       .filter((document)=>document&&!document.deleted_at)
-    const consent=privateOf(row?.candidates)?.consent_status
-    return {...candidate,row,documents,consent,
-      /* The same compliance bar applies per row: consent granted and not
-       * marked do-not-contact. Blocking the send rather than filtering silently, because a shortlist
-       * that quietly drops someone is worse than one that refuses and says who.
+    return {...candidate,row,documents,
+      /* Do-not-contact is the one bar left: the candidate has asked not to be approached, so they
+       * must not reach a client. Blocking the send rather than filtering silently, because a
+       * shortlist that quietly drops someone is worse than one that refuses and says who.
        *
-       * Only once the roster query has actually answered. Judging consent from a row that has not
-       * loaded reads every candidate as un-consented, so the drawer opened claiming the entire
-       * shortlist was blocked and then quietly corrected itself. */
-      blocked:rows.isSuccess&&(row?.candidates?.status==='do_not_contact'||consent!=='granted')}
+       * Only once the roster query has actually answered, so a row that has not loaded is never
+       * judged -- reading it early made the drawer open claiming candidates were blocked and then
+       * quietly correct itself. */
+      blocked:rows.isSuccess&&row?.candidates?.status==='do_not_contact'}
   }),[candidates,rows.data,rows.isSuccess])
   const blocked=resolved.filter((entry)=>entry.blocked)
   const sendable=resolved.filter((entry)=>!entry.blocked)
@@ -160,7 +159,7 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
     dirty={dirty&&!send.isPending} discardMessage="Discard this submission?">
     <div className="stack">
       {blocked.length>0&&<Callout tone="warning" title={`${blocked.length} candidate${blocked.length===1?'':'s'} cannot be sent`}>
-        {blocked.map((entry)=>entry.name).join(', ')} {blocked.length===1?'has':'have'} not granted consent to be represented, or {blocked.length===1?'is':'are'} marked do not contact. Update the record{blocked.length===1?'':'s'} first — they will not be included.
+        {blocked.map((entry)=>entry.name).join(', ')} {blocked.length===1?'is':'are'} marked do not contact. Update the record{blocked.length===1?'':'s'} first — they will not be included.
       </Callout>}
 
       <section className="composer-roster">
