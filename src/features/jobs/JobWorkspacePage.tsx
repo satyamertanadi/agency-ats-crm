@@ -183,6 +183,9 @@ export function JobWorkspacePage(){
     const stats=columnStageStats(column,pipeline.data!.items,now)
     return {column,items,color,stats}
   })
+  /* Flattened in render order -- columns left to right, cards top to bottom -- so next/previous in
+   * the panel follows the board a consultant is looking at rather than an unrelated fetch order. */
+  const orderedItemIds=columnData.flatMap((entry)=>entry.items.map((item)=>item.id))
   // Outcome stages get no board column of their own, but they used to float as a separate chip row
   // above the board, disconnected from it even though they read the exact same pipeline items. They
   // now render as trailing, dimmed columns in the same grid instead -- part of the board, not a
@@ -282,6 +285,7 @@ export function JobWorkspacePage(){
       action={params.get('action')} readOnly={job.status!=='open'}
       onAction={(action)=>{const nextParams=new URLSearchParams(params);if(action)nextParams.set('action',action);else nextParams.delete('action');setParams(nextParams)}}
       onClose={()=>{const nextParams=new URLSearchParams(params);nextParams.delete('candidate');nextParams.delete('action');setParams(nextParams)}}
+      siblingIds={orderedItemIds} onNavigate={(jobCandidateId)=>{const nextParams=new URLSearchParams(params);nextParams.set('candidate',jobCandidateId);nextParams.delete('action');setParams(nextParams,{replace:true})}}
       onUpdated={refresh} onMove={move.mutate} moving={move.isPending} onComposeSubmission={()=>composeCandidate(selected)}
       detailLoading={detailLoading} detailError={detailError}/>}
     <SubmissionComposerDrawer open={Boolean(composerCandidates)} onClose={()=>setComposerCandidates(null)} job={job} organizationId={organization!.id}

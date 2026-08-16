@@ -390,6 +390,26 @@
   background: var(--color-surface-soft);
   flex-shrink: 0;
 }
+/* The close button used to be the header's only trailing child. This keeps it rightmost while a
+   pager sits beside it, so "close" does not move depending on whether a drawer can page. */
+.drawer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+.drawer-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.drawer-pager-count {
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+  /* Tabular so "9 of 12" does not shift the buttons as the count changes while paging. */
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .modal h2,
 .drawer h2 {
   font-family: var(--font-editorial);
