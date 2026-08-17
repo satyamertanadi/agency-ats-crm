@@ -197,7 +197,10 @@
 .candidate-preview-hint{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;font-size:var(--text-xs);color:var(--color-muted)}
 .candidate-preview-header{display:flex;align-items:center;gap:var(--space-2)}
 .candidate-preview-header strong{display:block;font-size:var(--text-base)}
-.candidate-preview-header span{display:block;font-size:var(--text-xs)}
+/* :not(.avatar-sm) because the header's first child is the initials badge, also a bare <span> --
+   without the exclusion this rule's higher specificity overrode .avatar-sm's display:grid with
+   display:block, which silently broke place-items:center and left the initials pinned top-left. */
+.candidate-preview-header span:not(.avatar-sm){display:block;font-size:var(--text-xs)}
 .candidate-preview-facts{display:grid;gap:var(--space-2);margin:0}
 .candidate-preview-facts > div{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
 .candidate-preview-facts dt{font-size:var(--text-xs);color:var(--color-muted)}
