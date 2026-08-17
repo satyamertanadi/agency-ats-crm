@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {BriefcaseBusiness,CalendarPlus,CheckCircle2,Handshake,Mail,MoveRight,TriangleAlert} from 'lucide-react'
+import {BriefcaseBusiness,CalendarPlus,CheckCircle2,ChevronLeft,ChevronRight,Handshake,Mail,MoveRight,TriangleAlert} from 'lucide-react'
 import {Link} from 'react-router'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
@@ -21,18 +21,22 @@ import {groupPipelineStages,isOutcomeStage,recommendedCandidateAction} from '../
 import type {StageMoveInput} from '../core/useStageMove'
 import {JobCandidateLifecycle} from './JobCandidateLifecycle'
 import {recordWorkflowEvent} from '../../shared/lib/productAnalytics'
+import {useListNavigation} from '../../shared/lib/useListNavigation'
 
 type ActionName='check_feedback'|'check_offer'|'outcome'|'retry_cancel'|'interview'|'offer'|'placement'|'move'
 
 export interface JobCandidatePanelProps {job:Job;item:JobCandidate;stage:PipelineStage;stages:PipelineStage[];currentMemberId?:string;interviews:Interview[];offers:Offer[];placement:Placement|null;hasSubmission:boolean;action:string|null;readOnly:boolean;onAction:(action:string|null)=>void;onClose:()=>void;onUpdated:()=>Promise<unknown>;onMove:(input:StageMoveInput)=>void;moving:boolean;
   onComposeSubmission:()=>void;
+  /* Every candidate on this board, in the order the board renders them (columns left to right, cards
+   * top to bottom), so the panel can move through a shortlist without closing. */
+  siblingIds:readonly string[];onNavigate:(jobCandidateId:string)=>void;
   /* The org-wide lists no longer gate the board, so this panel can open before they land -- or after
    * they failed. Empty and not-yet-known are different claims and the panel must not confuse them. */
   detailLoading?:boolean;detailError?:unknown}
 
 const localValue=(date:Date)=>{const offset=date.getTimezoneOffset()*60_000;return new Date(date.valueOf()-offset).toISOString().slice(0,16)}
 
-export function JobCandidatePanel({job,item,stage,stages,currentMemberId,interviews,offers,placement,hasSubmission,action:requestedAction,readOnly,onAction,onClose,onUpdated,onMove,moving,onComposeSubmission,detailLoading=false,detailError}:JobCandidatePanelProps){
+export function JobCandidatePanel({job,item,stage,stages,currentMemberId,interviews,offers,placement,hasSubmission,action:requestedAction,readOnly,onAction,onClose,onUpdated,onMove,moving,onComposeSubmission,siblingIds,onNavigate,detailLoading=false,detailError}:JobCandidatePanelProps){
   const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast()
   const details=useQuery({queryKey:['candidate-detail',organization?.id,item.candidate_id],queryFn:()=>getCandidateDetail(organization!.id,item.candidate_id)})
   const connections=useQuery({queryKey:['calendar-connections',organization?.id],queryFn:()=>listCalendarConnections(organization!.id)})
@@ -110,7 +114,17 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
    * one flow, so they now share a single box: the form replaces the recommendation in place rather
    * than piling up underneath it. */
   const showForm=action==='interview'||action==='offer'||action==='placement'||action==='move'
-  return <Drawer title={item.candidates?.full_name||'Candidate'} description={`${stage.name} · ${job.title}`} eyebrow="Candidate action" open onClose={closePanel}>
+  /* Reviewing a shortlist was one open-read-close cycle per person, which lost your place on the
+   * board every time. Disabled while a form is open: this panel does not track dirty state, so
+   * moving mid-form would discard what was typed with no prompt -- the same reason close is the only
+   * other way out of a form. */
+  const navigation=useListNavigation({ids:siblingIds,activeId:item.id,onChange:onNavigate,enabled:!showForm})
+  const pager=navigation.count>1?<div className="drawer-pager">
+    <span className="drawer-pager-count" aria-live="polite">{navigation.index+1} of {navigation.count}</span>
+    <button type="button" className="icon-button" onClick={navigation.previous} disabled={!navigation.hasPrevious||showForm} aria-label="Previous candidate"><ChevronLeft size={18}/></button>
+    <button type="button" className="icon-button" onClick={navigation.next} disabled={!navigation.hasNext||showForm} aria-label="Next candidate"><ChevronRight size={18}/></button>
+  </div>:null
+  return <Drawer title={item.candidates?.full_name||'Candidate'} description={`${stage.name} · ${job.title}`} eyebrow="Candidate action" open onClose={closePanel} headerActions={pager} onKeyDown={navigation.onKeyDown}>
     <div className="candidate-context"><div className="candidate-context-summary"><span className="candidate-context-avatar">{item.candidates?.full_name?.split(/\s+/).slice(0,2).map((part)=>part[0]).join('')}</span><div><strong>{item.candidates?.current_position||'Role not recorded'}</strong><p>{[item.candidates?.current_company,item.candidates?.location].filter(Boolean).join(' · ')||'Profile details need review'}</p></div></div><div className="context-badges"><Badge tone="info">{stage.name}</Badge></div><Link className="record-link" to={`/app/${organization!.slug}/candidates/${item.candidate_id}`}>Open full candidate profile</Link></div>
     {/* Recommendation and active form are the same box now (see showForm above) -- never both drawn
       * at once, so there is exactly one bordered region here, not two stacked ones. */}

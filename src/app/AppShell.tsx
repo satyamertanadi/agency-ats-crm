@@ -118,6 +118,9 @@ function RealtimeIndicator({status}:{status:RealtimeStatus}){
 const shortcutGroups=[
   {title:'Anywhere',keys:[['/','Search candidates, jobs, clients, and actions'],['Ctrl K','The same search'],['?','Show or hide this list'],['Esc','Close whatever is open']]},
   {title:'Pipeline board',keys:[['a','Add candidates to this job'],['Space','Pick up the focused candidate card'],['← →','Move a picked-up card between phases']]},
+  /* Listed separately from the board because they work only while a candidate is open: the drawer
+   * binds them to itself, so they genuinely do nothing on the board behind it. */
+  {title:'Open candidate',keys:[['j','Next candidate, without closing'],['k','Previous candidate'],['↑ ↓','The same']]},
 ] as const
 
 function ShortcutSheet({open,onClose}:{open:boolean;onClose:()=>void}){

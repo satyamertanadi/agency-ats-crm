@@ -6,12 +6,23 @@ import {useEffect} from 'react'
  * it, typing a candidate's name into a search box could trigger a single-key page shortcut. Modals and
  * dialogs are excluded wholesale -- a shortcut that fires behind an open dialog acts on a surface the
  * user cannot see. */
-export function isTypingTarget(target:EventTarget|null){
+/* Just the "is the user typing into this element" half, with no opinion about dialogs.
+ *
+ * Split out because a dialog that binds its OWN key handler has already scoped itself -- the event
+ * can only have come from inside it -- and must still be allowed to use single-key shortcuts. Judging
+ * it by isTypingTarget would reject every key for being in a dialog, which is right for a page
+ * shortcut and wrong for the dialog's own. */
+export function isFormField(target:EventTarget|null){
   const element=target as HTMLElement|null
   if(!element?.tagName)return false
   if(element.isContentEditable)return true
-  if(['INPUT','TEXTAREA','SELECT'].includes(element.tagName))return true
-  return Boolean(element.closest?.('[role="dialog"],[contenteditable="true"]'))
+  return ['INPUT','TEXTAREA','SELECT'].includes(element.tagName)
+}
+
+export function isTypingTarget(target:EventTarget|null){
+  if(isFormField(target))return true
+  const element=target as HTMLElement|null
+  return Boolean(element?.closest?.('[role="dialog"],[contenteditable="true"]'))
 }
 
 /**
