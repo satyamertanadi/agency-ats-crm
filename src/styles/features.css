@@ -164,6 +164,20 @@
    so the rows a consultant most needs to read carefully (the ones they must not contact) were the
    hardest to read. The row is de-emphasised by surface and muted text instead, which leaves contrast
    intact, and carries a left marker so the state survives greyscale and colour-blind viewing. */
+/* Board bulk actions. Sits above the board in normal flow so it can never cover a drop target. */
+.board-bulk-bar{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;margin-bottom:var(--space-3);padding:var(--space-2) var(--space-3);border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-accent-soft)}
+/* Top-right of the card, clear of the grip on the opposite side so selecting and dragging do not
+   share a target. Always visible once selection is possible: a hover-only checkbox is unreachable on
+   touch and invisible to anyone scanning for how to select. */
+.workflow-card-select{position:absolute;top:6px;right:6px;z-index:1;display:grid;place-items:center;padding:2px}
+.workflow-candidate-card{position:relative}
+.workflow-candidate-card.card-selected{box-shadow:var(--focus)}
+
+/* The selection's own action row, inside the callout that states the count. Wraps rather than
+   scrolls, so a narrow screen stacks the picker under the count instead of hiding the button. */
+.bulk-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;width:100%}
+.bulk-bar-action{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+
 /* List and preview, side by side above 1024px only.
    Single column by default and the pane hidden, so every narrower viewport keeps exactly the page it
    had -- the pane is additive, and a side-by-side preview at 375px would leave neither usable. The

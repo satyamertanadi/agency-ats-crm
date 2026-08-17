@@ -6,7 +6,7 @@ import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {listCandidatesPage,type CandidateListFilters} from '../core/repository'
-import {listTeamMembers,mergeCandidates} from '../core/commercialRepository'
+import {listTeamMembers,mergeCandidates,updateCandidateProfile} from '../core/commercialRepository'
 import {candidateStatus} from '../../shared/lib/status'
 import {candidateAvailability,candidateSource} from '../../shared/lib/optionSets'
 import {initials} from '../../shared/lib/format'
@@ -24,12 +24,15 @@ import {Table} from '../../shared/ui/Table'
 import {AddCandidateModal} from './AddCandidateModal'
 import {AddCandidateToJobModal,type PlacementCandidate} from './AddCandidateToJobModal'
 import {CandidatePreviewPane} from './CandidatePreviewPane'
+import {describeBulk,runBulk} from '../core/bulkResult'
 import {ActiveFilterChips} from '../core/ActiveFilterChips'
 import {candidateFilterChips,candidateFilterKeys} from './candidateFilterChips'
 import {useListNavigation} from '../../shared/lib/useListNavigation'
 import {useShortcut} from '../../shared/lib/useShortcut'
 
 type SelectionMode='none'|'bulk'|'merge'
+/* "Unassigned" as a deliberate choice, distinct from '' meaning "nothing picked yet". */
+const UNASSIGN='__unassign__'
 
 export function CandidatesPage(){
   const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const navigate=useNavigate();const [params,setParams]=useSearchParams()
@@ -56,6 +59,31 @@ export function CandidatesPage(){
   const team=useQuery({queryKey:['team',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
   const currentMemberId=team.data?.find((member)=>member.user_id===user?.id)?.id
   const mergeMutation=useMutation({mutationFn:()=>{const duplicateId=selected.find((id)=>id!==keptId);if(!duplicateId)throw new Error('Select a second candidate to merge');return mergeCandidates(organization!.id,keptId,duplicateId,mergeReason)},onSuccess:async(id)=>{setMergeOpen(false);setSelected([]);await cache.invalidateQueries({queryKey:['candidates-page',organization?.id]});navigate(`/app/${organization!.slug}/candidates/${id}`);toast.success('The duplicate was merged into the kept record.','Stage history and activity from both records were preserved.')},onError:(error)=>toast.error(error,'Nothing was merged.')})
+  /* Assigning an owner to a batch. Batches the per-row RPC rather than adding a bulk one: the RPC
+   * already carries the permission check and the audit write, and a new one would have to reimplement
+   * both. `runBulk` is what keeps a five-of-seven result from being reported as seven. */
+  const [assignOwnerId,setAssignOwnerId]=useState('')
+  const assignOwner=useMutation({
+    mutationFn:async()=>{
+      const targets=(query.data?.rows||[]).filter((row)=>selected.includes(row.id))
+      /* Deliberately unassigning is a real choice, and an empty <option> value cannot express it --
+       * '' already means "nothing picked yet", which is what disables the button. Hence the sentinel,
+       * mapped to null here so it never reaches the RPC as a member id. */
+      const ownerMemberId=assignOwnerId===UNASSIGN?null:assignOwnerId
+      return runBulk(targets,(row)=>row.full_name,
+        (row)=>updateCandidateProfile(organization!.id,row.id,{owner_member_id:ownerMemberId},{}))
+    },
+    onSuccess:async(outcome)=>{
+      await cache.invalidateQueries({queryKey:['candidates-page',organization?.id]})
+      const {tone,message}=describeBulk(outcome,'reassigned')
+      // A partial write is never a success toast. The error tone carries the cause; 'info' states a
+      // partial plainly without claiming either.
+      if(tone==='success'){setSelected([]);setAssignOwnerId('');toast.success(message)}
+      else if(tone==='failure')toast.error(outcome.error??new Error(message),message)
+      else toast.info(message,'The selection is kept so you can retry the ones that failed.')
+    },
+    onError:(error)=>toast.error(error,'No owner was changed.'),
+  })
   const selectedRows=(query.data?.rows||[]).filter((item)=>selected.includes(item.id));const openMerge=()=>{setKeptId(selected[0]||'');setMergeOpen(true)};const openPlacement=(rows=selectedRows)=>{setPlacementCandidates(rows.map((item)=>({id:item.id,full_name:item.full_name,current_position:item.current_position,status:item.status})))}
   const closePlacement=()=>{setPlacementCandidates([]);const next=new URLSearchParams(params);next.delete('addToJob');setParams(next,{replace:true})}
   const toggle=(id:string,checked:boolean)=>setSelected((current)=>checked?[...current,id]:current.filter((item)=>item!==id))
@@ -119,7 +147,22 @@ export function CandidatesPage(){
     {/* Selecting rows used to be silent -- checkboxes ticked and the header buttons enabled, with
       * nothing else on the page saying what was selected or what to do next. Merge specifically
       * needs exactly two, which a bare button count does not communicate. */}
-    {selectionMode==='bulk'&&<Callout tone="info">{selected.length===0?'Select candidates to add them to a job together.':`${selected.length} candidate${selected.length===1?'':'s'} selected.`}</Callout>}
+    {selectionMode==='bulk'&&<Callout tone="info">
+      <div className="bulk-bar">
+        <span>{selected.length===0?'Select candidates to act on them together.':`${selected.length} candidate${selected.length===1?'':'s'} selected.`}</span>
+        {/* Owner assignment lives beside the count rather than in the page header, because it needs a
+          * value chosen before it can run -- a header button would have nowhere to put the picker. */}
+        {selected.length>0&&<span className="bulk-bar-action">
+          <Select aria-label="Assign owner to selected candidates" value={assignOwnerId} onChange={(event)=>setAssignOwnerId(event.target.value)}>
+            <option value="">Choose an owner…</option>
+            <option value={UNASSIGN}>Unassigned</option>
+            {team.data?.filter((member)=>member.status==='active').map((member)=><option key={member.id} value={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}
+          </Select>
+          <Button size="sm" variant="secondary" disabled={!assignOwnerId||assignOwner.isPending}
+            loading={assignOwner.isPending} onClick={()=>assignOwner.mutate()}>Assign owner</Button>
+        </span>}
+      </div>
+    </Callout>}
     {selectionMode==='merge'&&<Callout tone="info">{selected.length===0?'Select two candidates to merge.':selected.length===1?'Select one more candidate to merge.':'Two candidates selected — choose which record to keep.'}</Callout>}
     <Panel><SavedViewBar resource="candidates" paramKeys={viewParamKeys} params={params} onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/><div className="toolbar"><div className="search-box"><Search size={15}/><Input ref={searchRef} aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div><Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select><span className="muted">{query.data?.count??0} candidates</span></div>
     <ActiveFilterChips filters={chips} onClear={(key)=>setFilter(key,'')} onClearAll={clearAllFilters}/>

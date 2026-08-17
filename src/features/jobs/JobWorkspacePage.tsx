@@ -7,6 +7,8 @@ import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {getPipeline,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
 import {useStageMove} from '../core/useStageMove'
+import {describeBulk,runBulk} from '../core/bulkResult'
+import {moveCandidate} from '../core/repository'
 import {listTeamMembers,updateJob} from '../core/commercialRepository'
 import type {Job,JobCandidate,JobHealth,PipelineStage,TeamMember} from '../../shared/types/domain'
 import {Button} from '../../shared/ui/Button'
@@ -83,7 +85,7 @@ function PhaseColumn({id,label,count,color,stats,children}:{id:string;label:stri
 /* `columnKey` is the key of the column this card is rendered inside, handed down rather than
  * re-derived here. That is deliberate: deriving it twice is exactly how the board came to show a
  * candidate under Interview whose dropdown read "Sourcing". */
-function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onOutcome,outcomeStages,targets,canMove}:{item:JobCandidate;columnKey:string;columnColor:string;now:Date;members:TeamMember[];onOpen:()=>void;onMove:(columnKey:string)=>void;onOutcome:(stage:PipelineStage)=>void;outcomeStages:PipelineStage[];targets:Array<{key:string;label:string}>;canMove:boolean}){
+function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onOutcome,outcomeStages,targets,canMove,selected,onToggleSelect}:{item:JobCandidate;columnKey:string;columnColor:string;now:Date;members:TeamMember[];onOpen:()=>void;onMove:(columnKey:string)=>void;onOutcome:(stage:PipelineStage)=>void;outcomeStages:PipelineStage[];targets:Array<{key:string;label:string}>;canMove:boolean;selected:boolean;onToggleSelect?:()=>void}){
   const {attributes,listeners,setNodeRef,transform,isDragging}=useDraggable({id:item.id,data:{stageId:item.current_stage_id}})
   const style={borderLeftColor:columnColor,...(transform?{transform:`translate3d(${transform.x}px, ${transform.y}px, 0)`}:{})}
   const name=item.candidates?.full_name||'Candidate'
@@ -91,7 +93,13 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
   const days=item.pipeline_stages?daysInStage(item,now):0
   const owner=members.find((member)=>member.id===item.candidates?.owner_member_id)
   const ownerName=owner?.profiles?.full_name||owner?.profiles?.email||'Unassigned'
-  return <article ref={setNodeRef} style={style} className={`candidate-card workflow-candidate-card ${isDragging?'dragging':''}`} {...(canMove?listeners:{})} {...attributes}>
+  return <article ref={setNodeRef} style={style} className={`candidate-card workflow-candidate-card ${isDragging?'dragging':''} ${selected?'card-selected':''}`.trim()} {...(canMove?listeners:{})} {...attributes}>
+    {/* stopPropagation on pointerdown is what keeps this from being read as the start of a drag --
+      * the same guard the open button below has always used, since dnd-kit's listeners sit on the
+      * whole card rather than a handle. */}
+    {onToggleSelect&&<label className="workflow-card-select" onPointerDown={(event)=>event.stopPropagation()}>
+      <input type="checkbox" checked={selected} onChange={onToggleSelect} aria-label={`Select ${name}`}/>
+    </label>}
     <button className="candidate-card-open" onPointerDown={(event)=>event.stopPropagation()} onClick={onOpen}>
       <span className="workflow-card-top">
         <span className="workflow-card-avatar" aria-hidden="true">{initials}</span>
@@ -115,6 +123,7 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
 }
 
 export function JobWorkspacePage(){
+  const toast=useToast()
   const {jobId=''}=useParams();const {organization,membership}=useOrganization();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [editOpen,setEditOpen]=useState(false);const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerCandidates,setComposerCandidates]=useState<ComposerCandidate[]|null>(null)
   /* Columns used to render every card unconditionally, so a well-worked Sourcing column with forty
    * names pushed every other phase off the fold below it. Capped per column, expanded on request --
@@ -140,6 +149,39 @@ export function JobWorkspacePage(){
     if(open==='add')setAddOpen(true);else setEditOpen(true)
     const next=new URLSearchParams(params);next.delete('open');setParams(next,{replace:true})
   },[params,setParams])
+  /* Board selection is local state, not a URL param: it is a transient act on this screen, and
+   * putting it in the URL would make the back button walk through selections. `?candidate=` stays the
+   * URL-driven one because that IS a location worth linking to.
+   *
+   * Declared with the other hooks, above the loading/error returns -- a hook after an early return
+   * changes hook order between renders, which React forbids outright. */
+  const [picked,setPicked]=useState<string[]>([])
+  const togglePicked=(id:string)=>setPicked((current)=>current.includes(id)?current.filter((value)=>value!==id):[...current,id])
+  const [bulkColumn,setBulkColumn]=useState('')
+  /* Takes its data as mutate() variables rather than closing over `columns` and the pipeline items,
+   * which are derived below this point. Passing them in is also what keeps the mutation from acting
+   * on a stale board it captured at render. */
+  const bulkMove=useMutation({
+    mutationFn:({items,columns,columnKey}:{items:JobCandidate[];columns:PipelineColumn[];columnKey:string;label:string})=>
+      runBulk(items,(item)=>item.candidates?.full_name||'Candidate',(item)=>{
+        const stageId=resolveStageForColumn(columns,columnKey,item.current_stage_id)
+        /* Already in the target phase: resolveStageForColumn returns null, and calling the RPC anyway
+         * would write a stage_history row saying a candidate moved to where they already were. Counts
+         * as done rather than failed, because from the consultant's side it is. */
+        if(!stageId)return Promise.resolve()
+        return moveCandidate(item.id,stageId,{source:'bulk'})
+      }),
+    onSuccess:async(outcome,variables)=>{
+      await refresh()
+      const {tone,message}=describeBulk(outcome,`moved to ${variables.label}`)
+      if(tone==='success'){setPicked([]);setBulkColumn('');toast.success(message)}
+      else if(tone==='failure')toast.error(outcome.error??new Error(message),message)
+      // Partial keeps the selection, so retrying acts on the same set rather than making the
+      // consultant reselect from a list that has already partly changed underneath them.
+      else toast.info(message,'The selection is kept so you can retry the ones that failed.')
+    },
+    onError:(error)=>toast.error(error,'No candidate was moved.'),
+  })
   const move=useStageMove(jobId,refresh)
   /* The repeated board action keeps one discoverable shortcut. */
   useShortcut('a',()=>setAddOpen(true),Boolean(job&&job.status==='open'&&capabilities.data?.canMovePipeline))
@@ -186,6 +228,8 @@ export function JobWorkspacePage(){
   /* Flattened in render order -- columns left to right, cards top to bottom -- so next/previous in
    * the panel follows the board a consultant is looking at rather than an unrelated fetch order. */
   const orderedItemIds=columnData.flatMap((entry)=>entry.items.map((item)=>item.id))
+  // Resolved here, below the loading guard, so it always reflects the board as rendered.
+  const pickedItems=pipeline.data!.items.filter((item)=>picked.includes(item.id))
   // Outcome stages get no board column of their own, but they used to float as a separate chip row
   // above the board, disconnected from it even though they read the exact same pipeline items. They
   // now render as trailing, dimmed columns in the same grid instead -- part of the board, not a
@@ -231,6 +275,19 @@ export function JobWorkspacePage(){
       </div>
       <Panel padding="sm">
         <PhaseJump containerRef={boardRef} columns={boardColumns.map((column)=>({key:column.key,label:column.label,count:pipeline.data!.items.filter((item)=>column.stages.some((stage)=>stage.id===item.current_stage_id)).length}))}/>
+        {/* Above the board rather than floating over it, so it never covers a drop target. Only
+          * appears once something is picked -- an always-present empty bar is a permanent reminder of
+          * a feature you are not using. */}
+        {picked.length>0&&<div className="board-bulk-bar" role="group" aria-label="Bulk actions for selected candidates">
+          <span><strong>{picked.length}</strong> selected</span>
+          <Select aria-label="Move selected candidates to phase" value={bulkColumn} onChange={(event)=>setBulkColumn(event.target.value)}>
+            <option value="">Move to…</option>
+            {targets.map((target)=><option key={target.key} value={target.key}>{target.label}</option>)}
+          </Select>
+          <Button size="sm" variant="secondary" disabled={!bulkColumn||bulkMove.isPending} loading={bulkMove.isPending}
+            onClick={()=>bulkMove.mutate({items:pickedItems,columns,columnKey:bulkColumn,label:columns.find((column)=>column.key===bulkColumn)?.label||'the next phase'})}>Move {picked.length}</Button>
+          <Button size="sm" variant="quiet" onClick={()=>{setPicked([]);setBulkColumn('')}}>Clear</Button>
+        </div>}
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div ref={boardRef} className="kanban workflow-kanban" style={{gridTemplateColumns:kanbanGridColumns} as React.CSSProperties}>
             {columnData.map(({column,items,color,stats})=>{
@@ -241,7 +298,8 @@ export function JobWorkspacePage(){
               const visibleItems=expanded?items:items.slice(0,6)
               const hiddenCount=items.length-visibleItems.length
               return <PhaseColumn id={column.key} label={column.label} count={items.length} color={color} stats={stats} key={column.key}>
-                {visibleItems.map((item)=><CandidateCard item={item} key={item.id} columnKey={column.key} columnColor={color} now={now} members={members.data||[]} onOpen={()=>openCandidate(item)} onMove={(columnKey)=>moveToColumn(item,columnKey)} onOutcome={(stage)=>setOutcome({item,stage})} outcomeStages={outcomeStages} targets={targets} canMove={canRecruit}/>)}
+                {visibleItems.map((item)=><CandidateCard item={item} key={item.id} columnKey={column.key} columnColor={color} now={now} members={members.data||[]} onOpen={()=>openCandidate(item)} onMove={(columnKey)=>moveToColumn(item,columnKey)} onOutcome={(stage)=>setOutcome({item,stage})} outcomeStages={outcomeStages} targets={targets} canMove={canRecruit}
+                  selected={picked.includes(item.id)} onToggleSelect={canRecruit?()=>togglePicked(item.id):undefined}/>)}
                 {hiddenCount>0&&<button type="button" className="workflow-column-more" onClick={()=>toggleColumnExpanded(column.key)}>+{hiddenCount} more candidate{hiddenCount===1?'':'s'}<ChevronDown size={13}/></button>}
                 {expanded&&items.length>6&&<button type="button" className="workflow-column-more workflow-column-more-collapse" onClick={()=>toggleColumnExpanded(column.key)}>Show fewer<ChevronDown size={13}/></button>}
               </PhaseColumn>
