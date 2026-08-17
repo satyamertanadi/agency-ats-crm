@@ -555,6 +555,9 @@ td span:not([class]) {
   color: var(--color-accent);
   font-weight: var(--weight-bold);
   font-size: var(--text-xs);
+  /* Without this the body's 1.5 line-height leaves the grid centering on a padded line box, not the
+     glyph -- descender-less initials like "NP" then sit visibly above true center. */
+  line-height: 1;
 }
 .candidate-row-identity {
   display: flex;
@@ -662,6 +665,8 @@ td span:not([class]) {
   background: linear-gradient(145deg, var(--color-accent-soft), var(--color-steel));
   color: var(--color-accent-hover);
   font-weight: var(--weight-semibold);
+  /* Same fix as .avatar-sm above: without this, inherited line-height leaves initials sitting high. */
+  line-height: 1;
   overflow: hidden;
   flex: 0 0 auto;
 }
