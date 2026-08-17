@@ -164,6 +164,34 @@
    so the rows a consultant most needs to read carefully (the ones they must not contact) were the
    hardest to read. The row is de-emphasised by surface and muted text instead, which leaves contrast
    intact, and carries a left marker so the state survives greyscale and colour-blind viewing. */
+/* List and preview, side by side above 1024px only.
+   Single column by default and the pane hidden, so every narrower viewport keeps exactly the page it
+   had -- the pane is additive, and a side-by-side preview at 375px would leave neither usable. The
+   breakpoint is on the container, not the page, so a collapsed sidebar does not change it.
+   `min-width:0` on the list column is what stops the table's own horizontal scroller from forcing the
+   grid wider than its track. */
+.candidate-split{display:grid;grid-template-columns:minmax(0,1fr)}
+.candidate-split > .candidate-preview{display:none}
+@media (min-width: 1024px){
+  .candidate-split{grid-template-columns:minmax(0,1fr) 320px;align-items:start}
+  .candidate-split > .candidate-preview{display:flex}
+}
+.candidate-preview{flex-direction:column;gap:var(--space-3);padding:var(--space-4);border-left:1px solid var(--color-line-soft);background:var(--color-surface-soft);
+  /* Sticks while the list scrolls, so the preview stays beside the row it describes on a long page. */
+  position:sticky;top:0;max-height:calc(100vh - var(--topbar-height));overflow-y:auto}
+.candidate-preview-empty{justify-content:center;text-align:center;gap:var(--space-2)}
+.candidate-preview-hint{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;font-size:var(--text-xs);color:var(--color-muted)}
+.candidate-preview-header{display:flex;align-items:center;gap:var(--space-2)}
+.candidate-preview-header strong{display:block;font-size:var(--text-base)}
+.candidate-preview-header span{display:block;font-size:var(--text-xs)}
+.candidate-preview-facts{display:grid;gap:var(--space-2);margin:0}
+.candidate-preview-facts > div{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
+.candidate-preview-facts dt{font-size:var(--text-xs);color:var(--color-muted)}
+.candidate-preview-facts dd{margin:0;font-size:var(--text-sm);text-align:right}
+.candidate-preview-section h3{margin:0 0 var(--space-15);font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:0.04em}
+.candidate-preview-actions{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;margin-top:auto;padding-top:var(--space-2)}
+.candidate-preview-note{font-size:var(--text-xs)}
+
 /* The keyboard's position in the list. A focus ring alone is not enough on a table row: the ring
    traces the row outline and reads as a rendering artifact, so the accent bar states "you are here"
    the way the muted rows above state "this one is inert". Both the bar and the ring are kept -- the
