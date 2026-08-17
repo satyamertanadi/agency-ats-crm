@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {useMemo,useRef,useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ChevronLeft,ChevronRight,MapPin,Merge,Plus,Search,Users} from 'lucide-react'
 import {Link,useNavigate,useSearchParams} from 'react-router'
@@ -23,6 +23,10 @@ import {csvFilename,downloadCsv,toCsv} from '../../shared/lib/csv'
 import {Table} from '../../shared/ui/Table'
 import {AddCandidateModal} from './AddCandidateModal'
 import {AddCandidateToJobModal,type PlacementCandidate} from './AddCandidateToJobModal'
+import {ActiveFilterChips} from '../core/ActiveFilterChips'
+import {candidateFilterChips,candidateFilterKeys} from './candidateFilterChips'
+import {useListNavigation} from '../../shared/lib/useListNavigation'
+import {useShortcut} from '../../shared/lib/useShortcut'
 
 type SelectionMode='none'|'bulk'|'merge'
 
@@ -54,6 +58,59 @@ export function CandidatesPage(){
   const selectedRows=(query.data?.rows||[]).filter((item)=>selected.includes(item.id));const openMerge=()=>{setKeptId(selected[0]||'');setMergeOpen(true)};const openPlacement=(rows=selectedRows)=>{setPlacementCandidates(rows.map((item)=>({id:item.id,full_name:item.full_name,current_position:item.current_position,status:item.status})))}
   const closePlacement=()=>{setPlacementCandidates([]);const next=new URLSearchParams(params);next.delete('addToJob');setParams(next,{replace:true})}
   const toggle=(id:string,checked:boolean)=>setSelected((current)=>checked?[...current,id]:current.filter((item)=>item!==id))
+  const rows=query.data?.rows||[]
+  const rowIds=useMemo(()=>rows.map((row)=>row.id),[rows])
+  /* Which row the keyboard is on. Distinct from `selected`: moving through a list is not the same act
+   * as choosing from it, and conflating them would mean j/k silently built a bulk selection. */
+  const [activeId,setActiveId]=useState<string|null>(null)
+  const active=activeId&&rowIds.includes(activeId)?activeId:null
+  const searchRef=useRef<HTMLInputElement>(null)
+  const focusRow=(id:string)=>{
+    setActiveId(id)
+    // data-row-id is unique to this table, so no container ref (and no extra wrapper element) is
+    // needed to scope the lookup.
+    const row=document.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`)
+    // 'nearest' so a keypress never jumps the page when the row is already on screen.
+    row?.scrollIntoView({block:'nearest'})
+    row?.focus({preventScroll:true})
+  }
+  // Bound globally, so the return value is unused -- the page has its own pager and needs no counter.
+  useListNavigation({ids:rowIds,activeId:active,onChange:focusRow,
+    onOpen:(id)=>{void navigate(`/app/${organization?.slug}/candidates/${id}`)},global:true,enabled:!open&&!mergeOpen&&!placementOpen})
+  /* Shift-click selects the block between the last click and this one, because selecting eleven
+   * consecutive candidates by clicking eleven checkboxes is the kind of thing that makes people
+   * export to a spreadsheet instead. */
+  const lastClicked=useRef<string|null>(null)
+  const toggleRow=(id:string,checked:boolean,shiftKey:boolean)=>{
+    const anchor=lastClicked.current
+    if(shiftKey&&anchor&&anchor!==id){
+      const from=rowIds.indexOf(anchor);const to=rowIds.indexOf(id)
+      if(from>=0&&to>=0){
+        const block=rowIds.slice(Math.min(from,to),Math.max(from,to)+1)
+        setSelected((current)=>checked?[...new Set([...current,...block])]:current.filter((value)=>!block.includes(value)))
+        lastClicked.current=id
+        return
+      }
+    }
+    lastClicked.current=id
+    toggle(id,checked)
+  }
+  /* `f` for the search field and `x` for select, the two things a keyboard user reaches for after
+   * j/k. Both are suspended while a dialog is open -- useShortcut's own guard already refuses to fire
+   * inside one, and the explicit `enabled` keeps them off while a modal owns the screen. */
+  const dialogOpen=open||mergeOpen||placementOpen
+  useShortcut('f',()=>searchRef.current?.focus(),!dialogOpen)
+  const canSelect=Boolean(capabilities.data?.canMovePipeline)
+  useShortcut('x',()=>{
+    if(!active)return
+    // Pressing x with nothing in selection mode starts it, rather than doing nothing and leaving the
+    // user to find the button first.
+    if(selectionMode==='none')setSelectionMode('bulk')
+    if(selectionMode!=='merge')toggleRow(active,!selected.includes(active),false)
+  },!dialogOpen&&canSelect)
+  const ownerNames=useMemo(()=>Object.fromEntries((team.data||[]).map((member)=>[member.id,member.profiles?.full_name||member.profiles?.email||'Selected member'])),[team.data])
+  const chips=useMemo(()=>candidateFilterChips(params,{ownerNames}),[params,ownerNames])
+  const clearAllFilters=()=>{const next=new URLSearchParams(params);for(const key of candidateFilterKeys)next.delete(key);next.delete('page');setParams(next,{replace:true});setSelected([])}
   const pages=Math.max(1,Math.ceil((query.data?.count||0)/pageSize));const showPagination=(query.data?.count||0)>pageSize
   return <Page title="Candidates" eyebrow="Talent database" description="Find the right people, check readiness, and place them into a job without exposing private data in the list." actions={<>{selectionMode==='bulk'&&selected.length>0&&<Button variant="secondary" leadingIcon={<Users size={15}/>} onClick={()=>openPlacement()}>Add {selected.length} to job</Button>}{selectionMode==='merge'&&selected.length===2&&<Button variant="secondary" leadingIcon={<Merge size={15}/>} onClick={openMerge}>Merge selected</Button>}{capabilities.data?.canMovePipeline&&<Button variant="secondary" onClick={()=>{setSelectionMode((mode)=>mode==='bulk'?'none':'bulk');setSelected([])}}>{selectionMode==='bulk'?'Done selecting':'Select candidates'}</Button>}{capabilities.data?.canWriteCandidates&&<><Button variant="quiet" onClick={()=>{setSelectionMode((mode)=>mode==='merge'?'none':'merge');setSelected([])}}>{selectionMode==='merge'?'Done':'Manage duplicates'}</Button><Button leadingIcon={<Plus size={15}/>} onClick={()=>{setOpen(true)}}>Add candidate</Button></>}</>}>
     {/* Selecting rows used to be silent -- checkboxes ticked and the header buttons enabled, with
@@ -61,12 +118,16 @@ export function CandidatesPage(){
       * needs exactly two, which a bare button count does not communicate. */}
     {selectionMode==='bulk'&&<Callout tone="info">{selected.length===0?'Select candidates to add them to a job together.':`${selected.length} candidate${selected.length===1?'':'s'} selected.`}</Callout>}
     {selectionMode==='merge'&&<Callout tone="info">{selected.length===0?'Select two candidates to merge.':selected.length===1?'Select one more candidate to merge.':'Two candidates selected — choose which record to keep.'}</Callout>}
-    <Panel><SavedViewBar resource="candidates" paramKeys={viewParamKeys} params={params} onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/><div className="toolbar"><div className="search-box"><Search size={15}/><Input aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div><Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select><span className="muted">{query.data?.count??0} candidates</span></div>
+    <Panel><SavedViewBar resource="candidates" paramKeys={viewParamKeys} params={params} onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/><div className="toolbar"><div className="search-box"><Search size={15}/><Input ref={searchRef} aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div><Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select><span className="muted">{query.data?.count??0} candidates</span></div>
+    <ActiveFilterChips filters={chips} onClear={(key)=>setFilter(key,'')} onClearAll={clearAllFilters}/>
       <details className="filter-panel"><summary>Filters and sorting</summary><div className="filter-grid"><Field label="Location"><Input value={filters.location} onChange={(event)=>setFilter('location',event.target.value)}/></Field>{/* Was a free-text box against an `ilike` predicate, so "Linkedin" found nothing when the column
         said "LinkedIn". Both sides are curated values now, and the filter offers the same list the
         candidate form writes. */}
       <Field label="Source"><Select value={filters.source} onChange={(event)=>setFilter('source',event.target.value)}><option value="">Any source</option>{candidateSource.all.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</Select></Field><Field label="Owner"><Select value={filters.ownerMemberId} onChange={(event)=>setFilter('owner',event.target.value)}><option value="">Anyone</option>{team.data?.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><Field label="Tag"><Input value={filters.tag} onChange={(event)=>setFilter('tag',event.target.value)}/></Field><Field label="Skill"><Input value={filters.skill} onChange={(event)=>setFilter('skill',event.target.value)}/></Field><Field label="Availability"><Select value={filters.availability} onChange={(event)=>setFilter('availability',event.target.value)}><option value="">Any availability</option>{candidateAvailability.all.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</Select></Field><Field label="Sort"><Select value={`${filters.sort}:${filters.direction}`} onChange={(event)=>{const [sort='updated',dir='desc']=event.target.value.split(':');const next=new URLSearchParams(params);next.set('sort',sort);next.set('dir',dir);next.delete('page');setParams(next,{replace:true})}}><option value="updated:desc">Recently updated</option><option value="created:desc">Newest added</option><option value="name:asc">Name A–Z</option><option value="location:asc">Location A–Z</option></Select></Field></div></details>
-      {query.isLoading?<TableSkeleton rows={8} columns={selectionMode!=='none'?8:7} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState title="No candidates found" description="Add a candidate or change the filters."/>:<Table className="candidates-table" headers={[...(selectionMode!=='none'?['Select']:[]),'Candidate','Current role','Location','Skills and tags','Owner','Status','Action']}>{query.data?.rows.map((candidate)=><tr key={candidate.id} className={candidate.status==='do_not_contact'||candidate.status==='archived'?'candidate-row-muted':''}>{selectionMode!=='none'&&<td><input aria-label={`Select ${candidate.full_name}`} type="checkbox" checked={selected.includes(candidate.id)} disabled={selectionMode==='merge'&&!selected.includes(candidate.id)&&selected.length===2} onChange={(event)=>toggle(candidate.id,event.target.checked)}/></td>}<td><div className="candidate-row-identity"><span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span><div><Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`}><strong>{candidate.full_name}</strong></Link><span>{candidate.source||'Source not recorded'}</span></div></div></td><td>{candidate.current_position||'—'}<span>{candidate.current_company||''}</span></td><td>{candidate.location?<span className="inline-stat"><MapPin size={13}/>{candidate.location}</span>:'—'}</td><td><div className="chip-row">{candidate.skill_names.slice(0,2).map((skill)=><Badge key={skill} tone="neutral">{skill}</Badge>)}{candidate.skill_names.length>2&&<Badge tone="neutral">+{candidate.skill_names.length-2}</Badge>}{candidate.skill_names.length===0&&<span className="muted">No skills tagged</span>}</div></td><td>{candidate.owner_name||'Unassigned'}</td><td><StatusBadge map={candidateStatus} value={candidate.status}/></td><td>{capabilities.data?.canMovePipeline&&<Button size="sm" variant="secondary" disabled={candidate.status==='do_not_contact'||candidate.status==='archived'} onClick={()=>openPlacement([candidate])}>Add to job</Button>}</td></tr>)}</Table>}
+      {query.isLoading?<TableSkeleton rows={8} columns={selectionMode!=='none'?8:7} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState title="No candidates found" description="Add a candidate or change the filters."/>:<Table className="candidates-table" headers={[...(selectionMode!=='none'?['Select']:[]),'Candidate','Current role','Location','Skills and tags','Owner','Status','Action']}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
+        aria-selected={selected.includes(candidate.id)}
+        onFocus={()=>setActiveId(candidate.id)}
+        className={[candidate.status==='do_not_contact'||candidate.status==='archived'?'candidate-row-muted':'',candidate.id===active?'candidate-row-active':''].filter(Boolean).join(' ')||undefined}>{selectionMode!=='none'&&<td><input aria-label={`Select ${candidate.full_name}`} type="checkbox" checked={selected.includes(candidate.id)} disabled={selectionMode==='merge'&&!selected.includes(candidate.id)&&selected.length===2} onClick={(event)=>{if(selectionMode!=='merge')toggleRow(candidate.id,!selected.includes(candidate.id),event.shiftKey)}} onChange={(event)=>{if(selectionMode==='merge')toggle(candidate.id,event.target.checked)}}/></td>}<td><div className="candidate-row-identity"><span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span><div><Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`}><strong>{candidate.full_name}</strong></Link><span>{candidate.source||'Source not recorded'}</span></div></div></td><td>{candidate.current_position||'—'}<span>{candidate.current_company||''}</span></td><td>{candidate.location?<span className="inline-stat"><MapPin size={13}/>{candidate.location}</span>:'—'}</td><td><div className="chip-row">{candidate.skill_names.slice(0,2).map((skill)=><Badge key={skill} tone="neutral">{skill}</Badge>)}{candidate.skill_names.length>2&&<Badge tone="neutral">+{candidate.skill_names.length-2}</Badge>}{candidate.skill_names.length===0&&<span className="muted">No skills tagged</span>}</div></td><td>{candidate.owner_name||'Unassigned'}</td><td><StatusBadge map={candidateStatus} value={candidate.status}/></td><td>{capabilities.data?.canMovePipeline&&<Button size="sm" variant="secondary" disabled={candidate.status==='do_not_contact'||candidate.status==='archived'} onClick={()=>openPlacement([candidate])}>Add to job</Button>}</td></tr>)}</Table>}
       {showPagination&&<div className="pagination"><Button variant="secondary" disabled={page===0||query.isFetching} leadingIcon={<ChevronLeft size={14}/>} onClick={()=>{const next=new URLSearchParams(params);next.set('page',String(page-1));setParams(next,{replace:true})}}>Previous</Button><span>Page {page+1} of {pages}</span><Button variant="secondary" disabled={page+1>=pages||query.isFetching} trailingIcon={<ChevronRight size={14}/>} onClick={()=>{const next=new URLSearchParams(params);next.set('page',String(page+1));setParams(next,{replace:true})}}>Next</Button></div>}
     </Panel>
     <AddCandidateModal open={open} onClose={()=>setOpen(false)} organizationId={organization!.id} organizationSlug={organization!.slug}

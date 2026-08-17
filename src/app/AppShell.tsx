@@ -120,6 +120,7 @@ const shortcutGroups=[
   {title:'Pipeline board',keys:[['a','Add candidates to this job'],['Space','Pick up the focused candidate card'],['← →','Move a picked-up card between phases']]},
   /* Listed separately from the board because they work only while a candidate is open: the drawer
    * binds them to itself, so they genuinely do nothing on the board behind it. */
+  {title:'Candidate list',keys:[['j','Next candidate'],['k','Previous candidate'],['↵','Open the focused candidate'],['x','Select the focused candidate'],['f','Jump to search']]},
   {title:'Open candidate',keys:[['j','Next candidate, without closing'],['k','Previous candidate'],['↑ ↓','The same']]},
 ] as const
 
