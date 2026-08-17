@@ -164,6 +164,24 @@
    so the rows a consultant most needs to read carefully (the ones they must not contact) were the
    hardest to read. The row is de-emphasised by surface and muted text instead, which leaves contrast
    intact, and carries a left marker so the state survives greyscale and colour-blind viewing. */
+/* The keyboard's position in the list. A focus ring alone is not enough on a table row: the ring
+   traces the row outline and reads as a rendering artifact, so the accent bar states "you are here"
+   the way the muted rows above state "this one is inert". Both the bar and the ring are kept -- the
+   ring is what a screen-reader user's magnifier follows. */
+.candidate-row-active{background:var(--color-accent-soft)}
+.candidate-row-active>td:first-child{box-shadow:inset 3px 0 0 var(--color-accent)}
+.candidate-row-active:focus-visible{outline:none;box-shadow:var(--focus)}
+
+/* Applied filters, stated above the list. See ActiveFilterChips for why the count alone cannot. */
+.active-filters{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-15);padding:var(--space-2) var(--space-4);border-bottom:1px solid var(--color-line-soft);background:var(--color-surface)}
+.active-filters-label{font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:0.04em}
+.active-filter-chip{display:inline-flex;align-items:center;gap:6px;min-height:26px;padding:2px 8px;border:1px solid var(--color-line-strong);border-radius:var(--radius-pill);background:var(--color-surface);color:var(--color-ink);font-size:var(--text-xs);cursor:pointer;transition:border-color var(--motion-fast),background var(--motion-fast)}
+.active-filter-chip:hover{border-color:var(--color-danger);background:var(--color-danger-soft)}
+.active-filter-chip-label{color:var(--color-muted)}
+.active-filter-chip-value{font-weight:var(--weight-semibold);max-width:18ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.active-filters-clear{border:0;background:transparent;padding:2px 4px;color:var(--color-accent);font-size:var(--text-xs);font-weight:var(--weight-semibold);cursor:pointer}
+.active-filters-clear:hover{text-decoration:underline}
+
 .candidate-row-muted{background:var(--color-surface-soft);color:var(--color-muted)}
 .candidate-row-muted>td:first-child{box-shadow:inset 3px 0 0 var(--color-faint)}
 .candidate-row-muted:hover{background:var(--color-canvas-deep)}
