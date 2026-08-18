@@ -5,6 +5,7 @@ import {initials} from '../../shared/lib/format'
 import {Badge,StatusBadge} from '../../shared/ui/Page'
 import {Button} from '../../shared/ui/Button'
 import type {CandidateSearchRow} from '../../shared/types/domain'
+import {followUpSignal,pipelineSignal,shortAgo,statusFacets} from './candidateRowSignals'
 
 /* Who the keyboard is currently on, beside the list rather than after a navigation.
  *
@@ -38,6 +39,12 @@ export function CandidatePreviewPane({candidate,organizationSlug,onAddToJob,canA
   </aside>
 
   const unavailable=candidate.status==='do_not_contact'||candidate.status==='archived'
+  // One clock per render, for the same reason the table keeps one: two facts about the same
+  // candidate must not disagree about what "today" is.
+  const now=new Date()
+  const pipeline=pipelineSignal(candidate,now)
+  const followUp=followUpSignal(candidate,now)
+  const facets=statusFacets(candidate)
   return <aside className="candidate-preview" aria-label={`Preview of ${candidate.full_name}`}>
     <header className="candidate-preview-header">
       <span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span>
@@ -47,8 +54,26 @@ export function CandidatePreviewPane({candidate,organizationSlug,onAddToJob,canA
       </div>
     </header>
 
+    {/* Candidate -> Job -> Stage -> Activity -> Next action, in the order the question gets asked:
+      * where are they, when did we last touch them, what is owed. Every value comes from the row the
+      * list already loaded, so this costs no request -- the constraint that lets j/k stay instant.
+      *
+      * The pipeline row is rendered from open_job_count, so a member without jobs.read sees "Not in a
+      * pipeline" rather than a half-built line. That is the RLS degradation showing through as an
+      * absence, which is why none of these say "none" or "never". */}
     <dl className="candidate-preview-facts">
-      <div><dt>Status</dt><dd><StatusBadge map={candidateStatus} value={candidate.status}/></dd></div>
+      <div><dt>Pipeline</dt><dd>{pipeline.inPipeline
+        ?<span>{pipeline.jobTitle}{pipeline.moreLabel?` ${pipeline.moreLabel}`:''}</span>
+        :<span className="muted">Not in a pipeline</span>}</dd></div>
+      {pipeline.inPipeline&&<div><dt>Stage</dt><dd>{pipeline.stageLabel||<span className="muted">Not recorded</span>}</dd></div>}
+      <div><dt>Last activity</dt><dd>{candidate.last_activity_at?shortAgo(candidate.last_activity_at,now):<span className="muted">None logged</span>}</dd></div>
+      <div><dt>Next action</dt><dd>{followUp.state==='none'
+        ?<span className="muted">No follow-up set</span>
+        :<span>{followUp.taskTitle} · {followUp.dueLabel}</span>}</dd></div>
+      <div><dt>Status</dt><dd>{facets.lifecycle
+        ?<StatusBadge map={candidateStatus} value={facets.lifecycle}/>
+        :<span>{facets.posture||'—'}</span>}</dd></div>
+      <div><dt>Availability</dt><dd>{facets.availabilityLabel||<span className="muted">Not set</span>}</dd></div>
       <div><dt>Location</dt><dd>{candidate.location?<span className="inline-stat"><MapPin size={13}/>{candidate.location}</span>:'Not recorded'}</dd></div>
       <div><dt>Owner</dt><dd>{candidate.owner_name||'Unassigned'}</dd></div>
       <div><dt>Source</dt><dd>{candidate.source||'Not recorded'}</dd></div>
