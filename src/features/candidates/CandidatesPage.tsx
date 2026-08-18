@@ -30,6 +30,8 @@ import {candidateFilterChips,candidateFilterKeys} from './candidateFilterChips'
 import {useListNavigation} from '../../shared/lib/useListNavigation'
 import {useShortcut} from '../../shared/lib/useShortcut'
 import {followUpSignal,pipelineSignal,statusFacets,type FollowUpSignal} from './candidateRowSignals'
+import {emptyQueueMessage,parseQueue} from './candidateQueues'
+import {CandidateQueueTabs} from './CandidateQueueTabs'
 import type {CandidateSearchRow} from '../../shared/types/domain'
 
 type SelectionMode='none'|'bulk'|'merge'
@@ -98,9 +100,17 @@ export function CandidatesPage(){
   const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const navigate=useNavigate();const [params,setParams]=useSearchParams()
   const [open,setOpen]=useState(false);const [selectionMode,setSelectionMode]=useState<SelectionMode>('none');const [mergeOpen,setMergeOpen]=useState(false);const [selected,setSelected]=useState<string[]>([]);const [keptId,setKeptId]=useState('');const [mergeReason,setMergeReason]=useState('Duplicate candidate record');const [placementCandidates,setPlacementCandidates]=useState<PlacementCandidate[]>([]);const placementOpen=placementCandidates.length>0||params.get('addToJob')==='1';const pageSize=50
   useOpenOnNewParam(setOpen)
-  const page=Math.max(0,Number(params.get('page')||0));const filters:CandidateListFilters={query:params.get('q')||'',status:params.get('status')||'',location:params.get('location')||'',source:params.get('source')||'',ownerMemberId:params.get('owner')||'',tag:params.get('tag')||'',skill:params.get('skill')||'',availability:params.get('availability')||'',sort:(params.get('sort') as CandidateListFilters['sort'])||'updated',direction:(params.get('dir') as CandidateListFilters['direction'])||'desc'}
+  /* Narrowed rather than passed through: an unrecognised ?queue= becomes null here, matching the SQL,
+   * where an unknown value matches nothing. Without this a typo'd URL would render an active-looking
+   * tab that is not one of ours and an empty list with no explanation. */
+  const queue=parseQueue(params.get('queue'))
+  const page=Math.max(0,Number(params.get('page')||0));const filters:CandidateListFilters={query:params.get('q')||'',status:params.get('status')||'',location:params.get('location')||'',source:params.get('source')||'',ownerMemberId:params.get('owner')||'',tag:params.get('tag')||'',skill:params.get('skill')||'',availability:params.get('availability')||'',queue:queue||undefined,sort:(params.get('sort') as CandidateListFilters['sort'])||'updated',direction:(params.get('dir') as CandidateListFilters['direction'])||'desc'}
   const setFilter=(key:string,value:string)=>{const next=new URLSearchParams(params);if(value)next.set(key,value);else next.delete(key);next.delete('page');setParams(next,{replace:true});setSelected([])}
-  const viewParamKeys=['q','status','location','source','owner','tag','skill','availability','sort','dir']
+  /* `queue` is here so a saved view carries the queue it was saved in -- a view called "My overdue"
+   * that silently dropped the queue would be a lie. It is NOT in candidateFilterKeys, so it gets no
+   * dismissible chip: the tab row already shows its state, and two ways to clear one thing is how
+   * they end up disagreeing. */
+  const viewParamKeys=['q','status','location','source','owner','tag','skill','availability','queue','sort','dir']
   /* Export refetches the whole filtered set rather than writing the page on screen -- "export this
    * view" meaning "export the 50 rows you happen to be looking at" is the kind of quiet wrongness
    * that gets discovered in a client meeting. The cap is explicit and reported rather than silently
@@ -229,6 +239,10 @@ export function CandidatesPage(){
     </Callout>}
     {selectionMode==='merge'&&<Callout tone="info">{selected.length===0?'Select two candidates to merge.':selected.length===1?'Select one more candidate to merge.':'Two candidates selected — choose which record to keep.'}</Callout>}
     <Panel><SavedViewBar resource="candidates" paramKeys={viewParamKeys} params={params} onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/><div className="toolbar"><div className="search-box"><Search size={15}/><Input ref={searchRef} aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div><Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select><span className="muted">{query.data?.count??0} candidates</span></div>
+    <CandidateQueueTabs queue={queue} mine={Boolean(currentMemberId)&&filters.ownerMemberId===currentMemberId}
+      mineAvailable={Boolean(currentMemberId)}
+      onQueue={(next)=>setFilter('queue',next||'')}
+      onMine={(next)=>setFilter('owner',next?currentMemberId||'':'')}/>
     <ActiveFilterChips filters={chips} onClear={(key)=>setFilter(key,'')} onClearAll={clearAllFilters}/>
       <details className="filter-panel"><summary>Filters and sorting</summary><div className="filter-grid"><Field label="Location"><Input value={filters.location} onChange={(event)=>setFilter('location',event.target.value)}/></Field>{/* Was a free-text box against an `ilike` predicate, so "Linkedin" found nothing when the column
         said "LinkedIn". Both sides are curated values now, and the filter offers the same list the
@@ -239,7 +253,7 @@ export function CandidatesPage(){
         * are gone: the header was inaccurate (only skills ever rendered), both are fully in the
         * preview pane, and both remain filterable -- which bought the room for Pipeline and
         * Follow-up, the two facts a consultant actually triages on. */}
-      {query.isLoading?<TableSkeleton rows={8} columns={selectionMode!=='none'?7:6} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState title="No candidates found" description="Add a candidate or change the filters."/>:<Table className="candidates-table" headers={[...(selectionMode!=='none'?['Select']:[]),'Candidate','Pipeline','Follow-up','Owner','Status','Action']}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
+      {query.isLoading?<TableSkeleton rows={8} columns={selectionMode!=='none'?7:6} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState {...emptyQueueMessage(queue)}/>:<Table className="candidates-table" headers={[...(selectionMode!=='none'?['Select']:[]),'Candidate','Pipeline','Follow-up','Owner','Status','Action']}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
         aria-selected={selected.includes(candidate.id)}
         onFocus={()=>setActiveId(candidate.id)}
         className={[candidate.status==='do_not_contact'||candidate.status==='archived'?'candidate-row-muted':'',candidate.id===active?'candidate-row-active':''].filter(Boolean).join(' ')||undefined}>{selectionMode!=='none'&&<td><input aria-label={`Select ${candidate.full_name}`} type="checkbox" checked={selected.includes(candidate.id)} disabled={selectionMode==='merge'&&!selected.includes(candidate.id)&&selected.length===2} onClick={(event)=>{if(selectionMode!=='merge')toggleRow(candidate.id,!selected.includes(candidate.id),event.shiftKey)}} onChange={(event)=>{if(selectionMode==='merge')toggle(candidate.id,event.target.checked)}}/></td>}<td><div className="candidate-row-identity"><span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span><div><Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`}><strong>{candidate.full_name}</strong></Link><span>{candidate.current_position?`${candidate.current_position}${candidate.current_company?` at ${candidate.current_company}`:''}`:'Role not recorded'}</span></div></div></td><td><PipelineCell row={candidate} now={now}/></td><td><FollowUpCell row={candidate} now={now}/></td><td>{candidate.owner_name||<Gap>Unassigned</Gap>}</td><td><StatusCell row={candidate}/></td><td>{capabilities.data?.canMovePipeline&&<Button size="sm" variant="secondary" disabled={candidate.status==='do_not_contact'||candidate.status==='archived'} onClick={()=>openPlacement([candidate])}>Add to job</Button>}</td></tr>)}</Table>}
