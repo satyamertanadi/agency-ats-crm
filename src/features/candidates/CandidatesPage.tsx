@@ -32,6 +32,8 @@ import {useShortcut} from '../../shared/lib/useShortcut'
 import {followUpSignal,pipelineSignal,statusFacets,type FollowUpSignal} from './candidateRowSignals'
 import {emptyQueueMessage,parseQueue} from './candidateQueues'
 import {CandidateQueueTabs} from './CandidateQueueTabs'
+import {DENSITY_OPTIONS,readDensity,writeDensity,type CandidateDensity} from './candidateDensity'
+import {SegmentedControl} from '../../shared/ui/SegmentedControl'
 import type {CandidateSearchRow} from '../../shared/types/domain'
 
 type SelectionMode='none'|'bulk'|'merge'
@@ -100,6 +102,11 @@ export function CandidatesPage(){
   const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const navigate=useNavigate();const [params,setParams]=useSearchParams()
   const [open,setOpen]=useState(false);const [selectionMode,setSelectionMode]=useState<SelectionMode>('none');const [mergeOpen,setMergeOpen]=useState(false);const [selected,setSelected]=useState<string[]>([]);const [keptId,setKeptId]=useState('');const [mergeReason,setMergeReason]=useState('Duplicate candidate record');const [placementCandidates,setPlacementCandidates]=useState<PlacementCandidate[]>([]);const placementOpen=placementCandidates.length>0||params.get('addToJob')==='1';const pageSize=50
   useOpenOnNewParam(setOpen)
+  /* A browser preference, not workspace state, so it lives in localStorage and not in the URL: it
+   * must not travel in a shared link or get captured by a saved view, where one person's row height
+   * would become everybody's. */
+  const [density,setDensity]=useState<CandidateDensity>(readDensity)
+  const chooseDensity=(next:CandidateDensity)=>{setDensity(next);writeDensity(next)}
   /* Narrowed rather than passed through: an unrecognised ?queue= becomes null here, matching the SQL,
    * where an unknown value matches nothing. Without this a typo'd URL would render an active-looking
    * tab that is not one of ours and an empty list with no explanation. */
@@ -238,7 +245,7 @@ export function CandidatesPage(){
       </div>
     </Callout>}
     {selectionMode==='merge'&&<Callout tone="info">{selected.length===0?'Select two candidates to merge.':selected.length===1?'Select one more candidate to merge.':'Two candidates selected — choose which record to keep.'}</Callout>}
-    <Panel><SavedViewBar resource="candidates" paramKeys={viewParamKeys} params={params} onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/><div className="toolbar"><div className="search-box"><Search size={15}/><Input ref={searchRef} aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div><Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select><span className="muted">{query.data?.count??0} candidates</span></div>
+    <Panel><SavedViewBar resource="candidates" paramKeys={viewParamKeys} params={params} onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/><div className="toolbar"><div className="search-box"><Search size={15}/><Input ref={searchRef} aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div><Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select><span className="muted">{query.data?.count??0} candidates</span><SegmentedControl className="density-control" label="Row density" options={DENSITY_OPTIONS} value={density} onChange={chooseDensity}/></div>
     <CandidateQueueTabs queue={queue} mine={Boolean(currentMemberId)&&filters.ownerMemberId===currentMemberId}
       mineAvailable={Boolean(currentMemberId)}
       onQueue={(next)=>setFilter('queue',next||'')}
@@ -253,7 +260,7 @@ export function CandidatesPage(){
         * are gone: the header was inaccurate (only skills ever rendered), both are fully in the
         * preview pane, and both remain filterable -- which bought the room for Pipeline and
         * Follow-up, the two facts a consultant actually triages on. */}
-      {query.isLoading?<TableSkeleton rows={8} columns={selectionMode!=='none'?7:6} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState {...emptyQueueMessage(queue)}/>:<Table className="candidates-table" headers={[...(selectionMode!=='none'?['Select']:[]),'Candidate','Pipeline','Follow-up','Owner','Status','Action']}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
+      {query.isLoading?<TableSkeleton rows={8} columns={selectionMode!=='none'?7:6} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState {...emptyQueueMessage(queue)}/>:<Table className={`candidates-table candidates-density-${density}`} headers={[...(selectionMode!=='none'?['Select']:[]),'Candidate','Pipeline','Follow-up','Owner','Status','Action']}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
         aria-selected={selected.includes(candidate.id)}
         onFocus={()=>setActiveId(candidate.id)}
         className={[candidate.status==='do_not_contact'||candidate.status==='archived'?'candidate-row-muted':'',candidate.id===active?'candidate-row-active':''].filter(Boolean).join(' ')||undefined}>{selectionMode!=='none'&&<td><input aria-label={`Select ${candidate.full_name}`} type="checkbox" checked={selected.includes(candidate.id)} disabled={selectionMode==='merge'&&!selected.includes(candidate.id)&&selected.length===2} onClick={(event)=>{if(selectionMode!=='merge')toggleRow(candidate.id,!selected.includes(candidate.id),event.shiftKey)}} onChange={(event)=>{if(selectionMode==='merge')toggle(candidate.id,event.target.checked)}}/></td>}<td><div className="candidate-row-identity"><span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span><div><Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`}><strong>{candidate.full_name}</strong></Link><span>{candidate.current_position?`${candidate.current_position}${candidate.current_company?` at ${candidate.current_company}`:''}`:'Role not recorded'}</span></div></div></td><td><PipelineCell row={candidate} now={now}/></td><td><FollowUpCell row={candidate} now={now}/></td><td>{candidate.owner_name||<Gap>Unassigned</Gap>}</td><td><StatusCell row={candidate}/></td><td>{capabilities.data?.canMovePipeline&&<Button size="sm" variant="secondary" disabled={candidate.status==='do_not_contact'||candidate.status==='archived'} onClick={()=>openPlacement([candidate])}>Add to job</Button>}</td></tr>)}</Table>}

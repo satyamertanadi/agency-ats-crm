@@ -240,6 +240,29 @@
 .queue-tab-active:hover{background:var(--color-accent-hover);border-color:var(--color-accent-hover);color:var(--color-on-accent)}
 .queue-tab-mine{margin-left:auto}
 
+/* Row density, remembered per browser. Sized down from the default segmented control because it sits
+   in a toolbar beside a search box, not on its own as the add-candidate mode switch does. */
+.density-control{flex-shrink:0}
+.density-control button{padding:3px 9px;font-size:var(--text-xs)}
+
+/* Compact rows, and ONLY above the touch breakpoint.
+ *
+ * responsive.css deliberately restores roomier padding at `max-width: 720px`, because on touch a row
+ * is something you hit rather than something you scan. That rule is a bare `th,td` selector at
+ * (0,0,1); these are (0,1,1) and would silently outrank it at every width. The media query -- not the
+ * specificity -- is what keeps the phone layout intact, so this block must never be flattened into
+ * the ones above it.
+ *
+ * 721 and not 720: `min-width:720px` and `max-width:720px` BOTH match at exactly 720px, and this
+ * block would then win on specificity -- measured, compact padding on a 720px-wide tablet. Starting a
+ * pixel later makes the two strictly complementary. A fractional width between them falls back to the
+ * base 7px/16px, which is roomier than compact, so the gap cannot cost anyone a touch target. */
+@media (min-width: 721px){
+  .candidates-density-compact th,
+  .candidates-density-compact td{padding:3px 12px}
+  .candidates-density-compact .avatar-sm{width:22px;height:22px;font-size:var(--text-2xs)}
+}
+
 /* Applied filters, stated above the list. See ActiveFilterChips for why the count alone cannot. */
 .active-filters{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-15);padding:var(--space-2) var(--space-4);border-bottom:1px solid var(--color-line-soft);background:var(--color-surface)}
 .active-filters-label{font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:0.04em}
