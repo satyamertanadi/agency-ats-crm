@@ -70,4 +70,34 @@ describe('CandidatePreviewPane',()=>{
     expect(screen.queryByRole('button',{name:'Add to job'})).not.toBeInTheDocument()
     expect(screen.getByRole('link',{name:'Open full record'})).toBeInTheDocument()
   })
+
+  /* Candidate -> Job -> Stage -> Activity -> Next action, which is the sequence this pane exists to
+   * make answerable without opening the record. All of it comes from the row the list already has. */
+  it('reads the workflow spine from the row it was given',()=>{
+    const days=(n:number)=>new Date(Date.now()-n*86_400_000).toISOString()
+    renderPane(row({
+      open_job_count:2,primary_job_title:'Backend Engineer',primary_stage_name:'Interview',
+      primary_stage_entered_at:days(12),last_activity_at:days(6),
+      next_task_at:days(2),next_task_title:'Call back',availability:'1_month',
+    } as Partial<CandidateSearchRow>))
+    expect(screen.getByText('Backend Engineer +1 more')).toBeInTheDocument()
+    expect(screen.getByText('Interview · 12d')).toBeInTheDocument()
+    expect(screen.getByText('6d ago')).toBeInTheDocument()
+    expect(screen.getByText('Call back · 2 days late')).toBeInTheDocument()
+    expect(screen.getByText('1 month')).toBeInTheDocument()
+  })
+
+  /* The RLS-degraded shape: a member with candidates.read but not jobs.read/tasks.read/activities.read
+   * gets nulls. The pane must state absence, never render a half-built pipeline line, and never imply
+   * the facts do not exist -- they may simply be invisible to this member. */
+  it('states absence rather than inventing a pipeline when the columns degraded',()=>{
+    renderPane(row({
+      open_job_count:0,primary_job_title:null,primary_stage_name:null,primary_stage_entered_at:null,
+      last_activity_at:null,next_task_at:null,next_task_title:null,
+    } as Partial<CandidateSearchRow>))
+    expect(screen.getByText('Not in a pipeline')).toBeInTheDocument()
+    expect(screen.getByText('None logged')).toBeInTheDocument()
+    expect(screen.getByText('No follow-up set')).toBeInTheDocument()
+    expect(screen.queryByText('Stage')).not.toBeInTheDocument()
+  })
 })

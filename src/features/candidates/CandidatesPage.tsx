@@ -1,6 +1,6 @@
-import {useMemo,useRef,useState} from 'react'
+import {useMemo,useRef,useState,type ReactNode} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ChevronLeft,ChevronRight,MapPin,Merge,Plus,Search,Users} from 'lucide-react'
+import {ChevronLeft,ChevronRight,Merge,Plus,Search,Users} from 'lucide-react'
 import {Link,useNavigate,useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
@@ -29,10 +29,70 @@ import {ActiveFilterChips} from '../core/ActiveFilterChips'
 import {candidateFilterChips,candidateFilterKeys} from './candidateFilterChips'
 import {useListNavigation} from '../../shared/lib/useListNavigation'
 import {useShortcut} from '../../shared/lib/useShortcut'
+import {followUpSignal,pipelineSignal,statusFacets,type FollowUpSignal} from './candidateRowSignals'
+import type {CandidateSearchRow} from '../../shared/types/domain'
 
 type SelectionMode='none'|'bulk'|'merge'
 /* "Unassigned" as a deliberate choice, distinct from '' meaning "nothing picked yet". */
 const UNASSIGN='__unassign__'
+
+/* A fact the record is missing, drawn as something to fill rather than left blank.
+ *
+ * "Unassigned" and "No skills tagged" used to render as ordinary muted text, which reads as "this
+ * column is empty" and gets scanned past. A dashed outline reads as a slot, so a page of them looks
+ * like a queue of work instead of an unfinished database. It is deliberately NOT a button: three
+ * inline actions per row would add controls to a screen whose problem is already too many controls.
+ * The action lives where it always did -- the Action column, bulk assign, and the queue tabs. */
+const Gap=({children}:{children:ReactNode})=><span className="cell-gap">{children}</span>
+
+/* Badge weight carries urgency, following the rule TodayPage established: a solid fill for overdue
+ * reading its real lateness, an outline for today, and NOTHING for a future date. A follow-up booked
+ * for next Tuesday is not a problem and must not be drawn as one. */
+function DueChip({signal}:{signal:FollowUpSignal}){
+  if(signal.state==='overdue')return <span className="due-chip due-chip-late">{signal.dueLabel}</span>
+  if(signal.state==='today')return <span className="due-chip due-chip-today">{signal.dueLabel}</span>
+  return null
+}
+
+function PipelineCell({row,now}:{row:CandidateSearchRow;now:Date}){
+  const signal=pipelineSignal(row,now)
+  if(!signal.inPipeline)return <Gap>Not in a pipeline</Gap>
+  return <>
+    <div className="cell-lead">
+      <strong className="cell-strong">{signal.jobTitle}</strong>
+      {signal.moreLabel&&<Badge tone="neutral">{signal.moreLabel}</Badge>}
+    </div>
+    <span>{signal.stageLabel||'Stage not recorded'}</span>
+  </>
+}
+
+function FollowUpCell({row,now}:{row:CandidateSearchRow;now:Date}){
+  const signal=followUpSignal(row,now)
+  return <>
+    <div className="cell-lead">
+      <DueChip signal={signal}/>
+      {signal.state==='none'
+        ?<Gap>No follow-up set</Gap>
+        :<span className="cell-strong">{signal.taskTitle}</span>}
+      {signal.state==='future'&&<span className="cell-quiet">{signal.dueLabel}</span>}
+    </div>
+    <span>{signal.activityLabel}</span>
+  </>
+}
+
+/* The three concepts candidates.status conflates, separated by visual weight rather than by a
+ * migration. Only a real lifecycle outcome earns a badge; active/passive is posture and stays quiet,
+ * which is what stops every row carrying an identical green chip that says nothing. Availability --
+ * a column that has existed all along and was rendered nowhere -- becomes the sub-line. */
+function StatusCell({row}:{row:CandidateSearchRow}){
+  const facets=statusFacets(row)
+  return <>
+    {facets.lifecycle
+      ?<StatusBadge map={candidateStatus} value={facets.lifecycle}/>
+      :<span className="cell-quiet">{facets.posture||'—'}</span>}
+    <span>{facets.availabilityLabel||'Availability not set'}</span>
+  </>
+}
 
 export function CandidatesPage(){
   const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const navigate=useNavigate();const [params,setParams]=useSearchParams()
@@ -88,6 +148,10 @@ export function CandidatesPage(){
   const closePlacement=()=>{setPlacementCandidates([]);const next=new URLSearchParams(params);next.delete('addToJob');setParams(next,{replace:true})}
   const toggle=(id:string,checked:boolean)=>setSelected((current)=>checked?[...current,id]:current.filter((item)=>item!==id))
   const rows=query.data?.rows||[]
+  /* One clock for the whole table, refreshed when the data is. Calling new Date() inside each cell
+   * would let two rows disagree about what "today" is across a slow render, and would also re-run
+   * every relative label on every unrelated re-render. */
+  const now=useMemo(()=>new Date(),[query.dataUpdatedAt])
   const rowIds=useMemo(()=>rows.map((row)=>row.id),[rows])
   /* Which row the keyboard is on. Distinct from `selected`: moving through a list is not the same act
    * as choosing from it, and conflating them would mean j/k silently built a bulk selection. */
@@ -171,10 +235,14 @@ export function CandidatesPage(){
         candidate form writes. */}
       <Field label="Source"><Select value={filters.source} onChange={(event)=>setFilter('source',event.target.value)}><option value="">Any source</option>{candidateSource.all.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</Select></Field><Field label="Owner"><Select value={filters.ownerMemberId} onChange={(event)=>setFilter('owner',event.target.value)}><option value="">Anyone</option>{team.data?.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><Field label="Tag"><Input value={filters.tag} onChange={(event)=>setFilter('tag',event.target.value)}/></Field><Field label="Skill"><Input value={filters.skill} onChange={(event)=>setFilter('skill',event.target.value)}/></Field><Field label="Availability"><Select value={filters.availability} onChange={(event)=>setFilter('availability',event.target.value)}><option value="">Any availability</option>{candidateAvailability.all.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</Select></Field><Field label="Sort"><Select value={`${filters.sort}:${filters.direction}`} onChange={(event)=>{const [sort='updated',dir='desc']=event.target.value.split(':');const next=new URLSearchParams(params);next.set('sort',sort);next.set('dir',dir);next.delete('page');setParams(next,{replace:true})}}><option value="updated:desc">Recently updated</option><option value="created:desc">Newest added</option><option value="name:asc">Name A–Z</option><option value="location:asc">Location A–Z</option></Select></Field></div></details>
       <div className="candidate-split">
-      {query.isLoading?<TableSkeleton rows={8} columns={selectionMode!=='none'?8:7} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState title="No candidates found" description="Add a candidate or change the filters."/>:<Table className="candidates-table" headers={[...(selectionMode!=='none'?['Select']:[]),'Candidate','Current role','Location','Skills and tags','Owner','Status','Action']}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
+      {/* Six columns, down from seven, carrying far more. Location and the old "Skills and tags"
+        * are gone: the header was inaccurate (only skills ever rendered), both are fully in the
+        * preview pane, and both remain filterable -- which bought the room for Pipeline and
+        * Follow-up, the two facts a consultant actually triages on. */}
+      {query.isLoading?<TableSkeleton rows={8} columns={selectionMode!=='none'?7:6} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState title="No candidates found" description="Add a candidate or change the filters."/>:<Table className="candidates-table" headers={[...(selectionMode!=='none'?['Select']:[]),'Candidate','Pipeline','Follow-up','Owner','Status','Action']}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
         aria-selected={selected.includes(candidate.id)}
         onFocus={()=>setActiveId(candidate.id)}
-        className={[candidate.status==='do_not_contact'||candidate.status==='archived'?'candidate-row-muted':'',candidate.id===active?'candidate-row-active':''].filter(Boolean).join(' ')||undefined}>{selectionMode!=='none'&&<td><input aria-label={`Select ${candidate.full_name}`} type="checkbox" checked={selected.includes(candidate.id)} disabled={selectionMode==='merge'&&!selected.includes(candidate.id)&&selected.length===2} onClick={(event)=>{if(selectionMode!=='merge')toggleRow(candidate.id,!selected.includes(candidate.id),event.shiftKey)}} onChange={(event)=>{if(selectionMode==='merge')toggle(candidate.id,event.target.checked)}}/></td>}<td><div className="candidate-row-identity"><span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span><div><Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`}><strong>{candidate.full_name}</strong></Link><span>{candidate.source||'Source not recorded'}</span></div></div></td><td>{candidate.current_position||'—'}<span>{candidate.current_company||''}</span></td><td>{candidate.location?<span className="inline-stat"><MapPin size={13}/>{candidate.location}</span>:'—'}</td><td><div className="chip-row">{candidate.skill_names.slice(0,2).map((skill)=><Badge key={skill} tone="neutral">{skill}</Badge>)}{candidate.skill_names.length>2&&<Badge tone="neutral">+{candidate.skill_names.length-2}</Badge>}{candidate.skill_names.length===0&&<span className="muted">No skills tagged</span>}</div></td><td>{candidate.owner_name||'Unassigned'}</td><td><StatusBadge map={candidateStatus} value={candidate.status}/></td><td>{capabilities.data?.canMovePipeline&&<Button size="sm" variant="secondary" disabled={candidate.status==='do_not_contact'||candidate.status==='archived'} onClick={()=>openPlacement([candidate])}>Add to job</Button>}</td></tr>)}</Table>}
+        className={[candidate.status==='do_not_contact'||candidate.status==='archived'?'candidate-row-muted':'',candidate.id===active?'candidate-row-active':''].filter(Boolean).join(' ')||undefined}>{selectionMode!=='none'&&<td><input aria-label={`Select ${candidate.full_name}`} type="checkbox" checked={selected.includes(candidate.id)} disabled={selectionMode==='merge'&&!selected.includes(candidate.id)&&selected.length===2} onClick={(event)=>{if(selectionMode!=='merge')toggleRow(candidate.id,!selected.includes(candidate.id),event.shiftKey)}} onChange={(event)=>{if(selectionMode==='merge')toggle(candidate.id,event.target.checked)}}/></td>}<td><div className="candidate-row-identity"><span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span><div><Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`}><strong>{candidate.full_name}</strong></Link><span>{candidate.current_position?`${candidate.current_position}${candidate.current_company?` at ${candidate.current_company}`:''}`:'Role not recorded'}</span></div></div></td><td><PipelineCell row={candidate} now={now}/></td><td><FollowUpCell row={candidate} now={now}/></td><td>{candidate.owner_name||<Gap>Unassigned</Gap>}</td><td><StatusCell row={candidate}/></td><td>{capabilities.data?.canMovePipeline&&<Button size="sm" variant="secondary" disabled={candidate.status==='do_not_contact'||candidate.status==='archived'} onClick={()=>openPlacement([candidate])}>Add to job</Button>}</td></tr>)}</Table>}
       {/* Rendered at every width; CSS hides it below 1024px. See CandidatePreviewPane for why there
         * is no behaviour to fork. */}
       <CandidatePreviewPane candidate={previewed} organizationSlug={organization?.slug||'workspace'}
