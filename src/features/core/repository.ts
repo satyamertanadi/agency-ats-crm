@@ -25,9 +25,14 @@ function fail(error:{message:string;code?:string}|null,fallback:string):never{
  * constraint or a column rather than describing anything a user did. */
 const CONSTRAINT_CODES=new Set(['23505','23503','23514','23502'])
 
-export interface CandidateListFilters {query?:string;status?:string;location?:string;source?:string;ownerMemberId?:string;tag?:string;skill?:string;availability?:string;sort?:'updated'|'created'|'name'|'location';direction?:'asc'|'desc'}
+/* The named queues the list can be narrowed to. These are queues, not composable filters -- one
+ * server-side predicate each, applied as a single extra AND alongside the eight filters above. They
+ * are deliberately non-overlapping in intent: needsFollowUp is "something is owed", stale is
+ * "nothing is owed and nothing is happening". An unrecognised value matches nothing, not everything. */
+export type CandidateQueue='in_process'|'needs_follow_up'|'stale'|'unassigned'|'needs_enrichment'
+export interface CandidateListFilters {query?:string;status?:string;location?:string;source?:string;ownerMemberId?:string;tag?:string;skill?:string;availability?:string;queue?:CandidateQueue;sort?:'updated'|'created'|'name'|'location';direction?:'asc'|'desc'}
 export async function listCandidatesPage(organizationId:string,filters:CandidateListFilters={},page=0,pageSize=50){
-  const {data,error}=await supabase.rpc('search_candidates_page',{p_organization_id:organizationId,p_query:filters.query||undefined,p_status:filters.status||undefined,p_location:filters.location||undefined,p_source:filters.source||undefined,p_owner_member_id:filters.ownerMemberId||undefined,p_tag:filters.tag||undefined,p_skill:filters.skill||undefined,p_availability:filters.availability||undefined,p_sort:filters.sort||'updated',p_direction:filters.direction||'desc',p_limit:pageSize,p_offset:page*pageSize})
+  const {data,error}=await supabase.rpc('search_candidates_page',{p_organization_id:organizationId,p_query:filters.query||undefined,p_status:filters.status||undefined,p_location:filters.location||undefined,p_source:filters.source||undefined,p_owner_member_id:filters.ownerMemberId||undefined,p_tag:filters.tag||undefined,p_skill:filters.skill||undefined,p_availability:filters.availability||undefined,p_queue:filters.queue||undefined,p_sort:filters.sort||'updated',p_direction:filters.direction||'desc',p_limit:pageSize,p_offset:page*pageSize})
   if(error)fail(error,'Could not load candidates');const resultRows=rows(data,candidateSearchRowSchema,'Candidate search rows did not match the expected shape') as CandidateSearchRow[];return {rows:resultRows,count:Number(resultRows[0]?.total_count||0)}
 }
 

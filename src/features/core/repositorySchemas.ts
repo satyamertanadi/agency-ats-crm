@@ -32,9 +32,20 @@ export const candidateSchema=z.object({
   candidate_private_details:candidatePrivateEmbed,
 })
 
+/* The workflow half of the row. This schema has no .passthrough(), so anything the RPC returns and
+ * this object does not declare is silently STRIPPED before it reaches React -- which is why the
+ * columns have to be listed here as well as in the type, and also why adding columns to the RPC is
+ * safe to deploy ahead of the frontend. */
 export const candidateSearchRowSchema=candidateSchema.omit({candidate_private_details:true}).extend({
   owner_name:z.string().nullable(),
   tag_names:z.array(z.string()),skill_names:z.array(z.string()),total_count:z.coerce.number(),
+  last_activity_at:z.string().nullable(),
+  next_task_at:z.string().nullable(),next_task_title:z.string().nullable(),
+  open_job_count:z.coerce.number(),
+  primary_job_id:z.string().nullable(),primary_job_title:z.string().nullable(),
+  primary_stage_name:z.string().nullable(),primary_phase_key:phaseKey.nullable(),
+  primary_stage_entered_at:z.string().nullable(),
+  has_cv:z.boolean(),
 })
 
 const companyPick=z.object({id:z.string(),name:z.string()}).nullable().optional()

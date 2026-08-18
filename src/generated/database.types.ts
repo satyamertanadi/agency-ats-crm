@@ -4519,6 +4519,7 @@ export type Database = {
           p_organization_id: string
           p_owner_member_id?: string
           p_query?: string
+          p_queue?: string
           p_skill?: string
           p_sort?: string
           p_source?: string
@@ -4532,12 +4533,22 @@ export type Database = {
           current_company: string
           current_position: string
           full_name: string
+          has_cv: boolean
           id: string
+          last_activity_at: string
           linkedin_url: string
           location: string
+          next_task_at: string
+          next_task_title: string
+          open_job_count: number
           organization_id: string
           owner_member_id: string
           owner_name: string
+          primary_job_id: string
+          primary_job_title: string
+          primary_phase_key: string
+          primary_stage_entered_at: string
+          primary_stage_name: string
           skill_names: string[]
           source: string
           status: string
