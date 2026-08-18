@@ -63,7 +63,32 @@ export type Candidate = {
   location: string | null; linkedin_url: string | null; status: CandidateStatus; source: string | null; availability: string | null;
   owner_member_id: string | null; created_at: string; updated_at?: string; candidate_private_details?: CandidatePrivate | CandidatePrivate[] | null
 }
-export type CandidateSearchRow=Candidate&{owner_name:string|null;tag_names:string[];skill_names:string[];total_count:number}
+/* What is happening with a candidate, as opposed to who they are. Produced by search_candidates_page
+ * so the list can answer "when did we last touch this, what is owed, where are they" without a
+ * second query per row -- and so the preview pane can stay fed entirely from the row it already has.
+ *
+ * Every field here is nullable for a reason beyond "no data": the RPC is security invoker, so a
+ * member holding candidates.read but not jobs.read / tasks.read / activities.read gets nulls in the
+ * corresponding columns rather than another team's data. Treat null as "not visible or not set",
+ * never as "definitely none". */
+export interface CandidateWorkflowSignals {
+  /** Latest activities.occurred_at. candidates.last_contacted_at is NOT used -- nothing writes it. */
+  last_activity_at:string|null
+  /** Earliest open task with a due date. Null means nothing is scheduled, which the list states. */
+  next_task_at:string|null
+  next_task_title:string|null
+  /** Open pipelines. Lets the UI say "Acme -- Interview +2 more" from one row. */
+  open_job_count:number
+  /** The most recently updated OPEN job_candidate; open_job_count carries the rest. */
+  primary_job_id:string|null
+  primary_job_title:string|null
+  primary_stage_name:string|null
+  primary_phase_key:PipelinePhaseKey|null
+  /** From stage_history, falling back to when they joined the pipeline. Drives days-in-stage. */
+  primary_stage_entered_at:string|null
+  has_cv:boolean
+}
+export type CandidateSearchRow=Candidate&CandidateWorkflowSignals&{owner_name:string|null;tag_names:string[];skill_names:string[];total_count:number}
 export type CandidatePrivate = { email: string | null; phone: string | null; current_salary: number | null; expected_salary: number | null; salary_currency: string | null; work_authorization?:string|null;legal_hold?:boolean }
 export type Company = { id: string; organization_id: string; name: string; industry: string | null; location: string | null; website: string | null; account_status: AccountStatus; business_development_stage: string; updated_at: string }
 /* One company as the BD board sees it. Mirrors list_company_pipeline exactly -- the aggregation is
