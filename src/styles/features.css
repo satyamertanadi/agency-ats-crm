@@ -217,6 +217,29 @@
 .candidate-row-active>td:first-child{box-shadow:inset 3px 0 0 var(--color-accent)}
 .candidate-row-active:focus-visible{outline:none;box-shadow:var(--focus)}
 
+/* The queue strip. Two axes on one row: the radiogroup on the left picks exactly one queue, the
+   Mine toggle on the right is independent and composes with it. margin-left:auto on the toggle is
+   what makes that separation readable without a divider. Wraps rather than scrolls, because a
+   horizontally scrolling row of six tabs hides the very views this exists to surface. */
+.queue-tabs{
+  display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;
+  padding:var(--space-2) var(--space-4);
+  border-bottom:1px solid var(--color-line-soft);background:var(--color-surface);
+}
+.queue-tab-set{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.queue-tab{
+  min-height:28px;padding:3px 11px;
+  border:1px solid var(--color-line-strong);border-radius:var(--radius-pill);
+  background:var(--color-surface);color:var(--color-muted);
+  font-size:var(--text-xs);font-weight:var(--weight-semibold);cursor:pointer;white-space:nowrap;
+  transition:background var(--motion-fast),border-color var(--motion-fast),color var(--motion-fast);
+}
+.queue-tab:hover{border-color:var(--color-muted);color:var(--color-ink)}
+.queue-tab:focus-visible{outline:none;box-shadow:var(--focus)}
+.queue-tab-active{background:var(--color-accent);border-color:var(--color-accent);color:var(--color-on-accent)}
+.queue-tab-active:hover{background:var(--color-accent-hover);border-color:var(--color-accent-hover);color:var(--color-on-accent)}
+.queue-tab-mine{margin-left:auto}
+
 /* Applied filters, stated above the list. See ActiveFilterChips for why the count alone cannot. */
 .active-filters{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-15);padding:var(--space-2) var(--space-4);border-bottom:1px solid var(--color-line-soft);background:var(--color-surface)}
 .active-filters-label{font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:0.04em}
