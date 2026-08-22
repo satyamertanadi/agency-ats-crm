@@ -5,7 +5,7 @@ import {initials} from '../../shared/lib/format'
 import {Badge,StatusBadge} from '../../shared/ui/Page'
 import {Button} from '../../shared/ui/Button'
 import type {CandidateSearchRow} from '../../shared/types/domain'
-import {followUpSignal,pipelineSignal,shortAgo,statusFacets} from './candidateRowSignals'
+import {followUpSignal,pipelineSignal,statusFacets} from './candidateRowSignals'
 
 /* Who the keyboard is currently on, beside the list rather than after a navigation.
  *
@@ -21,9 +21,12 @@ import {followUpSignal,pipelineSignal,shortAgo,statusFacets} from './candidateRo
  *    not in the list row at all; the page's own description promises the list does not expose them.
  *    "Open full record" is the door to those, where the permission is actually checked.
  *
- * Hidden below 1024px in CSS rather than unmounted here: there is no behaviour to fork. j/k still
- * moves the row, Enter still opens the record. The pane is additive display, so a narrow screen
- * simply does not show it and the page behaves exactly as it did.
+ * Hidden below 1440px in CSS, and when the user collapses it, rather than unmounted here: there is no
+ * behaviour to fork. j/k still moves the row, Enter still opens the record. The pane is additive
+ * display, so a narrow screen simply does not show it and the page behaves exactly as it did.
+ *
+ * 1440, not the 1024 this originally shipped with: at 1024 the sidebar plus this pane left the table
+ * about 436px, which is why the identity column wrapped to three lines and Status was clipped.
  */
 export function CandidatePreviewPane({candidate,organizationSlug,onAddToJob,canAddToJob}:{
   candidate:CandidateSearchRow|null
@@ -45,6 +48,14 @@ export function CandidatePreviewPane({candidate,organizationSlug,onAddToJob,canA
   const pipeline=pipelineSignal(candidate,now)
   const followUp=followUpSignal(candidate,now)
   const facets=statusFacets(candidate)
+  /* "Plant Engineering Manager · Screening · 6d" -- role, where they are, how long. Assembled from
+   * whichever parts exist rather than padded with placeholders, so a candidate in no pipeline gets a
+   * shorter line instead of a line full of "Not recorded". */
+  const contextLine=[
+    candidate.current_position||null,
+    pipeline.inPipeline?pipeline.stageLabel||pipeline.jobTitle:null,
+    followUp.state==='overdue'||followUp.state==='today'?followUp.dueLabel:null,
+  ].filter(Boolean).join(' · ')
   return <aside className="candidate-preview" aria-label={`Preview of ${candidate.full_name}`}>
     <header className="candidate-preview-header">
       <span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span>
@@ -54,22 +65,19 @@ export function CandidatePreviewPane({candidate,organizationSlug,onAddToJob,canA
       </div>
     </header>
 
-    {/* Candidate -> Job -> Stage -> Activity -> Next action, in the order the question gets asked:
-      * where are they, when did we last touch them, what is owed. Every value comes from the row the
-      * list already loaded, so this costs no request -- the constraint that lets j/k stay instant.
+    {/* One context line, not a second copy of the row.
       *
-      * The pipeline row is rendered from open_job_count, so a member without jobs.read sees "Not in a
-      * pipeline" rather than a half-built line. That is the RLS degradation showing through as an
-      * absence, which is why none of these say "none" or "never". */}
+      * This used to repeat Pipeline, Stage, Last activity and Next action as their own rows -- all of
+      * which the table already shows, in columns that never drop. Two renderings of the same facts,
+      * side by side, is what made the screen feel like it was showing everything at once. What is
+      * genuinely useful is orientation: enough to confirm the pane is describing the row your eye
+      * just left. Hence one line, and the detail stays where it already was.
+      *
+      * Built from open_job_count, so a member without jobs.read gets the plain role rather than a
+      * half-built line claiming a stage. */}
+    {contextLine&&<p className="candidate-preview-context" title={contextLine}>{contextLine}</p>}
+
     <dl className="candidate-preview-facts">
-      <div><dt>Pipeline</dt><dd>{pipeline.inPipeline
-        ?<span>{pipeline.jobTitle}{pipeline.moreLabel?` ${pipeline.moreLabel}`:''}</span>
-        :<span className="muted">Not in a pipeline</span>}</dd></div>
-      {pipeline.inPipeline&&<div><dt>Stage</dt><dd>{pipeline.stageLabel||<span className="muted">Not recorded</span>}</dd></div>}
-      <div><dt>Last activity</dt><dd>{candidate.last_activity_at?shortAgo(candidate.last_activity_at,now):<span className="muted">None logged</span>}</dd></div>
-      <div><dt>Next action</dt><dd>{followUp.state==='none'
-        ?<span className="muted">No follow-up set</span>
-        :<span>{followUp.taskTitle} · {followUp.dueLabel}</span>}</dd></div>
       <div><dt>Status</dt><dd>{facets.lifecycle
         ?<StatusBadge map={candidateStatus} value={facets.lifecycle}/>
         :<span>{facets.posture||'—'}</span>}</dd></div>

@@ -186,9 +186,20 @@
    grid wider than its track. */
 .candidate-split{display:grid;grid-template-columns:minmax(0,1fr)}
 .candidate-split > .candidate-preview{display:none}
-@media (min-width: 1024px){
-  .candidate-split{grid-template-columns:minmax(0,1fr) 320px;align-items:start}
-  .candidate-split > .candidate-preview{display:flex}
+/* min-width:0 or the grid track refuses to shrink below its content and the whole point -- measuring
+   the space the table actually has -- collapses. */
+.candidate-table-region{min-width:0}
+/* Collapsed by preference: one track at every width, so the table reclaims the full 320px. */
+.candidate-split-solo > .candidate-preview{display:none}
+/* 1440, not 1024. At 1024 the 268px sidebar plus this 320px pane left ~436px for six columns of
+   two-line cells -- the table could not fit and overflowed, which is the regression this replaces.
+   1440 is the first width where both fit with room for the identity column to stay readable.
+   The pane stays hidden below it regardless of the stored preference, and crossing the breakpoint
+   never writes that preference, so widening again restores what the user actually chose. */
+@media (min-width: 1440px){
+  .candidate-split:not(.candidate-split-solo){grid-template-columns:minmax(0,1fr) 320px;align-items:start}
+  .candidate-split:not(.candidate-split-solo) > .candidate-preview{display:flex}
+  .pane-toggle{display:inline-flex}
 }
 .candidate-preview{flex-direction:column;gap:var(--space-3);padding:var(--space-4);border-left:1px solid var(--color-line-soft);background:var(--color-surface-soft);
   /* Sticks while the list scrolls, so the preview stays beside the row it describes on a long page. */
@@ -285,7 +296,51 @@
  * all rather than a bare <strong>. */
 .cell-lead{display:flex;align-items:center;gap:6px;min-width:0}
 .cell-strong{font-weight:var(--weight-semibold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cell-quiet{color:var(--color-muted)}
+.cell-quiet{color:var(--color-muted);white-space:nowrap}
+
+/* Truncate EACH LINE, not the cell.
+ *
+ * The two-line cell is the point -- a fact and its context -- so the structure stays; what must not
+ * happen is a line wrapping and pushing the row to three or four times its height. A 24-character
+ * name in a 210px column wrapped to three lines, and once one row does that the whole table loses
+ * its scan rhythm. Fixed column widths without this would clip mid-glyph instead.
+ *
+ * Scoped to the allocated table so every other table in the app keeps wrapping as before. */
+.table-allocated{table-layout:fixed}
+/* Cap every cell at its column, so no single atom can push the table wider than its container.
+ *
+ * table-layout:fixed sets column widths, but a cell whose content cannot shrink -- a <button>, a
+ * nowrap chip -- still forces the TABLE wider. Found by measurement: at a larger browser default font
+ * the "Add to job" button needed 107px in a 92px column and reopened the horizontal scroll this
+ * change exists to close. Capping here makes `scrollWidth <= clientWidth` structural rather than a
+ * property of today's particular cell contents -- a new badge or a longer button label cannot quietly
+ * break it later. Text still truncates gracefully via the per-line ellipsis rules below. */
+.table-allocated td{overflow:hidden}
+.table-allocated td > span,
+.table-allocated .candidate-row-identity-text > *,
+.table-allocated .candidate-row-identity-text span,
+.table-allocated .record-link strong{
+  display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.candidate-row-identity-text{min-width:0;flex:1}
+.table-allocated .record-link{display:block;min-width:0;overflow:hidden}
+
+/* The physical floor. Below this, table-layout:fixed would happily compress Candidate toward zero to
+   satisfy width:100% -- which is the unreadable identity column this whole change removes. Holding a
+   real min-width makes .table-scroll scroll internally instead, which is the deliberate fallback at
+   phone widths. 638 = 208 Candidate + 210 Pipeline + 220 Follow-up; see candidateColumns.ts. */
+.candidates-table-three table{min-width:638px}
+.candidates-table-four table{min-width:730px}
+
+/* Only meaningful where the pane can exist; the media query above reveals it at 1440px. */
+.pane-toggle{
+  display:none;flex-shrink:0;min-height:28px;padding:3px 11px;
+  border:1px solid var(--color-line-strong);border-radius:var(--radius-pill);
+  background:var(--color-surface);color:var(--color-muted);
+  font-size:var(--text-xs);font-weight:var(--weight-semibold);cursor:pointer;white-space:nowrap;
+}
+.pane-toggle:hover{border-color:var(--color-muted);color:var(--color-ink)}
+.pane-toggle:focus-visible{outline:none;box-shadow:var(--focus)}
 
 /* A missing fact, drawn as a slot to fill rather than an empty cell. Dashed, because a solid border
  * would read as a value and no border at all reads as nothing -- which is exactly how "Unassigned"

@@ -1,4 +1,4 @@
-import {useMemo,useRef,useState,type ReactNode} from 'react'
+import {useCallback,useMemo,useRef,useState,type ReactNode} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ChevronLeft,ChevronRight,Merge,Plus,Search,Users} from 'lucide-react'
 import {Link,useNavigate,useSearchParams} from 'react-router'
@@ -32,7 +32,9 @@ import {useShortcut} from '../../shared/lib/useShortcut'
 import {followUpSignal,pipelineSignal,statusFacets,type FollowUpSignal} from './candidateRowSignals'
 import {emptyQueueMessage,parseQueue} from './candidateQueues'
 import {CandidateQueueTabs} from './CandidateQueueTabs'
-import {DENSITY_OPTIONS,readDensity,writeDensity,type CandidateDensity} from './candidateDensity'
+import {DENSITY_OPTIONS,readDensity,readPaneOpen,writeDensity,writePaneOpen,type CandidateDensity} from './candidateDensity'
+import {resolveColumnTier,visibleCandidateColumns,type CandidateColumnId} from './candidateColumns'
+import {useContainerTier} from '../../shared/lib/useContainerTier'
 import {SegmentedControl} from '../../shared/ui/SegmentedControl'
 import type {CandidateSearchRow} from '../../shared/types/domain'
 
@@ -107,6 +109,18 @@ export function CandidatesPage(){
    * would become everybody's. */
   const [density,setDensity]=useState<CandidateDensity>(readDensity)
   const chooseDensity=(next:CandidateDensity)=>{setDensity(next);writeDensity(next)}
+  const [paneOpen,setPaneOpen]=useState<boolean>(readPaneOpen)
+  const choosePane=(next:boolean)=>{setPaneOpen(next);writePaneOpen(next)}
+
+  /* Which columns fit. Driven by the measured region alone: the pane and the sidebar change that
+   * measurement, so neither needs a branch here. selectionMode is folded into the resolver rather
+   * than applied afterwards because its checkbox column costs 44px of real budget -- it has to be
+   * able to DEMOTE a tier, not merely prepend a column to whatever tier was already chosen. */
+  const tableRegion=useRef<HTMLDivElement>(null)
+  const selectionActive=selectionMode!=='none'
+  const resolveTier=useCallback((width:number|null)=>resolveColumnTier(width,selectionActive),[selectionActive])
+  const tier=useContainerTier(tableRegion,resolveTier)
+  const columns=useMemo(()=>visibleCandidateColumns(tier,selectionActive),[tier,selectionActive])
   /* Narrowed rather than passed through: an unrecognised ?queue= becomes null here, matching the SQL,
    * where an unknown value matches nothing. Without this a typo'd URL would render an active-looking
    * tab that is not one of ours and an empty list with no explanation. */
@@ -224,6 +238,37 @@ export function CandidatesPage(){
   // Straight off the loaded page, so the pane costs no request and j/k stays instant.
   const previewed=rows.find((row)=>row.id===active)||null
   const pages=Math.max(1,Math.ceil((query.data?.count||0)/pageSize));const showPagination=(query.data?.count||0)>pageSize
+
+  /* One cell per column id, so dropping a column is purely a matter of it not being in the list.
+   * The previous shape hard-coded every <td> inline, which meant a hidden column had to be a
+   * conditional in two places (header array and row) that could drift apart. */
+  const renderCell=(id:CandidateColumnId,candidate:CandidateSearchRow):ReactNode=>{
+    switch(id){
+      case 'select':return <input aria-label={`Select ${candidate.full_name}`} type="checkbox" checked={selected.includes(candidate.id)}
+        disabled={selectionMode==='merge'&&!selected.includes(candidate.id)&&selected.length===2}
+        onClick={(event)=>{if(selectionMode!=='merge')toggleRow(candidate.id,!selected.includes(candidate.id),event.shiftKey)}}
+        onChange={(event)=>{if(selectionMode==='merge')toggle(candidate.id,event.target.checked)}}/>
+      case 'candidate':{
+        // title is a desktop convenience for a truncated name, never the accessible route -- the
+        // preview pane and the full record are that.
+        const role=candidate.current_position?`${candidate.current_position}${candidate.current_company?` at ${candidate.current_company}`:''}`:'Role not recorded'
+        return <div className="candidate-row-identity">
+          <span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span>
+          <div className="candidate-row-identity-text">
+            <Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`}><strong title={candidate.full_name}>{candidate.full_name}</strong></Link>
+            <span title={role}>{role}</span>
+          </div>
+        </div>
+      }
+      case 'pipeline':return <PipelineCell row={candidate} now={now}/>
+      case 'followUp':return <FollowUpCell row={candidate} now={now}/>
+      case 'owner':return candidate.owner_name||<Gap>Unassigned</Gap>
+      case 'status':return <StatusCell row={candidate}/>
+      case 'action':return capabilities.data?.canMovePipeline
+        ?<Button size="sm" variant="secondary" disabled={candidate.status==='do_not_contact'||candidate.status==='archived'} onClick={()=>openPlacement([candidate])}>Add to job</Button>
+        :null
+    }
+  }
   return <Page title="Candidates" eyebrow="Talent database" description="Find the right people, check readiness, and place them into a job without exposing private data in the list." actions={<>{selectionMode==='bulk'&&selected.length>0&&<Button variant="secondary" leadingIcon={<Users size={15}/>} onClick={()=>openPlacement()}>Add {selected.length} to job</Button>}{selectionMode==='merge'&&selected.length===2&&<Button variant="secondary" leadingIcon={<Merge size={15}/>} onClick={openMerge}>Merge selected</Button>}{capabilities.data?.canMovePipeline&&<Button variant="secondary" onClick={()=>{setSelectionMode((mode)=>mode==='bulk'?'none':'bulk');setSelected([])}}>{selectionMode==='bulk'?'Done selecting':'Select candidates'}</Button>}{capabilities.data?.canWriteCandidates&&<><Button variant="quiet" onClick={()=>{setSelectionMode((mode)=>mode==='merge'?'none':'merge');setSelected([])}}>{selectionMode==='merge'?'Done':'Manage duplicates'}</Button><Button leadingIcon={<Plus size={15}/>} onClick={()=>{setOpen(true)}}>Add candidate</Button></>}</>}>
     {/* Selecting rows used to be silent -- checkboxes ticked and the header buttons enabled, with
       * nothing else on the page saying what was selected or what to do next. Merge specifically
@@ -245,7 +290,10 @@ export function CandidatesPage(){
       </div>
     </Callout>}
     {selectionMode==='merge'&&<Callout tone="info">{selected.length===0?'Select two candidates to merge.':selected.length===1?'Select one more candidate to merge.':'Two candidates selected — choose which record to keep.'}</Callout>}
-    <Panel><SavedViewBar resource="candidates" paramKeys={viewParamKeys} params={params} onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/><div className="toolbar"><div className="search-box"><Search size={15}/><Input ref={searchRef} aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div><Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select><span className="muted">{query.data?.count??0} candidates</span><SegmentedControl className="density-control" label="Row density" options={DENSITY_OPTIONS} value={density} onChange={chooseDensity}/></div>
+    <Panel><SavedViewBar resource="candidates" paramKeys={viewParamKeys} params={params} onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/><div className="toolbar"><div className="search-box"><Search size={15}/><Input ref={searchRef} aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div><Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select><span className="muted">{query.data?.count??0} candidates</span><SegmentedControl className="density-control" label="Row density" options={DENSITY_OPTIONS} value={density} onChange={chooseDensity}/>{/* Hidden below 1440px by CSS, where the pane is unavailable anyway -- a control that cannot
+        * change anything is worse than no control. Toggling never fires on a resize, so narrowing
+        * the window hides the pane without overwriting what the user chose. */}
+      <button type="button" className="pane-toggle" aria-pressed={paneOpen} title={paneOpen?'Hide the preview pane':'Show the preview pane'} onClick={()=>choosePane(!paneOpen)}>{paneOpen?'Hide preview':'Show preview'}</button></div>
     <CandidateQueueTabs queue={queue} mine={Boolean(currentMemberId)&&filters.ownerMemberId===currentMemberId}
       mineAvailable={Boolean(currentMemberId)}
       onQueue={(next)=>setFilter('queue',next||'')}
@@ -255,17 +303,20 @@ export function CandidatesPage(){
         said "LinkedIn". Both sides are curated values now, and the filter offers the same list the
         candidate form writes. */}
       <Field label="Source"><Select value={filters.source} onChange={(event)=>setFilter('source',event.target.value)}><option value="">Any source</option>{candidateSource.all.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</Select></Field><Field label="Owner"><Select value={filters.ownerMemberId} onChange={(event)=>setFilter('owner',event.target.value)}><option value="">Anyone</option>{team.data?.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><Field label="Tag"><Input value={filters.tag} onChange={(event)=>setFilter('tag',event.target.value)}/></Field><Field label="Skill"><Input value={filters.skill} onChange={(event)=>setFilter('skill',event.target.value)}/></Field><Field label="Availability"><Select value={filters.availability} onChange={(event)=>setFilter('availability',event.target.value)}><option value="">Any availability</option>{candidateAvailability.all.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</Select></Field><Field label="Sort"><Select value={`${filters.sort}:${filters.direction}`} onChange={(event)=>{const [sort='updated',dir='desc']=event.target.value.split(':');const next=new URLSearchParams(params);next.set('sort',sort);next.set('dir',dir);next.delete('page');setParams(next,{replace:true})}}><option value="updated:desc">Recently updated</option><option value="created:desc">Newest added</option><option value="name:asc">Name A–Z</option><option value="location:asc">Location A–Z</option></Select></Field></div></details>
-      <div className="candidate-split">
-      {/* Six columns, down from seven, carrying far more. Location and the old "Skills and tags"
-        * are gone: the header was inaccurate (only skills ever rendered), both are fully in the
-        * preview pane, and both remain filterable -- which bought the room for Pipeline and
-        * Follow-up, the two facts a consultant actually triages on. */}
-      {query.isLoading?<TableSkeleton rows={8} columns={selectionMode!=='none'?7:6} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState {...emptyQueueMessage(queue)}/>:<Table className={`candidates-table candidates-density-${density}`} headers={[...(selectionMode!=='none'?['Select']:[]),'Candidate','Pipeline','Follow-up','Owner','Status','Action']}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
+      <div className={`candidate-split${paneOpen?'':' candidate-split-solo'}`}>
+      {/* The measured region. Deliberately the grid track the table occupies -- AFTER the sidebar and
+        * the pane have taken their share -- so the column ladder responds to space the table can
+        * actually use. Measuring the viewport instead would need three media queries (window,
+        * sidebar-collapsed, pane-open) that can disagree; one observer here cannot. */}
+      <div className="candidate-table-region" ref={tableRegion}>
+      {query.isLoading?<TableSkeleton rows={8} columns={columns.length} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState {...emptyQueueMessage(queue)}/>:<Table className={`candidates-table candidates-density-${density} candidates-table-${tier}`} headers={columns.map((column)=>({label:column.label,width:column.width}))}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
         aria-selected={selected.includes(candidate.id)}
         onFocus={()=>setActiveId(candidate.id)}
-        className={[candidate.status==='do_not_contact'||candidate.status==='archived'?'candidate-row-muted':'',candidate.id===active?'candidate-row-active':''].filter(Boolean).join(' ')||undefined}>{selectionMode!=='none'&&<td><input aria-label={`Select ${candidate.full_name}`} type="checkbox" checked={selected.includes(candidate.id)} disabled={selectionMode==='merge'&&!selected.includes(candidate.id)&&selected.length===2} onClick={(event)=>{if(selectionMode!=='merge')toggleRow(candidate.id,!selected.includes(candidate.id),event.shiftKey)}} onChange={(event)=>{if(selectionMode==='merge')toggle(candidate.id,event.target.checked)}}/></td>}<td><div className="candidate-row-identity"><span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span><div><Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`}><strong>{candidate.full_name}</strong></Link><span>{candidate.current_position?`${candidate.current_position}${candidate.current_company?` at ${candidate.current_company}`:''}`:'Role not recorded'}</span></div></div></td><td><PipelineCell row={candidate} now={now}/></td><td><FollowUpCell row={candidate} now={now}/></td><td>{candidate.owner_name||<Gap>Unassigned</Gap>}</td><td><StatusCell row={candidate}/></td><td>{capabilities.data?.canMovePipeline&&<Button size="sm" variant="secondary" disabled={candidate.status==='do_not_contact'||candidate.status==='archived'} onClick={()=>openPlacement([candidate])}>Add to job</Button>}</td></tr>)}</Table>}
-      {/* Rendered at every width; CSS hides it below 1024px. See CandidatePreviewPane for why there
-        * is no behaviour to fork. */}
+        className={[candidate.status==='do_not_contact'||candidate.status==='archived'?'candidate-row-muted':'',candidate.id===active?'candidate-row-active':''].filter(Boolean).join(' ')||undefined}>{columns.map((column)=><td key={column.id}>{renderCell(column.id,candidate)}</td>)}</tr>)}</Table>}
+      </div>
+      {/* Rendered at every width; CSS hides it below 1440px, and .candidate-split-solo hides it when
+        * the user has collapsed it. Eligibility and preference stay separate on purpose -- see
+        * readPaneOpen. There is still no behaviour to fork: j/k and Enter are unchanged either way. */}
       <CandidatePreviewPane candidate={previewed} organizationSlug={organization?.slug||'workspace'}
         canAddToJob={Boolean(capabilities.data?.canMovePipeline)} onAddToJob={(candidate)=>openPlacement([candidate])}/>
       </div>
