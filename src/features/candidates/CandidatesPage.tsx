@@ -327,6 +327,11 @@ export function CandidatesPage(){
       owners={team.data||[]} defaultOwnerMemberId={currentMemberId}
       onSaved={async(id:string)=>{setOpen(false);await cache.invalidateQueries({queryKey:['candidates-page',organization?.id]});navigate(`/app/${organization!.slug}/candidates/${id}`)}}/>
     <Modal title="Merge duplicate candidates" open={mergeOpen} onClose={()=>setMergeOpen(false)}><div className="stack"><p className="warning-box">This moves history, documents, tasks, notes, pipeline assignments, and private details into one record. The other record is archived and the action is audit logged.</p><Field label="Record to keep"><Select value={keptId} onChange={(event)=>setKeptId(event.target.value)}>{selectedRows.map((item)=><option value={item.id} key={item.id}>{item.full_name} · {item.current_position||'No current role'}</option>)}</Select></Field><Field label="Reason"><Textarea value={mergeReason} onChange={(event)=>setMergeReason(event.target.value)}/></Field>{mergeMutation.error&&<p className="form-error" role="alert">{mergeMutation.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={()=>setMergeOpen(false)}>Cancel</Button><Button variant="danger" loading={mergeMutation.isPending} disabled={!keptId} onClick={()=>mergeMutation.mutate()}>{'Merge records'}</Button></div></div></Modal>
-    <AddCandidateToJobModal open={placementOpen} onClose={closePlacement} candidates={placementCandidates}/>
+    {/* AddCandidateToJobModal's own onSuccess invalidates pipeline/job-health/candidate-pipelines/
+      * today -- never candidates-page, the key THIS list reads. Without onAdded, the Pipeline column
+      * stays "Not in a pipeline" after a successful add until something else remounts the query (an
+      * F5). Same idiom already used by mergeMutation, assignOwner and AddCandidateModal below. */}
+    <AddCandidateToJobModal open={placementOpen} onClose={closePlacement} candidates={placementCandidates}
+      onAdded={()=>cache.invalidateQueries({queryKey:['candidates-page',organization?.id]})}/>
   </Page>
 }

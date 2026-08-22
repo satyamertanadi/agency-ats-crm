@@ -33,6 +33,36 @@ describe('AddCandidateToJobModal',()=>{
     await waitFor(()=>expect(addCandidatesToJob).toHaveBeenCalledWith('org-1','job-1',['cand-1'],undefined))
   },10000)
 
+  /* onSuccess's own hardcoded invalidations (pipeline, job-health, candidate-pipelines, today) never
+   * include candidates-page -- the key the Candidates list actually reads -- which is exactly why a
+   * candidate's row used to sit on "Not in a pipeline" after a successful add until an F5. onAdded is
+   * the caller's only way to close that gap, and both real call sites (CandidatesPage,
+   * CandidateDetailPage) now depend on it firing after every successful add. This is the one place
+   * that mechanism itself is under test, independent of which query key any particular caller passes. */
+  it('calls onAdded after a successful add, which is what lets a caller refresh its own list',async()=>{
+    const onAdded=vi.fn().mockResolvedValue(undefined)
+    renderModal({onAdded})
+    const jobSelect=await screen.findByLabelText('Job') as HTMLSelectElement
+    await waitFor(()=>expect(jobSelect).toBeEnabled())
+    fireEvent.change(jobSelect,{target:{value:'job-1'}})
+    await waitFor(()=>expect(screen.getByLabelText('Starting stage')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button',{name:'Add to job'}))
+    await waitFor(()=>expect(onAdded).toHaveBeenCalledTimes(1))
+  },10000)
+
+  it('does not call onAdded when the write fails',async()=>{
+    addCandidatesToJob.mockRejectedValueOnce(new Error('rls'))
+    const onAdded=vi.fn().mockResolvedValue(undefined)
+    renderModal({onAdded})
+    const jobSelect=await screen.findByLabelText('Job') as HTMLSelectElement
+    await waitFor(()=>expect(jobSelect).toBeEnabled())
+    fireEvent.change(jobSelect,{target:{value:'job-1'}})
+    await waitFor(()=>expect(screen.getByLabelText('Starting stage')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button',{name:'Add to job'}))
+    await waitFor(()=>expect(addCandidatesToJob).toHaveBeenCalled())
+    expect(onAdded).not.toHaveBeenCalled()
+  },10000)
+
   /* Opened from a job workspace, the job is not a question: asking it would offer a picker of every
    * job in the organization with one right answer, and reading that picker is the org-wide query the
    * job side has no other reason to run. */
