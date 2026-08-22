@@ -151,6 +151,32 @@ describe('useListNavigation',()=>{
       expect(onChange).not.toHaveBeenCalled()
     })
   })
+
+  /* A widget nearer the event may already own the key.
+   *
+   * The document binding sees every keystroke on the page, including ones a focused control has
+   * acted on -- and preventDefault stops the browser's default action WITHOUT stopping the event
+   * reaching document. A SegmentedControl moves between its options on the arrow keys, so without
+   * this one ArrowDown would move the control and the row cursor at once. */
+  describe('deferring to a handled event',()=>{
+    it('ignores an arrow key a focused widget has already claimed',()=>{
+      const onChange=vi.fn()
+      renderHook(()=>useListNavigation({ids,activeId:'a',onChange,global:true}))
+      act(()=>{
+        const event=new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true})
+        event.preventDefault() // what SegmentedControl does before this listener runs
+        document.dispatchEvent(event)
+      })
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('still moves on an arrow key nothing else claimed',()=>{
+      const onChange=vi.fn()
+      renderHook(()=>useListNavigation({ids,activeId:'a',onChange,global:true}))
+      act(()=>{press('ArrowDown')})
+      expect(onChange).toHaveBeenCalledWith('b')
+    })
+  })
 })
 
 /* The split that makes the two bindings possible; isTypingTarget must stay a superset of isFormField

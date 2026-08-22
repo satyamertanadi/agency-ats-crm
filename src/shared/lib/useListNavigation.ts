@@ -69,10 +69,19 @@ export function useListNavigation({ids,activeId,onChange,onOpen,enabled=true,wra
   const previous=useCallback(()=>move(-1),[move])
   const next=useCallback(()=>move(1),[move])
 
-  const handle=useCallback((event:{key:string;metaKey:boolean;ctrlKey:boolean;altKey:boolean;target:EventTarget|null;preventDefault:()=>void},blocked:(target:EventTarget|null)=>boolean)=>{
+  const handle=useCallback((event:{key:string;metaKey:boolean;ctrlKey:boolean;altKey:boolean;target:EventTarget|null;defaultPrevented:boolean;preventDefault:()=>void},blocked:(target:EventTarget|null)=>boolean)=>{
     if(!enabled)return
     // Ctrl/Cmd/Alt chords belong to the browser and the OS; claiming one is how an app breaks Find.
     if(event.metaKey||event.ctrlKey||event.altKey)return
+    /* Someone closer to the event already claimed this key.
+     *
+     * The document-level binding sees every keystroke on the page, including ones a focused widget
+     * has already acted on. A SegmentedControl moves between its options with the arrow keys and
+     * calls preventDefault; preventDefault stops the browser's default action but does NOT stop the
+     * event reaching document, so without this check one ArrowDown would move the segmented control
+     * AND the row cursor at the same time. defaultPrevented is the general signal for "handled" --
+     * cheaper and more honest than listing every widget that owns arrow keys in isTypingTarget. */
+    if(event.defaultPrevented)return
     if(blocked(event.target))return
     if(event.key==='j'||event.key==='ArrowDown'){event.preventDefault();next();return}
     if(event.key==='k'||event.key==='ArrowUp'){event.preventDefault();previous();return}
