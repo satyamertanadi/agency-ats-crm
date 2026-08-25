@@ -13,7 +13,7 @@ import {SegmentedControl} from '../../shared/ui/SegmentedControl'
 import {EmptyState,ErrorState,TableSkeleton} from '../../shared/ui/States'
 import {Table} from '../../shared/ui/Table'
 import {ChartCard,chartTooltipStyle} from '../../shared/ui/ChartCard'
-import {formatDateTime,formatMoney,formatMoneyCompact} from '../../shared/lib/format'
+import {formatDateRange,formatDateTime,formatMoney,formatMoneyCompact} from '../../shared/lib/format'
 import {buildConsultantRows,buildRecruitmentFunnel,isCompletedPlacement,isOverdueTask,isRecordedPlacement,metricDefinitions,reportDateRange,shortNameLabels,type ConsultantRow} from './reportMetrics'
 
 /* A money figure sized for a KPI cell: abbreviated on screen, exact on hover and to a screen reader.
@@ -94,7 +94,12 @@ export function ScorecardPage(){
     options={[{id:'mine',label:'My scorecard'},{id:'team',label:'Team view'}]}/>:null
   const datePicker=<div className="date-range"><Field label="From"><Input type="date" value={from} max={to} onChange={(event)=>setFrom(event.target.value)}/></Field><Field label="To"><Input type="date" value={to} min={from} onChange={(event)=>setTo(event.target.value)}/></Field></div>
   const actions=<div className="page-scope-actions">{scopeToggle}{datePicker}</div>
-  const context=<p className="report-context">Workspace timezone: <strong>{organization?.timezone}</strong> · Refreshed <time dateTime={now.toISOString()}>{formatDateTime(now.toISOString())}</time></p>
+  /* The two <input type="date"> above render in the viewer's browser locale, from shadow DOM that
+   * cannot be reformatted -- so an en-US machine shows "12/31/2025" and, worse, "08/09/2026" for a
+   * date that half the world reads as 8 September and half as 9 August. Echoing the resolved range
+   * with the month as a word removes the second reading without replacing a native control (and
+   * losing its calendar, keyboard handling, mobile picker and min/max enforcement) to get there. */
+  const context=<p className="report-context">Showing <strong>{formatDateRange(from,to)}</strong> · Workspace timezone: <strong>{organization?.timezone}</strong> · Refreshed <time dateTime={now.toISOString()}>{formatDateTime(now.toISOString())}</time></p>
   const footnote=<p className="muted report-note">Counts use the definitions in the product metric contract and reconcile across both scopes for the same period. Fee totals include only recorded placements already denominated in {organization?.base_currency}; no exchange rate is invented.</p>
 
   if(activeScope==='team'){

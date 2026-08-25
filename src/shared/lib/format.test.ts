@@ -1,5 +1,5 @@
 import {afterEach,describe,expect,it} from 'vitest'
-import {configureFormat,formatMoney,formatSalary} from './format'
+import {configureFormat,formatDateRange,formatMoney,formatSalary} from './format'
 
 /* configureFormat writes module-global state (it is called once from OrganizationProvider), so each
  * test restores the documented pre-org defaults rather than leaking a currency into the next one. */
@@ -37,5 +37,46 @@ describe('formatSalary',()=>{
   it('leaves formatMoney unlabelled, because a fee is a sum and not a rate',()=>{
     configureFormat({locale:'en-GB',currency:'IDR'})
     expect(formatMoney(497500000)).toBe(idr('497,500,000'))
+  })
+})
+
+/* The Scorecard's date inputs are native <input type="date">, whose display format is browser shadow
+ * DOM and cannot be reformatted -- an en-US viewer sees "08/09/2026" for a date that is 8 September
+ * to half the world and 9 August to the other half. formatDateRange is the unambiguous echo beside
+ * them, so these assert the one property that matters: the month is never a bare number. */
+describe('formatDateRange',()=>{
+  it('renders the month as a word, so the range has only one reading',()=>{
+    configureFormat({locale:'en-GB',timeZone:'Asia/Makassar'})
+    expect(formatDateRange('2025-12-31','2026-08-25')).toBe('31 Dec 2025 – 25 Aug 2026')
+  })
+
+  /* The ambiguous case by name. Whatever the viewer's locale does to the ORDER, the month must not
+   * come back as a digit -- that is what makes the echo worth rendering at all. */
+  it('stays unambiguous under a month-first locale',()=>{
+    configureFormat({locale:'en-US',timeZone:'Asia/Makassar'})
+    const rendered=formatDateRange('2026-09-08','2026-09-08')
+    expect(rendered).toContain('Sep')
+    expect(rendered).not.toMatch(/\d+\/\d+/)
+  })
+
+  /* Plain calendar dates off a date input, NOT instants. Converting them through the workspace zone
+   * would shift the boundary a day for any viewer behind it -- the exact bug this exists to prevent,
+   * reintroduced. A far-eastern workspace zone must not move 1 Jan onto 31 Dec. */
+  it('does not shift a calendar date through the workspace timezone',()=>{
+    configureFormat({locale:'en-GB',timeZone:'Pacific/Kiritimati'})
+    expect(formatDateRange('2026-01-01','2026-01-01')).toBe('1 Jan 2026')
+  })
+
+  it('collapses an identical start and end to one date',()=>{
+    configureFormat({locale:'en-GB',timeZone:'Asia/Makassar'})
+    expect(formatDateRange('2026-08-25','2026-08-25')).toBe('25 Aug 2026')
+  })
+
+  it('describes an open-ended or empty range without inventing a bound',()=>{
+    configureFormat({locale:'en-GB',timeZone:'Asia/Makassar'})
+    expect(formatDateRange('2026-08-25',null)).toBe('From 25 Aug 2026')
+    expect(formatDateRange(null,'2026-08-25')).toBe('Up to 25 Aug 2026')
+    expect(formatDateRange(null,null)).toBe('')
+    expect(formatDateRange('not-a-date','2026-08-25')).toBe('Up to 25 Aug 2026')
   })
 })

@@ -17,7 +17,7 @@ import {Field,Input,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
 import {Badge,Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {candidateStatus,profileStatus,type Tone} from '../../shared/lib/status'
-import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
+import {DetailSkeleton,EmptyState,ErrorState} from '../../shared/ui/States'
 import {formatCvDate,formatDate,formatSalary} from '../../shared/lib/format'
 import {renderWhatsAppMessage,whatsAppLink} from '../../shared/lib/whatsapp'
 import {CandidateCvParser} from './CandidateCvParser'
@@ -102,7 +102,22 @@ export function CandidateDetailPage(){
     const timer=setTimeout(()=>setHighlightPipelines(false),1600)
     return ()=>clearTimeout(timer)
   },[tab,highlightPipelines])
-  if(detail.isLoading||documents.isLoading||members.isLoading||profileVersions.isLoading||pipelines.isLoading)return <LoadingState/>;if(detail.error||documents.error||members.error||profileVersions.error||pipelines.error||!detail.data)return <ErrorState error={detail.error||documents.error||members.error||profileVersions.error||pipelines.error}/>
+  /* Gated on the PRIMARY query only. This used to wait on all five in parallel, so the page showed a
+   * bare centred spinner until the slowest of them landed -- and three of the five (documents,
+   * profile versions, team members) are supporting detail that no part of the header, summary strip
+   * or tab bar depends on. Worse, `members` is workspace-wide reference data identical for every
+   * candidate, so opening a second candidate re-blocked the whole page on a list that was already in
+   * cache and merely stale.
+   *
+   * The sections that genuinely need a secondary query now wait for their own; everything reading
+   * `members` degrades to an empty owner list for a moment rather than withholding the record.
+   *
+   * The error gate keeps every query, deliberately: a failed supporting query still has to surface.
+   * But a failure only counts once that query has actually settled -- `detail.data` being present is
+   * what proves the record itself loaded. */
+  if(detail.isLoading)return <Page title="Candidate" breadcrumbs={<Link className="button button-quiet" to={`/app/${organization?.slug}/candidates`}><ArrowLeft size={15}/>Candidates</Link>}><Panel padding="none"><DetailSkeleton sections={3} label="Opening candidate…"/></Panel></Page>
+  if(detail.error||!detail.data)return <ErrorState error={detail.error}/>
+  if(documents.error||members.error||profileVersions.error||pipelines.error)return <ErrorState error={documents.error||members.error||profileVersions.error||pipelines.error}/>
   const candidate=detail.data;const privateData=Array.isArray(candidate.candidate_private_details)?candidate.candidate_private_details[0]:candidate.candidate_private_details
   const ownerOptions=(members.data||[]).filter((member)=>member.status==='active').map((member)=>({id:member.id,label:member.profiles?.full_name||member.profiles?.email||'Teammate'}))
   const startEditing=()=>{editForm.reset({full_name:candidate.full_name,owner_member_id:candidate.owner_member_id||'',current_company:candidate.current_company||'',current_position:candidate.current_position||'',location:candidate.location||'',source:candidate.source||'',linkedin_url:candidate.linkedin_url||'',portfolio_url:candidate.portfolio_url||'',availability:candidate.availability||'',notice_period_days:candidate.notice_period_days??undefined,status:candidate.status,email:privateData?.email||'',phone:privateData?.phone||'',current_salary:privateData?.current_salary??undefined,expected_salary:privateData?.expected_salary??undefined,salary_currency:privateData?.salary_currency||organization?.base_currency||'',work_authorization:privateData?.work_authorization||''});setEditing(true)}

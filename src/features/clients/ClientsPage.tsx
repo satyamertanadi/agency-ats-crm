@@ -4,6 +4,7 @@ import {Building2,CalendarClock,Plus,Search,TriangleAlert} from 'lucide-react'
 import {Link,useNavigate,useSearchParams} from 'react-router'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
+import {prefetchHandlers,usePrefetchRecord} from '../core/usePrefetchRecord'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {createCompany,createContact,listContacts} from '../core/repository'
 import {listCompanyPipeline,listTeamMembers} from '../core/commercialRepository'
@@ -33,6 +34,7 @@ import {useOpenOnNewParam} from '../../shared/lib/useOpenOnNewParam'
 export function ClientsPage(){
   const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const navigate=useNavigate();const toast=useToast()
   const [open,setOpen]=useState(false);const [params,setParams]=useSearchParams()
+  const prefetch=usePrefetchRecord()
   const view=params.get('view')==='board'?'board':'list';const query=params.get('q')||'';const industryFilter=params.get('industry')||''
   const healthFilter=(params.get('health') as AccountHealthFilter)||'all'
   const setParam=(key:string,value:string)=>{const next=new URLSearchParams(params);if(value)next.set(key,value);else next.delete(key);setParams(next,{replace:true})}
@@ -159,7 +161,7 @@ export function ClientsPage(){
               const value=formatMoneyCompact(client.expected_open_fee,organization?.base_currency)
               return <tr key={client.id}>
                 <td>
-                  <Link className="record-link" to={`/app/${organization?.slug}/clients/${client.id}`}><strong>{client.name}</strong></Link>
+                  <Link className="record-link" to={`/app/${organization?.slug}/clients/${client.id}`} {...prefetchHandlers(()=>prefetch('client',client.id))}><strong>{client.name}</strong></Link>
                   <span>{industryLabel(client.industry)||NOT_RECORDED}</span>
                 </td>
                 {/* Sentence case, from bdStageLabel's own vocabulary -- the raw column is free text, so

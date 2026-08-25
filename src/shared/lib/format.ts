@@ -80,6 +80,42 @@ export function formatDate(value:string|null|undefined){
   return new Intl.DateTimeFormat(config.locale,{dateStyle:'medium',timeZone:config.timeZone}).format(new Date(value))
 }
 
+/* A date range stated so it cannot be read two ways.
+ *
+ * The date INPUTS on Scorecard are <input type="date">, whose display format lives in browser shadow
+ * DOM and cannot be restyled or reformatted -- the browser renders it in the viewer's own locale, so
+ * an en-US machine shows 12/31/2025. That is locale-correct, and for most values it is also
+ * genuinely ambiguous: 08/09/2026 is the 8th of September to half the world and the 9th of August to
+ * the other half, and nothing on screen says which.
+ *
+ * Rather than replace a native control -- losing its calendar, its keyboard handling, its mobile
+ * picker and its min/max enforcement to hand-rolled equivalents -- the resolved range is echoed
+ * beneath it in a form with no second reading. `month:'short'` is what does the work: a month as a
+ * WORD is unambiguous in every locale, so this stays correct under the viewer-locale rule the rest
+ * of this module follows (en-GB "31 Dec 2025", en-US "Dec 31, 2025" -- different order, same single
+ * meaning) rather than pinning one region's convention for everybody.
+ *
+ * Deliberately not timezone-converted: `from` and `to` are plain calendar dates off a date input
+ * (YYYY-MM-DD), not instants. Passing them through a zone would shift them a day for any viewer
+ * behind the workspace, which is the exact bug this is meant to prevent. */
+export function formatDateRange(from:string|null|undefined,to:string|null|undefined){
+  const day=(value:string|null|undefined)=>{
+    if(!value)return null
+    /* Matched rather than split-and-destructured: noUncheckedIndexedAccess types an index access as
+     * possibly-undefined, and a regex capture that has matched is the shape TypeScript can follow. */
+    const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+    if(!match)return null
+    const utc=Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3]))
+    if(Number.isNaN(utc))return null
+    return new Intl.DateTimeFormat(config.locale,{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(utc))
+  }
+  const start=day(from);const end=day(to)
+  if(!start&&!end)return ''
+  if(!start)return `Up to ${end}`
+  if(!end)return `From ${start}`
+  return start===end?start:`${start} – ${end}`
+}
+
 export function formatDateTime(value:string|null|undefined){
   if(!value)return '—'
   return new Intl.DateTimeFormat(config.locale,{dateStyle:'medium',timeStyle:'short',timeZone:config.timeZone}).format(new Date(value))

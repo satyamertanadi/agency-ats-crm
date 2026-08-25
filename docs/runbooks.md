@@ -21,6 +21,20 @@ Stored Google refresh tokens are encrypted with `CALENDAR_TOKEN_ENCRYPTION_KEY`,
 5. Existing connections re-encrypt under the new key automatically the next time their token is refreshed (every `calendar-sync` refresh calls `encryptSecret` again); nothing needs to be backfilled by hand.
 6. Once confident every stored token predates the rotation by less than a refresh cycle (or after force-disconnecting and asking affected users to reconnect), remove `CALENDAR_TOKEN_ENCRYPTION_KEY_PREVIOUS` and `CALENDAR_TOKEN_ENCRYPTION_KEY_PREVIOUS_VERSION`. Until then, leave them set -- removing them early makes any row still under the old key permanently undecryptable again.
 
+## Background data cleanup has stopped
+
+The Admin banner names the layer that broke; work it from there rather than re-running the deploy and hoping. The stage comes from `get_maintenance_health`, and the timestamps under the banner are the evidence for it.
+
+**Scheduler** — nothing has fired: `last attempt` is Never. The pg_cron job is missing. Re-run the production promotion (its "Schedule in-project maintenance cron" step calls `schedule_maintenance_cron`, which is idempotent), then confirm `Schedule` shows a cron expression and check back after the next hour. If it still shows Not registered, pg_cron is not installed on the project.
+
+**Delivery** — the schedule fires but the worker never starts: `last attempt` is recent, `last start` is Never or older. Read `Worker responded` in the banner. A `401` means the credential the cron carries no longer matches the function's environment — almost always a rotated service role key that `PRODUCTION_SUPABASE_SERVICE_ROLE_KEY` in GitHub no longer matches. Update that secret and re-run the promotion; the cron command embeds the secret, so it must be re-registered, not just re-deployed. No status at all means the request never completed: check `Transport error` for DNS/TLS, and confirm the function URL.
+
+**Execution** — the run starts each hour and never finishes: `last start` is recent, `last finish` is Never or older. The run is being cut off or is crashing partway. This was the original 2026-08 failure: `net.http_post` defaults to a 5 second timeout and the command did not pass one, so any run carrying a real backlog was severed before it could record anything. Both sides are fixed (a 90s timeout, and the retention loop runs six candidates at a time instead of up to 200 sequential round trips), so a recurrence here means the batch has grown beyond even that — check `last_detail` on `maintenance_heartbeats` for the counts and consider lowering the batch limits in the function.
+
+**Run failed** — it completed and reported failure: `Last error` is populated. Most often candidates whose storage objects could not be removed, which is deliberately *not* recorded as success; a persistent storage failure must not sit behind a green heartbeat.
+
+Never clear the banner by editing `maintenance_heartbeats` directly. It is derived from whether a successful run is actually on record, and the retention, anonymisation and expired-CV guarantees are genuinely unenforced until one is. `run_scheduled_maintenance` and `schedule_maintenance_cron` are trusted-setup only and revoked from every client role — invoke them with the service role key, never from a browser session.
+
 ## Email provider outage
 
 Do not expose a raw invitation or review token in chat. Confirm the ATS delivery record and provider status, pause bulk retries, and use resend after recovery. If an urgent client package must be delivered outside the system, owner approval and a secure approved channel are required; record the exception and revoke the unused ATS link.

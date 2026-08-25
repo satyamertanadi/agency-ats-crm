@@ -50,6 +50,22 @@ async function runMaintenance(request:Request,requestID:string){
   const {admin}=clients(request)
   const startedAt=new Date().toISOString()
 
+  // Claim the run BEFORE doing any work. Previously the only heartbeat write was at the very end,
+  // so a run that was severed partway -- which is what a 5s pg_net timeout against a real backlog
+  // does every single hour -- left the row exactly as it found it: never_run, no error. The job then
+  // looked like it had never started rather than like it kept dying, and the distinction is the
+  // whole diagnosis. 'running' with a start time is a state the previous schema could not express.
+  const claimed=await admin.from('maintenance_heartbeats').update({
+    last_run_at:startedAt,
+    last_started_at:startedAt,
+    last_status:'running',
+    last_error:null,
+  }).eq('job_key',jobKey)
+  // A heartbeat that cannot be claimed means the bookkeeping itself is broken (missing row, revoked
+  // grant). That is worth failing the run over: continuing would do real deletion work whose outcome
+  // could never be reported, which is the failure mode this whole change exists to end.
+  if(claimed.error)throw new FunctionError(500,'heartbeat_unavailable',`Could not claim the maintenance heartbeat: ${claimed.error.message}`)
+
   const {data,error}=await admin.from('candidate_cv_parses').select('id,organization_id,storage_path').lt('expires_at',new Date().toISOString()).not('status','in','(accepted,cancelled,expired)').limit(100)
   if(error)throw error
   const paths=(data||[]).map((row)=>row.storage_path)
@@ -80,23 +96,41 @@ async function runMaintenance(request:Request,requestID:string){
   if(due.error)throw due.error
   let candidatesRetained=0
   let retentionFailures=0
-  for(const candidate of due.data||[]){
-    const storagePaths=Array.isArray(candidate.storage_paths)?candidate.storage_paths.filter((path:unknown):path is string=>typeof path==='string'&&path.length>0):[]
-    if(storagePaths.length){
-      const removed=await admin.storage.from(bucket).remove(storagePaths)
-      if(removed.error){
-        retentionFailures+=1
-        log('error','candidate_retention_storage_failed',{requestId:requestID,candidateId:candidate.candidate_id,code:removed.error.name})
-        continue
+  // Bounded concurrency, not a sequential loop. Each candidate costs two round trips (storage
+  // delete, then the finalizing RPC) and the batch is up to 100, so the previous `for await` shape
+  // serialised as many as 200 network calls into one request -- tens of seconds on a good day, and
+  // the direct cause of every run being cut off by pg_net's 5s default timeout before it could
+  // record anything. Six at a time keeps wall time proportionate without opening enough parallel
+  // storage deletes to get rate-limited.
+  //
+  // Kept as a chunked loop rather than one big Promise.all so the two-phase contract per candidate
+  // is unchanged: remove that candidate's objects, THEN ask the database to re-check inactivity and
+  // legal hold and anonymize. The RPC still rejects finalization if a document appeared in between.
+  /* Named explicitly rather than left implicit. The previous `for (const candidate of due.data||[])`
+   * got away with an untyped RPC result because iteration does not trip noImplicitAny; a .map()
+   * callback parameter does. Writing the shape down is the better answer than widening to any: these
+   * two fields are the entire contract this loop depends on from
+   * list_candidates_due_for_retention, and the Edge Function client carries no generated types. */
+  interface DueCandidate{candidate_id:string;storage_paths:unknown}
+  const dueCandidates=(due.data||[]) as DueCandidate[]
+  for(let index=0;index<dueCandidates.length;index+=6){
+    const results=await Promise.all(dueCandidates.slice(index,index+6).map(async(candidate:DueCandidate)=>{
+      const storagePaths=Array.isArray(candidate.storage_paths)?candidate.storage_paths.filter((path:unknown):path is string=>typeof path==='string'&&path.length>0):[]
+      if(storagePaths.length){
+        const removed=await admin.storage.from(bucket).remove(storagePaths)
+        if(removed.error){
+          log('error','candidate_retention_storage_failed',{requestId:requestID,candidateId:candidate.candidate_id,code:removed.error.name})
+          return false
+        }
       }
-    }
-    const retained=await admin.rpc('anonymize_candidate_for_retention',{p_candidate_id:candidate.candidate_id,p_removed_storage_paths:storagePaths})
-    if(retained.error){
-      retentionFailures+=1
-      log('error','candidate_retention_finalize_failed',{requestId:requestID,candidateId:candidate.candidate_id,code:retained.error.code})
-      continue
-    }
-    candidatesRetained+=1
+      const retained=await admin.rpc('anonymize_candidate_for_retention',{p_candidate_id:candidate.candidate_id,p_removed_storage_paths:storagePaths})
+      if(retained.error){
+        log('error','candidate_retention_finalize_failed',{requestId:requestID,candidateId:candidate.candidate_id,code:retained.error.code})
+        return false
+      }
+      return true
+    }))
+    for(const ok of results){if(ok)candidatesRetained+=1;else retentionFailures+=1}
   }
 
   const payloads=await admin.from('email_delivery_payloads').delete({count:'exact'}).lt('expires_at',new Date().toISOString())
@@ -118,13 +152,20 @@ async function runMaintenance(request:Request,requestID:string){
   // A run that could not anonymize every candidate it picked up is not a clean run. Recording it as
   // succeeded would let a persistent storage failure sit behind a green heartbeat indefinitely.
   const status=retentionFailures>0?'failed':'succeeded'
+  const finishedAt=new Date().toISOString()
   const heartbeat={
     last_run_at:startedAt,
+    last_finished_at:finishedAt,
     last_status:status,
     last_detail:summary,
     last_error:retentionFailures>0?`${retentionFailures} candidate(s) could not be anonymized.`:null,
-    ...(status==='succeeded'?{last_successful_run_at:startedAt}:{}),
+    consecutive_failures:retentionFailures>0?undefined:0,
+    // Completion time, not start time. The previous code stamped last_successful_run_at with
+    // startedAt, which reads as a successful run finishing before it did -- harmless while the
+    // staleness window is measured in hours, wrong the moment anyone reasons about duration.
+    ...(status==='succeeded'?{last_successful_run_at:finishedAt}:{}),
   }
+  if(heartbeat.consecutive_failures===undefined)delete heartbeat.consecutive_failures
   const recorded=await admin.from('maintenance_heartbeats').update(heartbeat).eq('job_key',jobKey)
   if(recorded.error)log('error','scheduled_maintenance_heartbeat_failed',{requestId:requestID,code:recorded.error.code})
 
@@ -132,10 +173,18 @@ async function runMaintenance(request:Request,requestID:string){
   return summary
 }
 
+/* Still never called for a 401 -- an unauthenticated caller must not be able to write here at all,
+ * let alone mark a healthy job failed. That exclusion used to make an auth mismatch the one failure
+ * with no trace anywhere; it no longer does, because run_scheduled_maintenance stamps
+ * last_attempt_at from inside the database before the request is even sent. A recent attempt with no
+ * corresponding start is now a reportable state ('delivery' in get_maintenance_health), reached
+ * without granting the rejected caller any write at all. */
 async function recordFailure(request:Request,failure:FunctionError){
   const {admin}=clients(request)
+  const now=new Date().toISOString()
   await admin.from('maintenance_heartbeats').update({
-    last_run_at:new Date().toISOString(),
+    last_run_at:now,
+    last_finished_at:now,
     last_status:'failed',
     last_error:`${failure.code}: ${failure.message}`.slice(0,500),
   }).eq('job_key',jobKey)

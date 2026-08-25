@@ -41,11 +41,28 @@ export async function getCandidateRetentionOverview(organizationId:string){const
 /* The retention worker runs on pg_cron inside this project (20260810000000_scheduled_maintenance.sql).
  * A schedule that stops has to be visible where an owner actually looks, not only in an operator's
  * logs -- this is what backs the staleness banner on the Admin page. */
-export type MaintenanceHealth={jobKey:string;lastSuccessfulRunAt:string|null;lastRunAt:string|null;lastStatus:string;lastError:string|null;staleAfterHours:number;isStale:boolean}
+/* fault_stage names the LAYER that broke, derived in get_maintenance_health so the banner and the
+ * operator runbook cannot disagree about what a given set of timestamps means. 'scheduler' = nothing
+ * fired; 'delivery' = the cron fired but the request never arrived (rejected credential, transport
+ * failure); 'execution' = the run began and died before finishing; 'run_failed' = it finished and
+ * reported failure, so lastError is populated. */
+export type MaintenanceFaultStage='healthy'|'scheduler'|'delivery'|'execution'|'run_failed'
+export type MaintenanceHealth={jobKey:string;lastSuccessfulRunAt:string|null;lastRunAt:string|null;lastStatus:string;lastError:string|null;staleAfterHours:number;isStale:boolean;lastAttemptAt:string|null;lastStartedAt:string|null;lastFinishedAt:string|null;consecutiveFailures:number;faultStage:MaintenanceFaultStage}
 export async function getMaintenanceHealth(organizationId:string):Promise<MaintenanceHealth[]>{
   const {data,error}=await supabase.rpc('get_maintenance_health',{p_organization_id:organizationId})
   if(error)fail(error,'Could not load background job health')
-  return (data||[]).map((item)=>({jobKey:item.job_key,lastSuccessfulRunAt:item.last_successful_run_at,lastRunAt:item.last_run_at,lastStatus:item.last_status,lastError:item.last_error,staleAfterHours:item.stale_after_hours,isStale:item.is_stale}))
+  return (data||[]).map((item)=>({jobKey:item.job_key,lastSuccessfulRunAt:item.last_successful_run_at,lastRunAt:item.last_run_at,lastStatus:item.last_status,lastError:item.last_error,staleAfterHours:item.stale_after_hours,isStale:item.is_stale,lastAttemptAt:item.last_attempt_at,lastStartedAt:item.last_started_at,lastFinishedAt:item.last_finished_at,consecutiveFailures:Number(item.consecutive_failures||0),faultStage:(item.fault_stage||'scheduler') as MaintenanceFaultStage}))
+}
+/* Operator detail, same organization.manage gate as the banner. Only fetched when a fault is already
+ * being reported -- there is nothing to look at on a healthy job, and it reads pg_cron/pg_net
+ * catalogs that a healthy workspace has no reason to touch on every Admin visit. */
+export type MaintenanceDiagnostics={cronRegistered:boolean;cronSchedule:string|null;cronLastRunAt:string|null;cronLastStatus:string|null;cronLastError:string|null;transportStatusCode:number|null;transportError:string|null;transportCompletedAt:string|null}
+export async function getMaintenanceDiagnostics(organizationId:string):Promise<MaintenanceDiagnostics|null>{
+  const {data,error}=await supabase.rpc('get_maintenance_diagnostics',{p_organization_id:organizationId})
+  if(error)fail(error,'Could not load background job diagnostics')
+  const item=(data||[])[0]
+  if(!item)return null
+  return {cronRegistered:Boolean(item.cron_registered),cronSchedule:item.cron_schedule,cronLastRunAt:item.cron_last_run_at,cronLastStatus:item.cron_last_status,cronLastError:item.cron_last_error,transportStatusCode:item.transport_status_code,transportError:item.transport_error,transportCompletedAt:item.transport_completed_at}
 }
 /* Flips the flag that hides the Imports tile from Admin once the migration is signed off. Guarded by
  * the existing organization_settings_manage policy (organization.manage), so no new RPC or grant --

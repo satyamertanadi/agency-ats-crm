@@ -67,7 +67,7 @@ const fixtureDocuments:PublicReview['documents']=[
 // No logo_path: the initials fallback is the case worth specimen-ing, since most agencies will
 // not have uploaded a logo on day one. The accent is a non-default colour on purpose -- if the
 // header only ever renders in the product's own green, the white-labelling is untested.
-const fixtureBranding:PublicReview['branding']={organization_name:'Samara Search',primary_color:'#2f4858',logo_path:null}
+const fixtureBranding:PublicReview['branding']={organization_name:'Northbridge Search',primary_color:'#2f4858',logo_path:null}
 
 function Section({id,title,note,children}:{id:string;title:string;note?:string;children:React.ReactNode}){
   return <section id={id} className="sg-section">

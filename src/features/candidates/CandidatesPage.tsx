@@ -3,6 +3,8 @@ import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ChevronLeft,ChevronRight,CopyCheck,Merge,MoreHorizontal,Plus,Rows3,Search,SquareCheck,UserRoundSearch,Users} from 'lucide-react'
 import {Link,useNavigate,useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
+import {prefetchHandlers,usePrefetchRecord} from '../core/usePrefetchRecord'
+import {TruncatedText} from '../../shared/ui/TruncatedText'
 import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {listCandidatesPage,type CandidateListFilters} from '../core/repository'
@@ -107,6 +109,7 @@ function StatusCell({row}:{row:CandidateSearchRow}){
 export function CandidatesPage(){
   const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const navigate=useNavigate();const [params,setParams]=useSearchParams()
   const [open,setOpen]=useState(false);const [selectionMode,setSelectionMode]=useState<SelectionMode>('none');const [mergeOpen,setMergeOpen]=useState(false);const [selected,setSelected]=useState<string[]>([]);const [keptId,setKeptId]=useState('');const [mergeReason,setMergeReason]=useState('Duplicate candidate record');const [placementCandidates,setPlacementCandidates]=useState<PlacementCandidate[]>([]);const placementOpen=placementCandidates.length>0||params.get('addToJob')==='1';const pageSize=50
+  const prefetch=usePrefetchRecord()
   useOpenOnNewParam(setOpen)
   /* A browser preference, not workspace state, so it lives in localStorage and not in the URL: it
    * must not travel in a shared link or get captured by a saved view, where one person's row height
@@ -278,8 +281,8 @@ export function CandidatesPage(){
         return <div className="candidate-row-identity">
           <span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span>
           <div className="candidate-row-identity-text">
-            <Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`}><strong title={candidate.full_name}>{candidate.full_name}</strong></Link>
-            <span title={role}>{role}</span>
+            <Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`} {...prefetchHandlers(()=>prefetch('candidate',candidate.id))}><TruncatedText as="strong">{candidate.full_name}</TruncatedText></Link>
+            <TruncatedText>{role}</TruncatedText>
           </div>
         </div>
       }
@@ -387,7 +390,7 @@ export function CandidatesPage(){
         * actually use. Measuring the viewport instead would need three media queries (window,
         * sidebar-collapsed, pane-open) that can disagree; one observer here cannot. */}
       <div className="candidate-table-region" ref={tableRegion}>
-      {query.isLoading?<TableSkeleton rows={8} columns={columns.length} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState {...emptyQueueMessage(queue)}/>:<Table className={`candidates-table candidates-density-${density} candidates-table-${tier}`} headers={columns.map((column)=>({label:column.label,width:column.width}))}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
+      {query.isLoading?<TableSkeleton rows={8} columns={columns.length} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState {...emptyQueueMessage(queue)}/>:<Table className={`candidates-table candidates-density-${density} candidates-table-${tier}`} headers={columns.map((column)=>({label:column.label,width:column.width,hideLabel:column.hideLabel}))}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
         aria-selected={selected.includes(candidate.id)}
         onFocus={()=>setActiveId(candidate.id)}
         className={[candidate.status==='do_not_contact'||candidate.status==='archived'?'candidate-row-muted':'',candidate.id===active?'candidate-row-active':''].filter(Boolean).join(' ')||undefined}>{columns.map((column)=><td key={column.id}>{renderCell(column.id,candidate)}</td>)}</tr>)}</Table>}
