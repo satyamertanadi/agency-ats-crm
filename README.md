@@ -2,6 +2,10 @@
 
 An organization-isolated applicant tracking system and recruitment CRM for a six-consultant headhunting agency. The pilot build uses invitation-only Google identity, Supabase/PostgreSQL authorization, one-way ATS-to-Google Calendar synchronization, controlled Excel/CSV migration, Resend delivery, and private document storage.
 
+## Ownership
+
+This is an independently owned product, developed and maintained by Made Satya Merta Nadi Sasputra outside of and unrelated to any employer engagement. It is not affiliated with, derived from, or hosted under any employer-owned codebase, infrastructure, or account.
+
 ## Local setup
 
 Requirements: Node.js 22, Docker Desktop, and Supabase CLI.

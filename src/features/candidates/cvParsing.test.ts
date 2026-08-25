@@ -10,7 +10,7 @@ describe('candidate CV extraction contract',()=>{
   })
 
   it('preserves partial-date precision',()=>{
-    const value=candidateCvExtractionSchema.parse({full_name:'Ayu Lestari',private:{},employment:[{company_name:'Samara',title:'Consultant',started_on:'2024-05-01',started_on_precision:'month'}]})
+    const value=candidateCvExtractionSchema.parse({full_name:'Ayu Lestari',private:{},employment:[{company_name:'Meridian Retail',title:'Consultant',started_on:'2024-05-01',started_on_precision:'month'}]})
     expect(value.employment[0]).toMatchObject({started_on:'2024-05-01',started_on_precision:'month'})
   })
 
