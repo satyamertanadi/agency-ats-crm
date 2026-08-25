@@ -8,7 +8,42 @@ export const metricDefinitions={
   placement:'A submitted candidate-and-job record with a non-cancelled placement created during the selected period.',
   completedPlacement:'A placement whose status is completed.',
   overdueTask:'An open or in-progress, non-deleted task whose due time is earlier than the report refresh time.',
+  /* The two placement figures on the team scorecard are different numbers on purpose, and the page
+   * showed both without ever saying so -- which reads as a bug in the report rather than as two
+   * questions with two answers. `placement` above is cohort-constrained (of the candidates SUBMITTED
+   * in this period, how many reached a placement); this one is not. A candidate submitted in December
+   * and placed in January counts here and not there. */
+  recordedPlacement:'Every non-cancelled placement created during the selected period, whatever period the candidate was submitted in. Larger than the funnel placement figure whenever a placement closed in this period for a candidate submitted before it.',
 } as const
+
+/* Chart labels for a set of people, disambiguated only as far as they need to be.
+ *
+ * The consultant workload chart labelled its bars `name.split(' ')[0]`, so an agency with two people
+ * called Satya got two bars labelled "Satya" -- and since a stacked bar chart has no other identifier,
+ * the chart was unreadable exactly where reading it matters most, which is comparing colleagues.
+ * Recharts also de-duplicates identical category keys, so the two could collapse into one bar.
+ *
+ * Escalates rather than defaulting to full names: first name where it is unique (short labels fit the
+ * axis and are how people refer to each other), first name plus surname initial where it is not, and
+ * the whole name where even that collides. A one-word name that collides falls back to the full name,
+ * which at least differs by nothing rather than lying.
+ */
+export function shortNameLabels(names:string[]):string[]{
+  const parts=names.map((name)=>name.trim().split(/\s+/).filter(Boolean))
+  const first=parts.map((piece)=>piece[0]||'Unknown')
+  const count=(values:string[])=>values.reduce<Record<string,number>>((totals,value)=>({...totals,[value]:(totals[value]||0)+1}),{})
+  const firstCounts=count(first)
+  const withInitial=parts.map((piece,index)=>{
+    const surname=piece.length>1?piece[piece.length-1]:undefined
+    return surname?`${first[index]} ${surname[0]}.`:first[index]!
+  })
+  const initialCounts=count(withInitial)
+  return parts.map((piece,index)=>{
+    if(firstCounts[first[index]!]===1)return first[index]!
+    if(initialCounts[withInitial[index]!]===1)return withInitial[index]!
+    return piece.join(' ')||first[index]!
+  })
+}
 
 const uniqueIds=(rows:MilestoneRecord[],included:(row:MilestoneRecord)=>boolean=()=>true)=>new Set(rows.filter(included).map((row)=>row.job_candidate_id))
 

@@ -2,7 +2,7 @@ import {useMemo,useState} from 'react'
 import {useQuery} from '@tanstack/react-query'
 import {Link} from 'react-router'
 import {ArrowRight} from 'lucide-react'
-import {Bar,BarChart,CartesianGrid,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts'
+import {Bar,BarChart,CartesianGrid,Legend,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts'
 import {useAuth} from '../../app/AuthProvider'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
@@ -13,8 +13,32 @@ import {SegmentedControl} from '../../shared/ui/SegmentedControl'
 import {EmptyState,ErrorState,TableSkeleton} from '../../shared/ui/States'
 import {Table} from '../../shared/ui/Table'
 import {ChartCard,chartTooltipStyle} from '../../shared/ui/ChartCard'
-import {formatDateTime,formatMoney} from '../../shared/lib/format'
-import {buildConsultantRows,buildRecruitmentFunnel,isCompletedPlacement,isOverdueTask,isRecordedPlacement,metricDefinitions,reportDateRange,type ConsultantRow} from './reportMetrics'
+import {formatDateTime,formatMoney,formatMoneyCompact} from '../../shared/lib/format'
+import {buildConsultantRows,buildRecruitmentFunnel,isCompletedPlacement,isOverdueTask,isRecordedPlacement,metricDefinitions,reportDateRange,shortNameLabels,type ConsultantRow} from './reportMetrics'
+
+/* A money figure sized for a KPI cell: abbreviated on screen, exact on hover and to a screen reader.
+ *
+ * "IDR 124,000,000" does not fit a ~160px tile at any type size the rest of the strip uses, so it
+ * either wrapped mid-number or pushed the strip wider than the page. The exact figure is never lost:
+ * `title` carries it for a pointer, and the sr-only span carries it for assistive technology, which a
+ * title attribute alone does not reliably do. */
+function CompactMoney({value,currency}:{value:number|null|undefined;currency?:string|null}){
+  const {short,full}=formatMoneyCompact(value,currency)
+  return <span title={full}>{short}<span className="sr-only"> ({full})</span></span>
+}
+
+/* One hue for the two neutral series, red reserved for the one that is a problem.
+ *
+ * Jobs and submissions were accent-blue and violet -- two unrelated brand colours for two facts that
+ * are both just "work in progress", which asks the reader to learn a key before the chart says
+ * anything. A light/dark pair of the same hue reads as two parts of one quantity, which is what a
+ * stack IS, and leaves red meaning only "overdue" -- the sole series here that anyone needs to act on.
+ * Matches the pipeline bar's ramp on the jobs list, so the two charts in the product use one system. */
+const workloadSeries=[
+  {key:'jobs',label:'Active jobs',fill:'color-mix(in srgb, var(--color-accent) 45%, var(--color-surface))'},
+  {key:'submissions',label:'Submissions',fill:'var(--color-accent)'},
+  {key:'overdue',label:'Overdue actions',fill:'var(--color-danger)'},
+] as const
 
 const dateValue=(date:Date)=>date.toISOString().slice(0,10)
 
@@ -78,15 +102,35 @@ export function ScorecardPage(){
     const recordedPlacementCount=new Set(recordedPlacements.map((item)=>item.job_candidate_id)).size
     const funnel=buildRecruitmentFunnel({submissions:data.submissions,interviews:data.interviews,offers:data.offers,placements:data.placements})
     const baseFees=recordedPlacements.filter((item)=>item.currency===organization?.base_currency).reduce((sum,item)=>sum+Number(item.placement_fee),0)
-    const workload=rows.map((row)=>({name:row.name.split(' ')[0],jobs:row.jobs,submissions:row.submissions,overdue:row.overdue}))
+    /* Labels come from shortNameLabels rather than `name.split(' ')[0]`, which rendered two
+     * colleagues called Satya as two bars both labelled "Satya" -- and Recharts keys categories by
+     * that string, so they could collapse into one bar entirely. */
+    const workloadLabels=shortNameLabels(rows.map((row)=>row.name))
+    const workload=rows.map((row,index)=>({name:workloadLabels[index]!,jobs:row.jobs,submissions:row.submissions,overdue:row.overdue}))
     return <Page title={title} eyebrow="Performance" description={description} actions={actions}>
       {context}
-      <div className="kpi-grid"><article className="kpi"><div><p>Jobs opened</p><strong>{data.jobs.length}</strong></div></article><article className="kpi" title={metricDefinitions.submission}><div><p>Candidates submitted</p><strong>{funnel[0]!.value}</strong></div></article><article className="kpi" title={metricDefinitions.interview}><div><p>Candidates interviewed</p><strong>{funnel[1]!.value}</strong></div></article><article className="kpi" title={metricDefinitions.offer}><div><p>Candidates offered</p><strong>{funnel[2]!.value}</strong></div></article><article className="kpi" title={metricDefinitions.placement}><div><p>Recorded placements</p><strong>{recordedPlacementCount}</strong></div></article><article className="kpi"><div><p>Fees · base currency</p><strong>{formatMoney(baseFees,organization?.base_currency)}</strong></div></article></div>
-      <div className="chart-grid">
-        <ChartCard title="Recruitment funnel" description="Unique candidate/job milestones within the submitted cohort." summary={<table><caption>Recruitment funnel totals</caption><tbody>{funnel.map((item)=><tr key={item.name}><th>{item.name}</th><td>{item.value}</td></tr>)}</tbody></table>}><ResponsiveContainer width="100%" height="100%"><BarChart data={funnel} margin={{top:8,right:12,left:-18,bottom:4}}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line-soft)"/><XAxis dataKey="name" axisLine={false} tickLine={false}/><YAxis allowDecimals={false} axisLine={false} tickLine={false}/><Tooltip {...chartTooltipStyle}/><Bar dataKey="value" fill="var(--color-accent)" radius={[7,7,0,0]} maxBarSize={58}/></BarChart></ResponsiveContainer></ChartCard>
-        <ChartCard title="Consultant workload" description="Active vacancies, unique submissions, and overdue actions." summary={<table><caption>Consultant workload totals</caption><tbody>{rows.map((row)=><tr key={row.id}><th>{row.name}</th><td>{row.jobs} jobs, {row.submissions} submissions, {row.overdue} overdue</td></tr>)}</tbody></table>}><ResponsiveContainer width="100%" height="100%"><BarChart data={workload} margin={{top:8,right:12,left:-18,bottom:4}}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line-soft)"/><XAxis dataKey="name" axisLine={false} tickLine={false}/><YAxis allowDecimals={false} axisLine={false} tickLine={false}/><Tooltip {...chartTooltipStyle}/><Bar dataKey="jobs" stackId="a" fill="var(--color-accent)"/><Bar dataKey="submissions" stackId="a" fill="var(--color-violet)"/><Bar dataKey="overdue" stackId="a" fill="var(--color-danger)" radius={[6,6,0,0]}/></BarChart></ResponsiveContainer></ChartCard>
+      {/* "Recorded placements" carried metricDefinitions.placement, which is the COHORT definition --
+        * so the tile's own tooltip described a different number from the one printed above it, and a
+        * reader comparing it against the funnel's fourth bar found two placement totals that would not
+        * reconcile and no explanation anywhere. It now states its own definition, and its caption names
+        * the funnel figure beside it so the difference is visible rather than discovered. */}
+      <div className="kpi-grid">
+        <article className="kpi"><div><p>Jobs opened</p><strong>{data.jobs.length}</strong></div></article>
+        <article className="kpi" title={metricDefinitions.submission}><div><p>Candidates submitted</p><strong>{funnel[0]!.value}</strong></div></article>
+        <article className="kpi" title={metricDefinitions.interview}><div><p>Candidates interviewed</p><strong>{funnel[1]!.value}</strong></div></article>
+        <article className="kpi" title={metricDefinitions.offer}><div><p>Candidates offered</p><strong>{funnel[2]!.value}</strong></div></article>
+        <article className="kpi" title={metricDefinitions.recordedPlacement}><div><p>Recorded placements</p><strong>{recordedPlacementCount}</strong><small className="kpi-caption">{funnel[3]!.value} from this period&apos;s submissions</small></div></article>
+        <article className="kpi"><div><p>Fees · base currency</p><strong><CompactMoney value={baseFees} currency={organization?.base_currency}/></strong></div></article>
       </div>
-      <div className="two-column"><Panel title="Funnel conversion"><Table caption="Funnel conversion by unique candidate/job milestone" headers={['Milestone','Count','Conversion from submissions']}>{funnel.map((item)=><tr key={item.name}><td>{item.name}</td><td>{item.value}</td><td>{item.conversion==null?'—':`${item.conversion}%`}</td></tr>)}</Table></Panel><Panel title="Workload health"><div className="settings-list"><article className="finance-row"><span>Overdue tasks</span><strong className={overdueTasks.length?'overdue-text':''}>{overdueTasks.length}</strong></article><article className="finance-row"><span>Accepted offers</span><strong>{data.offers.filter((item)=>item.status==='accepted').length}</strong></article><article className="finance-row"><span>Completed placements</span><strong>{data.placements.filter(isCompletedPlacement).length}</strong></article></div></Panel></div>
+      <div className="chart-grid">
+        {/* One series, so no legend: the axis already names every bar, and a legend reading "value"
+          * would explain nothing. */}
+        <ChartCard title="Recruitment funnel" description="Unique candidate/job milestones within the cohort submitted during this period." summary={<table><caption>Recruitment funnel totals</caption><tbody>{funnel.map((item)=><tr key={item.name}><th>{item.name}</th><td>{item.value}</td></tr>)}</tbody></table>}><ResponsiveContainer width="100%" height="100%"><BarChart data={funnel} margin={{top:8,right:12,left:-18,bottom:4}}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line-soft)"/><XAxis dataKey="name" axisLine={false} tickLine={false}/><YAxis allowDecimals={false} axisLine={false} tickLine={false}/><Tooltip {...chartTooltipStyle}/><Bar name="Candidates" dataKey="value" fill="var(--color-accent)" radius={[7,7,0,0]} maxBarSize={58}/></BarChart></ResponsiveContainer></ChartCard>
+        {/* Three stacked series with no legend at all: the colours were the only thing distinguishing
+          * them and nothing on the chart said what they meant. */}
+        <ChartCard title="Consultant workload" description="Active vacancies, unique submissions, and overdue actions." summary={<table><caption>Consultant workload totals</caption><tbody>{rows.map((row)=><tr key={row.id}><th>{row.name}</th><td>{row.jobs} jobs, {row.submissions} submissions, {row.overdue} overdue</td></tr>)}</tbody></table>}><ResponsiveContainer width="100%" height="100%"><BarChart data={workload} margin={{top:8,right:12,left:-18,bottom:4}}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line-soft)"/><XAxis dataKey="name" axisLine={false} tickLine={false}/><YAxis allowDecimals={false} axisLine={false} tickLine={false}/><Tooltip {...chartTooltipStyle}/><Legend verticalAlign="bottom" height={26} iconType="square" iconSize={9} wrapperStyle={{fontSize:'var(--text-xs)'}}/>{workloadSeries.map((series,index)=><Bar key={series.key} name={series.label} dataKey={series.key} stackId="a" fill={series.fill} radius={index===workloadSeries.length-1?[6,6,0,0]:undefined}/>)}</BarChart></ResponsiveContainer></ChartCard>
+      </div>
+      <div className="two-column"><Panel title="Funnel conversion" subtitle="Within the cohort submitted during this period, so it will not match the recorded-placement total above."><Table caption="Funnel conversion by unique candidate/job milestone" headers={['Milestone','Count','Conversion from submissions']}>{funnel.map((item)=><tr key={item.name}><td>{item.name}</td><td>{item.value}</td><td>{item.conversion==null?'—':`${item.conversion}%`}</td></tr>)}</Table></Panel><Panel title="Workload health"><div className="settings-list"><article className="finance-row"><span>Overdue tasks</span><strong className={overdueTasks.length?'overdue-text':''}>{overdueTasks.length}</strong></article><article className="finance-row"><span>Accepted offers</span><strong>{data.offers.filter((item)=>item.status==='accepted').length}</strong></article><article className="finance-row"><span>Completed placements</span><strong>{data.placements.filter(isCompletedPlacement).length}</strong></article></div></Panel></div>
       <Panel title="Consultant performance"><Table caption="Consultant performance for selected date range" headers={['Consultant','Active jobs','Submissions','Interviews','Offers','Placements',{label:'Fees',align:'right'},'Overdue tasks']}>{rows.map((row)=><tr key={row.id}><td><strong>{row.name}</strong></td><td>{row.jobs}</td><td>{row.submissions}</td><td>{row.interviews}</td><td>{row.offers}</td><td>{row.placements}</td><td className="money">{formatMoney(row.fees,organization?.base_currency)}</td><td className={row.overdue?'overdue-text':''}>{row.overdue}</td></tr>)}</Table></Panel>
       {footnote}
     </Page>
@@ -105,7 +149,7 @@ export function ScorecardPage(){
     {!currentMember&&<EmptyState title="No membership found" description="Your user is not an active member of this workspace, so there is no activity to attribute."/>}
     <div className="kpi-grid">
       {tiles.map((tile)=><article className="kpi" key={tile.key} title={tile.definition}><div><p>{tile.label}</p><strong>{mine[tile.key]}</strong></div></article>)}
-      <article className="kpi"><div><p>Fees · base currency</p><strong>{formatMoney(mine.fees,organization?.base_currency)}</strong></div></article>
+      <article className="kpi"><div><p>Fees · base currency</p><strong><CompactMoney value={mine.fees} currency={organization?.base_currency}/></strong></div></article>
       <article className="kpi"><div><p>Jobs owned</p><strong>{mine.jobs}</strong></div></article>
     </div>
     <div className="two-column">
