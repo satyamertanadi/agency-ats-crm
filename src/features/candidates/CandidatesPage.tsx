@@ -1,13 +1,13 @@
 import {useCallback,useMemo,useRef,useState,type ReactNode} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ChevronLeft,ChevronRight,CopyCheck,Merge,MoreHorizontal,PanelRightOpen,Plus,Rows3,Search,SquareCheck,UserRoundSearch,Users} from 'lucide-react'
+import {ChevronLeft,ChevronRight,CopyCheck,ListChecks,ListMinus,Merge,MoreHorizontal,PanelRightOpen,Plus,Rows3,Search,SquareCheck,UserRoundSearch,Users} from 'lucide-react'
 import {Link,useNavigate,useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {prefetchHandlers,usePrefetchRecord} from '../core/usePrefetchRecord'
 import {TruncatedText} from '../../shared/ui/TruncatedText'
 import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {listCandidatesPage,type CandidateListFilters} from '../core/repository'
+import {listCandidatesPage,removeCandidatesFromList,type CandidateListFilters} from '../core/repository'
 import {listTeamMembers,mergeCandidates,updateCandidateProfile} from '../core/commercialRepository'
 import {candidateStatus} from '../../shared/lib/status'
 import {candidateAvailability,candidateSource} from '../../shared/lib/optionSets'
@@ -28,6 +28,8 @@ import {Table} from '../../shared/ui/Table'
 import {AddCandidateModal} from './AddCandidateModal'
 import {AddCandidateToJobModal,type PlacementCandidate} from './AddCandidateToJobModal'
 import {CandidateQuickViewDrawer} from './CandidateQuickViewDrawer'
+import {TalentListMenu} from './TalentListMenu'
+import {AddToTalentListModal} from './AddToTalentListModal'
 import {describeBulk,runBulk} from '../core/bulkResult'
 import {ActiveFilterChips} from '../core/ActiveFilterChips'
 import {candidateFilterChips,candidateFilterKeys} from './candidateFilterChips'
@@ -142,7 +144,15 @@ export function CandidatesPage(){
    * would be answering a question nobody asked. Narrowed to null outside it rather than merely
    * hidden, so a stale `?issue=` left over from a queue change cannot keep filtering invisibly. */
   const issue=queue==='needs_enrichment'?parseIssue(params.get('issue')):null
-  const page=Math.max(0,Number(params.get('page')||0));const filters:CandidateListFilters={query:params.get('q')||'',status:params.get('status')||'',location:params.get('location')||'',source:params.get('source')||'',ownerMemberId:params.get('owner')||'',tag:params.get('tag')||'',skill:params.get('skill')||'',availability:params.get('availability')||'',queue:queue||undefined,issue:issue||undefined,sort:(params.get('sort') as CandidateListFilters['sort'])||'updated',direction:(params.get('dir') as CandidateListFilters['direction'])||'desc'}
+  /* The active Talent List, straight off the URL and never narrowed here.
+   *
+   * Unlike `queue` and `issue` there is nothing to validate against: a list id is a record, not one
+   * of a fixed set of names, so the only authority on whether it is real is the database. It is
+   * passed through as given and the RPC reads it through RLS -- a list belonging to another member
+   * or another workspace matches no membership rows and yields an empty page, which is the same
+   * answer as an empty list and deliberately so. */
+  const listId=params.get('list')||''
+  const page=Math.max(0,Number(params.get('page')||0));const filters:CandidateListFilters={query:params.get('q')||'',status:params.get('status')||'',location:params.get('location')||'',source:params.get('source')||'',ownerMemberId:params.get('owner')||'',tag:params.get('tag')||'',skill:params.get('skill')||'',availability:params.get('availability')||'',queue:queue||undefined,issue:issue||undefined,listId:listId||undefined,sort:(params.get('sort') as CandidateListFilters['sort'])||'updated',direction:(params.get('dir') as CandidateListFilters['direction'])||'desc'}
   /* Every filter change also closes Quick View. A drawer left open across a filter change would be
    * describing a candidate the list no longer contains, and its pager would page through a set that
    * is no longer on screen. */
@@ -154,6 +164,13 @@ export function CandidatesPage(){
   /* `issue` travels with a saved view for the same reason `queue` does: a view called "Missing CVs"
    * that silently dropped the issue would be a lie. Unlike `queue` it DOES also get a dismissible
    * chip -- see candidateFilterChips for why the two differ. */
+  /* `list` is deliberately ABSENT from this array, and it is the one exclusion that matters.
+   *
+   * A saved view is a set of filters, re-run on every load. A talent list is a set of people, chosen
+   * once. Capturing a list id into a view would produce an object that is half query and half
+   * decision -- and the moment anyone edited the view's filters, the "shortlist" it claimed to hold
+   * would quietly become a different set of people. The two stay separable: a saved view can be
+   * applied while a list is active, and neither one silently swallows the other. */
   const viewParamKeys=['q','status','location','source','owner','tag','skill','availability','queue','issue','sort','dir']
   /* Export refetches the whole filtered set rather than writing the page on screen -- "export this
    * view" meaning "export the 50 rows you happen to be looking at" is the kind of quiet wrongness
@@ -172,6 +189,19 @@ export function CandidatesPage(){
     },
     onError:(error)=>toast.error(error,'Nothing was exported.'),
   })
+  /* Changing the scope is not the same act as changing a filter, so it gets its own setter: it
+   * clears the page, the selection and Quick View exactly as setFilter does, and additionally it
+   * records the switch. `page` must go -- page 4 of the whole database is not page 4 of an
+   * eleven-person shortlist. */
+  const chooseList=(next:string|null)=>{
+    const nextParams=new URLSearchParams(params)
+    if(next)nextParams.set('list',next);else nextParams.delete('list')
+    nextParams.delete('page')
+    setParams(nextParams,{replace:true});setSelected([]);setQuickViewId(null)
+    /* Non-PII: that a list was entered or left, and nothing about which one or who is on it. */
+    if(organization)recordWorkflowEvent({organizationId:organization.id,eventName:'navigation_changed',
+      surface:'candidate_talent_list',actionKey:next?'enter_list':'leave_list'})
+  }
   const query=useQuery({queryKey:['candidates-page',organization?.id,filters,page],enabled:Boolean(organization),queryFn:()=>listCandidatesPage(organization!.id,filters,page,pageSize)})
   const team=useQuery({queryKey:['team',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
   const currentMemberId=team.data?.find((member)=>member.user_id===user?.id)?.id
@@ -200,6 +230,27 @@ export function CandidatesPage(){
       else toast.info(message,'The selection is kept so you can retry the ones that failed.')
     },
     onError:(error)=>toast.error(error,'No owner was changed.'),
+  })
+  /* Which candidates the add-to-list modal is acting on. An array rather than a single id because
+   * the row menu and the bulk bar are the same act on different sized inputs, and one path means one
+   * place for the count in the toast to be wrong. */
+  const [talentListCandidates,setTalentListCandidates]=useState<{id:string;full_name:string}[]>([])
+  /* Removing is only offered while a list is the active scope, because that is the only moment the
+   * question "remove from WHICH list?" has an unambiguous answer. Offering it otherwise would need a
+   * picker, and a destructive action behind a picker is how people remove the wrong thing. */
+  const removeFromList=useMutation({
+    mutationFn:(targets:CandidateSearchRow[])=>removeCandidatesFromList(listId,targets.map((target)=>target.id)),
+    onSuccess:async(result)=>{
+      await Promise.all([
+        cache.invalidateQueries({queryKey:['candidates-page',organization?.id]}),
+        cache.invalidateQueries({queryKey:['candidate-lists',organization?.id]}),
+      ])
+      setSelected([]);setQuickViewId(null)
+      const removed=`${result.removed} ${result.removed===1?'candidate':'candidates'}`
+      toast.success(result.removed>0?`Removed ${removed} from the list.`:'Nothing was removed.',
+        result.skipped>0?`${result.skipped} ${result.skipped===1?'was':'were'} not on this list.`:undefined)
+    },
+    onError:(error)=>toast.error(error,'Nothing was removed from the list.'),
   })
   const selectedRows=(query.data?.rows||[]).filter((item)=>selected.includes(item.id));const openMerge=()=>{setKeptId(selected[0]||'');setMergeOpen(true)};const openPlacement=(rows=selectedRows)=>{setPlacementCandidates(rows.map((item)=>({id:item.id,full_name:item.full_name,current_position:item.current_position,status:item.status})))}
   const closePlacement=()=>{setPlacementCandidates([]);const next=new URLSearchParams(params);next.delete('addToJob');setParams(next,{replace:true})}
@@ -348,6 +399,14 @@ export function CandidatesPage(){
         const items:MenuItemSpec[]=[
           {id:'quick',label:'Quick view',icon:<PanelRightOpen size={15}/>,onSelect:()=>openQuickView(candidate.id,'menu')},
           {id:'open',label:'Open candidate',icon:<UserRoundSearch size={15}/>,href:`/app/${organization?.slug}/candidates/${candidate.id}`},
+          /* Available for every candidate including do-not-contact and archived ones, unlike Add to
+            * job below. Recording that somebody was considered is not the same act as approaching
+            * them, and a list that silently refused the very records most worth remembering would be
+            * a worse record of the search. */
+          {id:'talent',label:'Add to talent list',icon:<ListChecks size={15}/>,
+            onSelect:()=>setTalentListCandidates([{id:candidate.id,full_name:candidate.full_name}])},
+          ...(listId?[{id:'talent-remove',label:'Remove from this list',icon:<ListMinus size={15}/>,tone:'danger' as const,
+            onSelect:()=>removeFromList.mutate([candidate])}]:[]),
           ...(capabilities.data?.canMovePipeline?[{id:'add',label:'Add to job',icon:<Users size={15}/>,disabled:blocked,
             text:blocked?'Add to job (not available for this candidate)':'Add to job',
             onSelect:()=>openPlacement([candidate])}]:[]),
@@ -395,6 +454,15 @@ export function CandidatesPage(){
           </Select>
           <Button size="sm" variant="secondary" disabled={!assignOwnerId||assignOwner.isPending}
             loading={assignOwner.isPending} onClick={()=>assignOwner.mutate()}>Assign owner</Button>
+          {/* Beside owner assignment rather than in the page header, because both are things done TO
+            * a selection and the header is where actions on the page live. */}
+          <Button size="sm" variant="secondary" leadingIcon={<ListChecks size={15}/>}
+            onClick={()=>setTalentListCandidates(selectedRows.map((item)=>({id:item.id,full_name:item.full_name})))}>
+            Add to talent list
+          </Button>
+          {listId&&<Button size="sm" variant="caution" leadingIcon={<ListMinus size={15}/>}
+            loading={removeFromList.isPending}
+            onClick={()=>removeFromList.mutate(selectedRows)}>Remove from list</Button>}
         </span>}
       </div>
     </Callout>}
@@ -413,7 +481,19 @@ export function CandidatesPage(){
         * something is actually narrowing the list. */}
       <div className="toolbar">
         <ViewMenu resource="candidates" baseLabel="All candidates" paramKeys={viewParamKeys} params={params}
-          onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/>
+          onApply={(next)=>{
+            /* A saved view replaces the FILTERS and leaves the scope alone. ViewMenu builds a fresh
+              * URLSearchParams from the keys it owns, and `list` is not one of them -- so without
+              * this the act of applying a view would silently drop the talent list the user is
+              * inside. Carried over explicitly rather than by adding `list` to viewParamKeys, which
+              * would make views start capturing it. */
+            const merged=new URLSearchParams(next)
+            if(listId)merged.set('list',listId)
+            setParams(merged,{replace:true})
+          }} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/>
+        {/* Beside the View control, never inside it. The two answer "what am I looking at" in ways
+          * that must not be conflated -- see the header of TalentListMenu. */}
+        <TalentListMenu activeListId={listId||null} onSelect={chooseList}/>
         <div className="search-box"><Search size={15}/><Input ref={searchRef} aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div>
         <Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select>
         <FilterPopover count={secondaryFilterCount} onClearAll={clearSecondaryFilters}>
@@ -474,6 +554,11 @@ export function CandidatesPage(){
       * F5). Same idiom already used by mergeMutation, assignOwner and AddCandidateModal below. */}
     <AddCandidateToJobModal open={placementOpen} onClose={closePlacement} candidates={placementCandidates}
       onAdded={()=>cache.invalidateQueries({queryKey:['candidates-page',organization?.id]})}/>
+    {/* Mounted only while there is a selection to act on, so its list query cannot run for a page
+      * nobody is curating from. */}
+    <AddToTalentListModal open={talentListCandidates.length>0} candidates={talentListCandidates}
+      onClose={()=>setTalentListCandidates([])}
+      onAdded={()=>setSelected([])}/>
     {/* Mounted only while a candidate is chosen, so its CV and Activity queries cannot exist -- let
       * alone run -- for a list nobody is previewing.
       *

@@ -286,3 +286,39 @@ export const candidateQualityCountSchema=z.object({
   issue_code:z.string(),candidate_count:z.coerce.number(),
 })
 export type CandidateQualityCount=z.infer<typeof candidateQualityCountSchema>
+
+/* One Talent List, as list_candidate_lists returns it.
+ *
+ * `visibility` IS an enum here, unlike delivery_state above, and the difference is what happens when
+ * the server gains a value the client does not know. An unfamiliar delivery state is a label to
+ * render; an unfamiliar visibility is a question about who can see something, and rendering a list as
+ * "private" because a third value did not parse would be a guess about access. Failing loudly is the
+ * right answer for the one field on this row that describes exposure.
+ *
+ * `member_count` is integer rather than bigint in SQL, but is coerced anyway for the reason at the
+ * top of this file: PostgREST's numeric handling is the thing being defended against, not the width
+ * of the column. */
+export const candidateListSchema=z.object({
+  id:z.string(),organization_id:z.string(),owner_member_id:z.string(),owner_name:z.string().nullable(),
+  name:z.string(),description:z.string().nullable(),
+  visibility:z.enum(['private','workspace']),member_count:z.coerce.number(),
+  created_at:z.string(),updated_at:z.string(),archived_at:z.string().nullable(),
+})
+export const candidateListMembershipSchema=z.object({
+  list_id:z.string(),name:z.string(),visibility:z.enum(['private','workspace']),
+})
+/* The two membership writes return a single row of counts. Validated like everything else crossing
+ * the boundary: a toast that says "12 added" is a claim about what happened to the database, and it
+ * should come from the database rather than from the length of the array the caller sent. */
+export const candidateListWriteResultSchema=z.object({added:z.coerce.number(),skipped:z.coerce.number()})
+export const candidateListRemoveResultSchema=z.object({removed:z.coerce.number(),skipped:z.coerce.number()})
+/* The raw candidate_lists ROW, which is what the three write RPCs return -- they hand back the record
+ * they just wrote, not the picker projection above, so it carries no owner_name and no member_count.
+ * A separate schema rather than a loosened one: making those two optional on candidateListSchema
+ * would let a picker row missing its count parse silently. */
+export const candidateListRecordSchema=z.object({
+  id:z.string(),organization_id:z.string(),owner_member_id:z.string(),
+  name:z.string(),description:z.string().nullable(),
+  visibility:z.enum(['private','workspace']),
+  created_at:z.string(),updated_at:z.string(),archived_at:z.string().nullable(),
+})

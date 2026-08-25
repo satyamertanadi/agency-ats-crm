@@ -23,6 +23,10 @@ export class AppError extends Error {
 const rpcMessages:Record<string,string>={
   // Authorization and identity
   permission_denied:'Your role does not allow this action.',
+  // Talent lists. A name collides only against the caller's OWN live lists, which is why the sentence
+  // can say "you" -- a colleague's list of the same name is not what was hit.
+  duplicate_list_name:'You already have a talent list with that name.',
+  invalid_visibility:'A talent list is either private to you or shared with the workspace.',
   authentication_required:'Sign in again to continue.',
   service_role_required:'This action can only run on the server.',
   google_auth_required:'Connect your Google account first.',
@@ -32,6 +36,10 @@ const rpcMessages:Record<string,string>={
   // Records not found, or belonging to another workspace
   organization_not_found:'That workspace could not be found.',
   candidate_not_found:'That candidate could not be found in this workspace.',
+  /* Raised by add_candidates_to_list when any id in the batch is not a live candidate in the list's
+   * own workspace. The sentence names the batch rather than the record, because the whole batch is
+   * refused: a partial write would turn a cross-tenant id into a number in a toast nobody reads. */
+  candidate_not_in_organization:'Some of those candidates are not in this workspace, so nothing was added.',
   company_not_found:'That client could not be found in this workspace.',
   contact_not_found:'That contact could not be found in this workspace.',
   job_not_found:'That job could not be found in this workspace.',
