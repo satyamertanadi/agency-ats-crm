@@ -4527,6 +4527,10 @@ export type Database = {
         Args: { p_link_id: string }
         Returns: undefined
       }
+      run_scheduled_maintenance: {
+        Args: { p_function_url: string; p_worker_secret: string }
+        Returns: number
+      }
       save_candidate_profile_template: {
         Args: {
           p_configuration: Json
@@ -4536,10 +4540,6 @@ export type Database = {
           p_template_id: string
         }
         Returns: string
-      }
-      run_scheduled_maintenance: {
-        Args: { p_function_url: string; p_worker_secret: string }
-        Returns: number
       }
       schedule_maintenance_cron: {
         Args: { p_function_url: string; p_worker_secret: string }
