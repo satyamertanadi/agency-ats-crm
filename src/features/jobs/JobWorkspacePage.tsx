@@ -232,6 +232,24 @@ export function JobWorkspacePage(){
   const detailError=interviews.error||offers.error||placements.error||packages.error||members.error
   const detailLoading=interviews.isLoading||offers.isLoading||placements.isLoading||packages.isLoading||members.isLoading
   const view=(params.get('view') as WorkspaceView)||'pipeline';const selected=pipeline.data!.items.find((item)=>item.id===params.get('candidate'))||null;const outcomeStages=pipeline.data!.stages.filter(isOutcomeStage)
+  /* `?open=submit&candidate=<jobCandidateId>` opens the composer on that person.
+   *
+   * It exists so the cross-job Delivery queue can hand a dead review link straight back to the one
+   * surface that sends -- a second send form living in Today would be a second set of defaults, a
+   * second expiry rule and a second place for the recipient to be got wrong.
+   *
+   * Derived from the URL rather than consumed by an effect: an effect would have to set state after
+   * the pipeline query resolves, which means one frame of the candidate PANEL opening before the
+   * composer replaced it. The panel is suppressed below while this is active, because two dialogs at
+   * once is two focus traps. */
+  const composerFromUrl=params.get('open')==='submit'&&selected
+    ?[{jobCandidateId:selected.id,name:selected.candidates?.full_name||'Candidate'}]
+    :null
+  const composing=composerCandidates??composerFromUrl
+  const closeComposer=()=>{
+    setComposerCandidates(null)
+    if(params.get('open')==='submit'){const nextParams=new URLSearchParams(params);nextParams.delete('open');setParams(nextParams,{replace:true})}
+  }
   const columns=buildPipelineColumns(pipeline.data!.stages)
   const targets=columns.map((column)=>({key:column.key,label:column.label}))
   // Placed reads as a terminal outcome, same register as Rejected/Withdrawn/On hold, so it moves to
@@ -384,7 +402,7 @@ export function JobWorkspacePage(){
     {canRecruit&&<AddCandidateToJobModal open={addOpen} onClose={()=>setAddOpen(false)} job={{id:job.id,title:job.title}}
       excludeIds={pipeline.data!.items.map((item)=>item.candidate_id)} onAdded={refresh}/>}
     {capabilities.data?.canWriteJobs&&<JobEditModal job={job} members={members.data||[]} open={editOpen} onClose={()=>setEditOpen(false)} onSaved={async()=>{setEditOpen(false);await refresh()}}/>}
-    {selected&&<JobCandidatePanel job={job} item={selected}
+    {selected&&!composing&&<JobCandidatePanel job={job} item={selected}
       stage={pipeline.data!.stages.find((stage)=>stage.id===selected.current_stage_id)!} stages={pipeline.data!.stages}
       currentMemberId={currentMember?.id} interviews={(interviews.data||[]).filter((item)=>item.job_candidate_id===selected.id)}
       offers={(offers.data||[]).filter((item)=>item.job_candidate_id===selected.id)}
@@ -396,8 +414,8 @@ export function JobWorkspacePage(){
       siblingIds={orderedItemIds} onNavigate={(jobCandidateId)=>{const nextParams=new URLSearchParams(params);nextParams.set('candidate',jobCandidateId);nextParams.delete('action');setParams(nextParams,{replace:true})}}
       onUpdated={refresh} onMove={move.mutate} moving={move.isPending} onComposeSubmission={()=>composeCandidate(selected)}
       detailLoading={detailLoading} detailError={detailError}/>}
-    <SubmissionComposerDrawer open={Boolean(composerCandidates)} onClose={()=>setComposerCandidates(null)} job={job} organizationId={organization!.id}
-      candidates={composerCandidates||[]} onSent={refresh}/>
+    <SubmissionComposerDrawer open={Boolean(composing)} onClose={closeComposer} job={job} organizationId={organization!.id}
+      candidates={composing||[]} onSent={refresh}/>
     <OutcomePrompt open={Boolean(outcome)} stage={outcome?.stage??null} candidateName={outcome?.item.candidates?.full_name||'this candidate'}
       loading={move.isPending} onClose={()=>setOutcome(null)} onConfirm={confirmOutcome}/>
     <OutcomesDrawer open={outcomesOpen} onClose={()=>setOutcomesOpen(false)} items={pipeline.data!.items}

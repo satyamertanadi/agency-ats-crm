@@ -1,7 +1,7 @@
 import {useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ArrowRight,BriefcaseBusiness,CalendarClock,CheckCircle2,ChevronDown,ListChecks,Plus} from 'lucide-react'
-import {Link} from 'react-router'
+import {Link,useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
@@ -16,6 +16,8 @@ import {SetupChecklist,buildSetupSteps} from './SetupChecklist'
 import {Button} from '../../shared/ui/Button'
 import {useToast} from '../../shared/ui/Toast'
 import {NOT_RECORDED} from '../../shared/lib/labels'
+import {DeliveryWorkbench} from '../submissions/DeliveryWorkbench'
+import {SegmentedControl} from '../../shared/ui/SegmentedControl'
 
 /* Deliberately short. This is a work queue: a client response from three weeks ago has either been
  * actioned or turned into a different problem, so surfacing it today is noise rather than work. */
@@ -105,9 +107,22 @@ function WorkQueueRow({item,now,working,onTaskAction}:{item:TodayWorkItem;now:Da
 
 export function TodayPage(){
   const {organization,membership}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [scope,setScope]=useState<'mine'|'team'>('mine')
+  const [params,setParams]=useSearchParams()
+  /* Today has two halves now: the action queue it has always been, and the cross-job view of what has
+   * been sent to clients. A switch inside Today rather than a seventh sidebar item, because both
+   * answer the same question -- what needs me today -- and a nav item for the second would put the
+   * work a consultant does every morning in two places.
+   *
+   * `?view=delivery` so it survives a reload and can be linked between colleagues. Anything else is
+   * the action queue, so a typo lands on the default rather than on nothing. */
+  const deliveryView=params.get('view')==='delivery'
   const currentMember=membership
   const [setupHidden,setSetupHidden]=useState(()=>readSetupDismissed(organization?.id))
-  const query=useQuery({queryKey:['today',organization?.id],enabled:Boolean(organization),queryFn:async()=>{
+  /* Ten parallel list queries. Deliberately NOT run while Delivery is showing: the two halves of
+   * this page fetch entirely different things, and paying for both because they share a route is how
+   * a switch becomes slower than a navigation. The same rule applies in reverse -- DeliveryWorkbench
+   * is not mounted at all below unless it is the active half. */
+  const query=useQuery({queryKey:['today',organization?.id],enabled:Boolean(organization)&&!deliveryView,queryFn:async()=>{
     /* The windows the notification-lite items are built from, bounded on the server: an unbounded
      * feedback list would be an archive rather than a queue. */
     const feedbackSince=new Date(Date.now()-FEEDBACK_WINDOW_HOURS*3_600_000).toISOString()
@@ -122,9 +137,40 @@ export function TodayPage(){
   const taskAction=useMutation({mutationFn:({taskId,action}:{taskId:string;action:'complete'|'snooze'})=>{if(action==='complete')return completeTask(organization!.id,taskId);const due=new Date();due.setDate(due.getDate()+1);due.setHours(9,0,0,0);return snoozeTask(organization!.id,taskId,due.toISOString())},onSuccess:async(_result,variables)=>{toast.success(variables.action==='complete'?'Follow-up completed.':'Follow-up moved to tomorrow.');await Promise.all([cache.invalidateQueries({queryKey:['today',organization?.id]}),cache.invalidateQueries({queryKey:['tasks',organization?.id]}),cache.invalidateQueries({queryKey:['agency-performance',organization?.id]})])},onError:(error)=>toast.error(error,'The follow-up was not changed.')})
   const actOnTask=(taskId:string,action:'complete'|'snooze')=>taskAction.mutate({taskId,action})
   const name=(user?.user_metadata.full_name as string|undefined)?.split(' ')[0]
-  if(query.isLoading||capabilities.isLoading)return <Page title={name?`Today, ${name}`:'Today'} eyebrow={organization?.name} description="Your next recruitment actions, in the order they need attention." className="today-page"><Panel><TableSkeleton rows={6} columns={2} label="Preparing your work for today…"/></Panel></Page>
+  const base=`/app/${organization?.slug||'workspace'}`
+  /* One header for both halves, so the switch stays in the same place while the action queue is
+   * still loading. It used to be built twice -- the skeleton return below rendered a Page with no
+   * actions at all -- which meant the controls appeared a beat after the page did. */
+  const shell={
+    title:name?`Today, ${name}`:'Today',
+    eyebrow:organization?.name,
+    description:deliveryView
+      ?'Everything you have sent to clients, and what each one is waiting on.'
+      :'Your next recruitment actions, in the order they need attention.',
+    className:'today-page',
+    actions:<div className="page-scope-actions">
+      <SegmentedControl label="Today view" value={deliveryView?'delivery':'actions'}
+        options={[{id:'actions' as const,label:'Actions'},{id:'delivery' as const,label:'Delivery'}]}
+        onChange={(next)=>{
+          const nextParams=new URLSearchParams(params)
+          if(next==='delivery')nextParams.set('view','delivery');else nextParams.delete('view')
+          setParams(nextParams,{replace:true})
+        }}/>
+      {/* Unchanged: My work / Team view still scopes both halves, and is still only offered to
+        * members who can see other people's work at all. */}
+      {capabilities.data?.canViewTeamReports&&<SegmentedControl label="Work scope" value={scope} onChange={setScope}
+        options={[{id:'mine' as const,label:'My work'},{id:'team' as const,label:'Team view'}]}/>}
+      {capabilities.data?.canWriteCandidates&&<Link className="button button-primary" to={`${base}/candidates?new=1`}><Plus size={15}/>Add candidate</Link>}
+    </div>,
+  }
+  /* Returned before the action queue's guards, because that query is disabled in this view -- a
+   * disabled query has no data, and falling through to the `!query.data` check below would render
+   * the error state for a page that is working perfectly. */
+  if(deliveryView)return <Page {...shell}>
+    <Panel elevation="raised"><DeliveryWorkbench scope={scope} currentMemberId={currentMember?.id}/></Panel>
+  </Page>
+  if(query.isLoading||capabilities.isLoading)return <Page {...shell}><Panel><TableSkeleton rows={6} columns={2} label="Preparing your work for today…"/></Panel></Page>
   if(query.error||!query.data)return <ErrorState error={query.error} retry={()=>void query.refetch()}/>
-  const base=`/app/${organization!.slug}`
   const now=new Date()
   const items=buildTodayWorkItems({base,now,currentMemberId:scope==='mine'?currentMember?.id:undefined,tasks:query.data.tasks,interviews:query.data.interviews,offers:query.data.offers,placements:query.data.placements,jobs:query.data.jobs,deliveryIssues:query.data.deliveryIssues,submissions:query.data.submissions,feedback:toTodayFeedback(query.data.feedback)})
   const steps=buildSetupSteps(query.data.summary,base);const setupComplete=steps.length>0&&steps.every((step)=>step.done)
@@ -146,7 +192,7 @@ export function TodayPage(){
   const later=items.filter((item)=>item.kind==='upcoming'||item.kind==='recommended')
   const activeJobs=query.data.jobs.filter((job)=>job.status==='open'&&(scope==='team'||!job.owner_member_id||job.owner_member_id===currentMember?.id))
   const healthByJob=new Map(query.data.jobHealth.map((health)=>[health.id,health]))
-  return <Page title={name?`Today, ${name}`:'Today'} eyebrow={organization?.name} description="Your next recruitment actions, in the order they need attention." className="today-page" actions={<div className="page-scope-actions">{capabilities.data?.canViewTeamReports&&<div className="segmented-control" aria-label="Work scope"><button className={scope==='mine'?'active':''} onClick={()=>setScope('mine')}>My work</button><button className={scope==='team'?'active':''} onClick={()=>setScope('team')}>Team view</button></div>}{capabilities.data?.canWriteCandidates&&<Link className="button button-primary" to={`${base}/candidates?new=1`}><Plus size={15}/>Add candidate</Link>}</div>}>
+  return <Page {...shell}>
     {showSetup&&<SetupChecklist steps={steps} onDismiss={dismissSetup}/>}
     {/* The KPI row this used to open with is gone -- "Do now"/"Due today"/"Later" restated the exact
       * counts the three bands below already carry in their own labels ("Do now · 3"), one scroll
