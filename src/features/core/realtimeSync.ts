@@ -31,10 +31,10 @@ export const realtimeQueryMap={
    * workspace, so there is nobody in the room to notice it -- which is exactly the case realtime
    * exists for. It invalidates Today (the new "client responded" row), the submissions list the
    * workspace rail reads, and the activity feed that records it. */
-  submission_feedback:['today','submissions','activities'],
+  submission_feedback:['today','submissions','activities','delivery-workbench'],
   // Sending, revoking or renewing a link changes the rail and Today's expired-link item.
-  submission_packages:['submissions','today'],
-  candidate_submissions:['submissions','today'],
+  submission_packages:['submissions','today','delivery-workbench'],
+  candidate_submissions:['submissions','today','delivery-workbench'],
   // The feed itself, so a colleague's logged call appears without a navigation.
   activities:['activities'],
   /* Name, status and ownership -- not salary or contact, which live in candidate_private_details and
@@ -42,6 +42,18 @@ export const realtimeQueryMap={
   candidates:['candidates-page','candidate','pipeline','today'],
 } as const
 
+/* Why the Delivery Workbench rides on these three tables and not on its own.
+ *
+ * Its state is computed from four sources: the package, the candidate submission, the client's
+ * feedback, and -- outside this map -- the review link and the email delivery row. The last two are
+ * NOT on the realtime publication and are deliberately left off it: email_deliveries carries the
+ * client's email address on every row, and public_submission_links carries the recipient's, so
+ * publishing either would broadcast a client contact list to every subscribed tab in the workspace
+ * to save a refetch. Both only ever change as the direct result of an action a consultant just took
+ * here (retry, revoke, send), and those mutations invalidate this key themselves.
+ *
+ * What genuinely arrives from outside the room is the client's answer, and that is submission_feedback
+ * -- which is the whole reason this publication was widened in the first place. */
 export type RealtimeTable=keyof typeof realtimeQueryMap
 export const realtimeTables=Object.keys(realtimeQueryMap) as RealtimeTable[]
 

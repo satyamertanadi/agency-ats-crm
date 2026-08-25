@@ -37,6 +37,46 @@ export type InterviewStatus='scheduled'|'completed'|'cancelled'|'no_show'
 // What a client answered on a submitted candidate, per submission_feedback.decision's check constraint.
 export type FeedbackDecision='approve'|'reject'|'interview'|'hold'
 export type SubmissionPackageStatus='draft'|'shared'|'reviewed'|'closed'
+
+/* One candidate, sent to one client, as the cross-job Delivery Workbench sees it.
+ *
+ * Mirrors list_delivery_workbench exactly. The grain is the candidate_submission, not the package: a
+ * shortlist of four is four conversations with the client, who can approve one and say nothing about
+ * the other three, so a package-grained row would have to invent one state for four answers.
+ *
+ * `delivery_state` and `delivery_priority` are DERIVED in SQL on every read and never stored -- see
+ * public.submission_delivery_state. Nothing in this shape may be treated as a second status that
+ * could contradict the submission, the link, the email delivery or the feedback it is computed from.
+ */
+export type DeliveryWorkbenchRow={
+  candidate_submission_id:string
+  package_id:string
+  job_id:string
+  job_candidate_id:string
+  candidate_id:string|null
+  candidate_name:string|null
+  job_title:string|null
+  company_name:string|null
+  package_title:string|null
+  sent_at:string
+  recipient_email:string|null
+  link_id:string|null
+  link_expires_at:string|null
+  link_revoked_at:string|null
+  opened_at:string|null
+  email_delivery_id:string|null
+  email_status:string|null
+  email_error:string|null
+  feedback_id:string|null
+  feedback_decision:FeedbackDecision|null
+  feedback_at:string|null
+  handled_at:string|null
+  owner_member_id:string|null
+  owner_name:string|null
+  delivery_state:string
+  delivery_priority:number
+  total_count:number
+}
 export type PlacementStatus='confirmed'|'started'|'failed_guarantee'|'completed'|'cancelled'
 export type InvoiceStatus='not_issued'|'draft'|'issued'|'overdue'|'paid'|'void'
 export type TaskStatus='open'|'in_progress'|'completed'|'cancelled'

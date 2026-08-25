@@ -3565,6 +3565,8 @@ export type Database = {
           comments: string | null
           created_at: string
           decision: string
+          handled_at: string | null
+          handled_by: string | null
           id: string
           link_id: string
           organization_id: string
@@ -3576,6 +3578,8 @@ export type Database = {
           comments?: string | null
           created_at?: string
           decision: string
+          handled_at?: string | null
+          handled_by?: string | null
           id?: string
           link_id: string
           organization_id: string
@@ -3587,6 +3591,8 @@ export type Database = {
           comments?: string | null
           created_at?: string
           decision?: string
+          handled_at?: string | null
+          handled_by?: string | null
           id?: string
           link_id?: string
           organization_id?: string
@@ -4350,6 +4356,45 @@ export type Database = {
           updated_at: string
         }[]
       }
+      list_delivery_workbench: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_organization_id: string
+          p_owner_member_id?: string
+          p_query?: string
+          p_state?: string
+        }
+        Returns: {
+          candidate_id: string
+          candidate_name: string
+          candidate_submission_id: string
+          company_name: string
+          delivery_priority: number
+          delivery_state: string
+          email_delivery_id: string
+          email_error: string
+          email_status: string
+          feedback_at: string
+          feedback_decision: string
+          feedback_id: string
+          handled_at: string
+          job_candidate_id: string
+          job_id: string
+          job_title: string
+          link_expires_at: string
+          link_id: string
+          link_revoked_at: string
+          opened_at: string
+          owner_member_id: string
+          owner_name: string
+          package_id: string
+          package_title: string
+          recipient_email: string
+          sent_at: string
+          total_count: number
+        }[]
+      }
       list_job_health: {
         Args: { p_candidate_id?: string; p_organization_id: string }
         Returns: {
@@ -4670,7 +4715,45 @@ export type Database = {
         }
         Returns: string
       }
+      set_submission_feedback_handled: {
+        Args: { p_feedback_id: string; p_handled?: boolean }
+        Returns: {
+          candidate_submission_id: string
+          comments: string | null
+          created_at: string
+          decision: string
+          handled_at: string | null
+          handled_by: string | null
+          id: string
+          link_id: string
+          organization_id: string
+          reviewer_name: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "submission_feedback"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       storage_prefix_organization: { Args: { p_name: string }; Returns: string }
+      submission_delivery_priority: { Args: { p_state: string }; Returns: number }
+      submission_delivery_state: {
+        Args: {
+          p_email_status: string
+          p_feedback_at: string
+          p_handled_at: string
+          p_link_expires_at: string
+          p_link_opened_at: string
+          p_link_revoked_at: string
+          p_now: string
+          p_package_status: string
+          p_sent_at: string
+        }
+        Returns: string
+      }
+      submission_delivery_waiting_days: { Args: never; Returns: number }
       submit_submission_feedback: {
         Args: {
           p_candidate_submission_id: string

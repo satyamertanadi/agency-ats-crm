@@ -1922,3 +1922,19 @@ tbody tr:focus-within .row-menu-trigger,
     gap: 0;
   }
 }
+
+/* The cross-job delivery queue, inside Today.
+ *
+ * Almost nothing new: the rail is the shared .toolbar, the quick views are the same .queue-tab pills
+ * the candidate queues use, and the rows are the shared two-line .cell-sub treatment. What is here is
+ * the width floor and the one place the table differs from a candidate list. */
+.delivery-workbench{display:flex;flex-direction:column}
+/* The physical floor, in the same spirit as .candidates-table-three. table-layout:fixed would
+   otherwise compress Candidate toward zero to satisfy width:100%; holding a real minimum makes
+   .table-scroll scroll internally instead, which is the deliberate fallback at phone widths.
+   1060 = 860 of fixed columns (200 Job/client + 210 Delivery + 150 State + 130 Owner + 170 Next
+   action) plus a 200px floor for Candidate, which takes the remainder on anything wider. */
+.delivery-table table{min-width:1060px}
+/* Actions sit at the top of their cell rather than centred, so a one-line button lines up with the
+   first line of the two-line cells beside it instead of floating between them. */
+.delivery-table td{vertical-align:top}

@@ -246,3 +246,30 @@ export const submissionFeedbackSchema=z.object({
  * it. */
 export type StageHistoryEntry=z.infer<typeof stageHistoryEntrySchema>
 export type SubmissionFeedback=z.infer<typeof submissionFeedbackSchema>
+
+/* One row of the cross-job Delivery Workbench, validated at the network boundary.
+ *
+ * Every column the SQL can return null for is nullable here, and that is not defensive padding: the
+ * RPC is security invoker, so a member holding submissions.read but not candidates.read gets the row
+ * with a null candidate name rather than an error -- knowing a shortlist is failing is useful even
+ * when the person in it is not visible. A schema that demanded those columns would turn a permission
+ * degradation into a broken screen.
+ *
+ * `delivery_state` is deliberately z.string() rather than an enum. The ladder lives in SQL, and a
+ * server that gains an arm before the client learns about it should render an unfamiliar label, not
+ * fail the whole page -- see deliveryStateDefinition for the other half of that contract. */
+export const deliveryWorkbenchRowSchema=z.object({
+  candidate_submission_id:z.string(),package_id:z.string(),job_id:z.string(),job_candidate_id:z.string(),
+  candidate_id:z.string().nullable(),candidate_name:z.string().nullable(),
+  job_title:z.string().nullable(),company_name:z.string().nullable(),package_title:z.string().nullable(),
+  sent_at:z.string(),recipient_email:z.string().nullable(),
+  link_id:z.string().nullable(),link_expires_at:z.string().nullable(),link_revoked_at:z.string().nullable(),
+  opened_at:z.string().nullable(),
+  email_delivery_id:z.string().nullable(),email_status:z.string().nullable(),email_error:z.string().nullable(),
+  feedback_id:z.string().nullable(),feedback_decision:z.enum(['approve','reject','interview','hold']).nullable(),
+  feedback_at:z.string().nullable(),handled_at:z.string().nullable(),
+  owner_member_id:z.string().nullable(),owner_name:z.string().nullable(),
+  delivery_state:z.string(),delivery_priority:z.coerce.number(),
+  // bigint from count(*) over(), for the reason stated at the top of this file.
+  total_count:z.coerce.number(),
+})

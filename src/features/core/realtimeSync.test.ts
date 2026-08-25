@@ -38,6 +38,25 @@ describe('realtime query mapping',()=>{
     expect(queriesForTable('submission_feedback')).toEqual(expect.arrayContaining(['today','submissions','activities']))
   })
 
+  /* The cross-job Delivery queue is computed from the package, the candidate submission and the
+   * client's feedback -- plus the review link and the email delivery row, neither of which is on the
+   * publication. Both of those carry a client's email address on every row, so publishing them to
+   * every subscribed tab to save a refetch would be a bad trade; and both only ever change as the
+   * direct result of an action a consultant just took, whose mutation invalidates this key itself. */
+  it('refreshes the delivery queue for every published table its state is built from',()=>{
+    for(const table of ['submission_packages','candidate_submissions','submission_feedback']){
+      expect(queriesForTable(table),`${table} leaves Delivery stale`).toContain('delivery-workbench')
+    }
+    expect(queriesForTable('public_submission_links')).toEqual([])
+    expect(queriesForTable('email_deliveries')).toEqual([])
+  })
+
+  /* The reconnect path replays every table at once. Three of them carry this key, and the de-duplicated
+   * flush is what keeps that one refetch rather than three cancelling each other. */
+  it('refreshes the delivery queue exactly once on a reconnect',()=>{
+    expect(queriesForTables(realtimeTables).filter((key)=>key==='delivery-workbench')).toHaveLength(1)
+  })
+
   it('refreshes the board and the job-health aggregate together on a stage move',()=>{
     expect(queriesForTable('job_candidates')).toContain('pipeline')
     expect(queriesForTable('job_candidates')).toContain('job-health')

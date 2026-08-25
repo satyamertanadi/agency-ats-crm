@@ -1,8 +1,8 @@
 import { supabase } from '../../shared/lib/supabase'
 import { AppError, DUPLICATE_CANDIDATE, humanizeRpcError } from '../../shared/lib/errors'
 import { row, rows } from '../../shared/lib/rows'
-import { activitySchema, candidatePipelineAssignmentSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
-import type { Activity, CandidateStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReview, Task } from '../../shared/types/domain'
+import { activitySchema, candidatePipelineAssignmentSchema, candidateSearchRowSchema, companySchema, contactSchema, deliveryWorkbenchRowSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
+import type { Activity, CandidateStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, DeliveryWorkbenchRow, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReview, Task } from '../../shared/types/domain'
 import type {Json} from '../../generated/database.types'
 
 function fail(error:{message:string;code?:string}|null,fallback:string):never{
@@ -367,3 +367,37 @@ export async function listMembers(organizationId:string){const {data,error}=awai
 export async function listRoles(organizationId:string){const {data,error}=await supabase.from('roles').select('id,name,role_key,is_system,role_permissions(permission_key)').eq('organization_id',organizationId).order('name');if(error)fail(error,'Could not load roles');return data??[]}
 export async function createInvitation(organizationId:string,email:string,roleId:string){const {data,error}=await supabase.rpc('create_organization_invitation',{p_organization_id:organizationId,p_email:email,p_role_id:roleId,p_expiry_days:7});if(error)fail(error,'Could not create invitation');return data as {invitation_id:string;token:string;expires_at:string}}
 export async function acceptInvitation(token:string){const {data,error}=await supabase.rpc('accept_organization_invitation',{p_token:token});if(error)fail(error,error.message.includes('email_mismatch')?'Sign in with the email address that was invited.':'Could not accept invitation');if(!data)throw new AppError('This invitation is invalid, expired, or revoked.','invitation_unavailable');return data as {organization_id:string;organization_slug:string;member_id:string}}
+
+/* The cross-job delivery queue. One page, one round trip, filtered and ordered on the server.
+ *
+ * Deliberately NOT built on listSubmissionPackages. That function fetches every package in the
+ * organisation and every link and delivery attached to them, which is the shape Today already pays
+ * for -- fine as one of ten parallel queries feeding a client-side builder, and wrong as the basis
+ * of a list that must be ordered by a state the client cannot compute without all of it. The state,
+ * the ordering and the paging all live in list_delivery_workbench.
+ *
+ * `state` is a quick view, not a single state name; `page` is zero-based like every other list here.
+ */
+export interface DeliveryWorkbenchFilters {state?:string;ownerMemberId?:string;query?:string}
+export async function listDeliveryWorkbench(organizationId:string,filters:DeliveryWorkbenchFilters={},page=0,pageSize=25){
+  const {data,error}=await supabase.rpc('list_delivery_workbench',{
+    p_organization_id:organizationId,
+    p_state:filters.state||undefined,
+    p_owner_member_id:filters.ownerMemberId||undefined,
+    p_query:filters.query||undefined,
+    p_limit:pageSize,p_offset:page*pageSize,
+  })
+  if(error)fail(error,'Could not load client deliveries')
+  const resultRows=rows(data,deliveryWorkbenchRowSchema,'Delivery rows did not match the expected shape') as DeliveryWorkbenchRow[]
+  return {rows:resultRows,count:Number(resultRows[0]?.total_count||0)}
+}
+
+/* Recording that a client's answer has been acted on -- or that it has not after all.
+ *
+ * One RPC for both directions rather than two, because "handled" is one fact with two values and a
+ * pair of functions would be two places to keep the audit action in step. The write is audited and
+ * organisation-scoped inside the function; see set_submission_feedback_handled. */
+export async function setSubmissionFeedbackHandled(feedbackId:string,handled:boolean){
+  const {error}=await supabase.rpc('set_submission_feedback_handled',{p_feedback_id:feedbackId,p_handled:handled})
+  if(error)fail(error,handled?'The feedback was not marked handled.':'The feedback was not reopened.')
+}
