@@ -6,6 +6,8 @@
     "add_candidates_to_job",
     "archive_candidate_profile_template",
     "audit_function_grants",
+    "candidate_quality_issues",
+    "candidate_quality_summary",
     "capture_prospect",
     "capture_prospects_bulk",
     "create_candidate_with_profile",
