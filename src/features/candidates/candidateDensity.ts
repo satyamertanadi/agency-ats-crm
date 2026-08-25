@@ -27,23 +27,3 @@ export const DENSITY_OPTIONS=[
   {id:'compact' as const,label:'Compact'},
   {id:'comfortable' as const,label:'Comfortable'},
 ]
-
-const PANE_KEY='candidate-preview-open'
-
-/* Whether the preview pane is open, when there is room for it at all.
- *
- * Eligibility and preference are deliberately separate. CSS decides eligibility -- below 1440px the
- * pane is unavailable, because sidebar + pane leaves too little for the table. This decides
- * preference, and NOTHING here is written when the window narrows: crossing the breakpoint hides the
- * pane without touching the stored choice, so widening the window restores what the user last
- * picked rather than whatever their last narrow session implied.
- *
- * Open by default: the pane is the reason the list can be triaged without navigating, and at =>1440px
- * there is room for both. Same try/catch as readDensity, for the same private-mode Safari reason. */
-export function readPaneOpen():boolean{
-  try{return localStorage.getItem(PANE_KEY)!=='closed'}catch{return true}
-}
-
-export function writePaneOpen(open:boolean){
-  try{localStorage.setItem(PANE_KEY,open?'open':'closed')}catch{/* see readDensity */}
-}

@@ -1,6 +1,6 @@
 import {useCallback,useMemo,useRef,useState,type ReactNode} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ChevronLeft,ChevronRight,CopyCheck,Merge,MoreHorizontal,Plus,Rows3,Search,SquareCheck,UserRoundSearch,Users} from 'lucide-react'
+import {ChevronLeft,ChevronRight,CopyCheck,Merge,MoreHorizontal,PanelRightOpen,Plus,Rows3,Search,SquareCheck,UserRoundSearch,Users} from 'lucide-react'
 import {Link,useNavigate,useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {prefetchHandlers,usePrefetchRecord} from '../core/usePrefetchRecord'
@@ -27,7 +27,7 @@ import {csvFilename,downloadCsv,toCsv} from '../../shared/lib/csv'
 import {Table} from '../../shared/ui/Table'
 import {AddCandidateModal} from './AddCandidateModal'
 import {AddCandidateToJobModal,type PlacementCandidate} from './AddCandidateToJobModal'
-import {CandidatePreviewPane} from './CandidatePreviewPane'
+import {CandidateQuickViewDrawer} from './CandidateQuickViewDrawer'
 import {describeBulk,runBulk} from '../core/bulkResult'
 import {ActiveFilterChips} from '../core/ActiveFilterChips'
 import {candidateFilterChips,candidateFilterKeys} from './candidateFilterChips'
@@ -36,11 +36,13 @@ import {useShortcut} from '../../shared/lib/useShortcut'
 import {followUpSignal,pipelineSignal,statusFacets,type FollowUpSignal} from './candidateRowSignals'
 import {emptyQueueMessage,parseQueue} from './candidateQueues'
 import {CandidateQueueTabs} from './CandidateQueueTabs'
-import {DENSITY_OPTIONS,readDensity,readPaneOpen,writeDensity,writePaneOpen,type CandidateDensity} from './candidateDensity'
+import {DENSITY_OPTIONS,readDensity,writeDensity,type CandidateDensity} from './candidateDensity'
 import {resolveColumnTier,visibleCandidateColumns,type CandidateColumnId} from './candidateColumns'
 import {useContainerTier} from '../../shared/lib/useContainerTier'
 import type {CandidateSearchRow} from '../../shared/types/domain'
 import {NOT_RECORDED} from '../../shared/lib/labels'
+import {isRowInteractive} from './candidateRowInteraction'
+import {recordWorkflowEvent} from '../../shared/lib/productAnalytics'
 
 type SelectionMode='none'|'bulk'|'merge'
 /* "Unassigned" as a deliberate choice, distinct from '' meaning "nothing picked yet". */
@@ -116,11 +118,12 @@ export function CandidatesPage(){
    * would become everybody's. */
   const [density,setDensity]=useState<CandidateDensity>(readDensity)
   const chooseDensity=(next:CandidateDensity)=>{setDensity(next);writeDensity(next)}
-  const [paneOpen,setPaneOpen]=useState<boolean>(readPaneOpen)
-  const choosePane=(next:boolean)=>{setPaneOpen(next);writePaneOpen(next)}
 
-  /* Which columns fit. Driven by the measured region alone: the pane and the sidebar change that
-   * measurement, so neither needs a branch here. selectionMode is folded into the resolver rather
+  /* Which columns fit. Driven by the measured region alone: the sidebar changes that measurement, so
+   * it needs no branch here, and Quick View -- an overlay rather than a second column -- does not
+   * change it at all, which is the whole point of moving the preview into a drawer.
+   *
+   * selectionMode is folded into the resolver rather
    * than applied afterwards because its checkbox column costs 44px of real budget -- it has to be
    * able to DEMOTE a tier, not merely prepend a column to whatever tier was already chosen. */
   const tableRegion=useRef<HTMLDivElement>(null)
@@ -133,7 +136,10 @@ export function CandidatesPage(){
    * tab that is not one of ours and an empty list with no explanation. */
   const queue=parseQueue(params.get('queue'))
   const page=Math.max(0,Number(params.get('page')||0));const filters:CandidateListFilters={query:params.get('q')||'',status:params.get('status')||'',location:params.get('location')||'',source:params.get('source')||'',ownerMemberId:params.get('owner')||'',tag:params.get('tag')||'',skill:params.get('skill')||'',availability:params.get('availability')||'',queue:queue||undefined,sort:(params.get('sort') as CandidateListFilters['sort'])||'updated',direction:(params.get('dir') as CandidateListFilters['direction'])||'desc'}
-  const setFilter=(key:string,value:string)=>{const next=new URLSearchParams(params);if(value)next.set(key,value);else next.delete(key);next.delete('page');setParams(next,{replace:true});setSelected([])}
+  /* Every filter change also closes Quick View. A drawer left open across a filter change would be
+   * describing a candidate the list no longer contains, and its pager would page through a set that
+   * is no longer on screen. */
+  const setFilter=(key:string,value:string)=>{const next=new URLSearchParams(params);if(value)next.set(key,value);else next.delete(key);next.delete('page');setParams(next,{replace:true});setSelected([]);setQuickViewId(null)}
   /* `queue` is here so a saved view carries the queue it was saved in -- a view called "My overdue"
    * that silently dropped the queue would be a lie. It is NOT in candidateFilterKeys, so it gets no
    * dismissible chip: the tab row already shows its state, and two ways to clear one thing is how
@@ -196,18 +202,48 @@ export function CandidatesPage(){
   const [activeId,setActiveId]=useState<string|null>(null)
   const active=activeId&&rowIds.includes(activeId)?activeId:null
   const searchRef=useRef<HTMLInputElement>(null)
-  const focusRow=(id:string)=>{
-    setActiveId(id)
-    // data-row-id is unique to this table, so no container ref (and no extra wrapper element) is
-    // needed to scope the lookup.
-    const row=document.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`)
-    // 'nearest' so a keypress never jumps the page when the row is already on screen.
-    row?.scrollIntoView({block:'nearest'})
-    row?.focus({preventScroll:true})
+  // data-row-id is unique to this table, so no container ref (and no extra wrapper element) is
+  // needed to scope the lookup. 'nearest' so a keypress never jumps the page when the row is already
+  // on screen.
+  const rowElement=(id:string)=>document.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`)
+  /* Move the cursor WITHOUT taking focus. This is what the drawer's pager uses: focus belongs to the
+   * open dialog, and pulling it back to a row behind the scrim would break the focus trap and leave
+   * Tab walking the inert page. The list still follows along, so closing the drawer lands the user
+   * where they actually got to. */
+  const revealRow=(id:string)=>{setActiveId(id);rowElement(id)?.scrollIntoView({block:'nearest'})}
+  const focusRow=(id:string)=>{revealRow(id);rowElement(id)?.focus({preventScroll:true})}
+
+  /* Quick View: which candidate the drawer is showing, or null.
+   *
+   * Held as an id rather than a row so it cannot go stale against a refetch -- the drawer always
+   * renders the row the current page holds, and an id that is no longer on the page simply closes it
+   * rather than showing a frozen copy of a candidate the filters have since excluded. */
+  const [quickViewId,setQuickViewId]=useState<string|null>(null)
+  const quickView=rows.find((row)=>row.id===quickViewId)||null
+  const openQuickView=(id:string,entry:'row'|'menu'|'keyboard')=>{
+    setActiveId(id);setQuickViewId(id)
+    /* Non-PII by construction: an event name, the surface, and which of the three entry points was
+      * used. No candidate id, no name. `action_started` rather than a new event_name because the
+      * telemetry table's CHECK constraint owns that vocabulary, and widening it for a UI-only change
+      * would be a migration whose only content is a string. */
+    if(organization)recordWorkflowEvent({organizationId:organization.id,eventName:'action_started',
+      surface:'candidate_quick_view',actionKey:`open_${entry}`})
+  }
+  /* `restoreFocus` is false when the close is a HANDOFF -- Add to job and Add follow-up both open a
+   * modal of their own, and that modal claims focus for itself. Racing it back to a row behind two
+   * scrims would be the drawer reaching past the dialog that replaced it. */
+  const closeQuickView=(restoreFocus=true)=>{
+    const id=quickViewId
+    setQuickViewId(null)
+    /* useDialogShell restores focus to whatever was focused when the drawer opened -- the row the
+      * user came from. After paging inside the drawer that is no longer the row they are looking at,
+      * so this runs one frame later (the restore happens synchronously in the unmount commit) and
+      * puts the cursor back on the candidate that was actually on screen. */
+    if(id&&restoreFocus)requestAnimationFrame(()=>focusRow(id))
   }
   // Bound globally, so the return value is unused -- the page has its own pager and needs no counter.
   useListNavigation({ids:rowIds,activeId:active,onChange:focusRow,
-    onOpen:(id)=>{void navigate(`/app/${organization?.slug}/candidates/${id}`)},global:true,enabled:!open&&!mergeOpen&&!placementOpen})
+    onOpen:(id)=>{void navigate(`/app/${organization?.slug}/candidates/${id}`)},global:true,enabled:!open&&!mergeOpen&&!placementOpen&&!quickView})
   /* Shift-click selects the block between the last click and this one, because selecting eleven
    * consecutive candidates by clicking eleven checkboxes is the kind of thing that makes people
    * export to a spreadsheet instead. */
@@ -229,8 +265,11 @@ export function CandidatesPage(){
   /* `f` for the search field and `x` for select, the two things a keyboard user reaches for after
    * j/k. Both are suspended while a dialog is open -- useShortcut's own guard already refuses to fire
    * inside one, and the explicit `enabled` keeps them off while a modal owns the screen. */
-  const dialogOpen=open||mergeOpen||placementOpen
+  const dialogOpen=open||mergeOpen||placementOpen||Boolean(quickView)
   useShortcut('f',()=>searchRef.current?.focus(),!dialogOpen)
+  /* `v` for the row the cursor is on, so the whole review loop -- j/k to move, v to look, Escape to
+   * come back -- never needs the mouse. */
+  useShortcut('v',()=>{if(active)openQuickView(active,'keyboard')},!dialogOpen)
   const canSelect=Boolean(capabilities.data?.canMovePipeline)
   useShortcut('x',()=>{
     if(!active)return
@@ -241,14 +280,14 @@ export function CandidatesPage(){
   },!dialogOpen&&canSelect)
   const ownerNames=useMemo(()=>Object.fromEntries((team.data||[]).map((member)=>[member.id,member.profiles?.full_name||member.profiles?.email||'Selected member'])),[team.data])
   const chips=useMemo(()=>candidateFilterChips(params,{ownerNames}),[params,ownerNames])
-  const clearAllFilters=()=>{const next=new URLSearchParams(params);for(const key of candidateFilterKeys)next.delete(key);next.delete('page');setParams(next,{replace:true});setSelected([])}
+  const clearAllFilters=()=>{const next=new URLSearchParams(params);for(const key of candidateFilterKeys)next.delete(key);next.delete('page');setParams(next,{replace:true});setSelected([]);setQuickViewId(null)}
   /* Search and status have their own controls in the rail, so the Filters trigger counts only what is
    * hidden inside it. A "(3)" that included the search box the user is looking at would be counting
    * something they can already see, and would never read zero. */
   const railFilterKeys=['q','status']
   const secondaryFilterKeys=candidateFilterKeys.filter((key)=>!railFilterKeys.includes(key))
   const secondaryFilterCount=chips.filter((chip)=>!railFilterKeys.includes(chip.key)).length
-  const clearSecondaryFilters=()=>{const next=new URLSearchParams(params);for(const key of secondaryFilterKeys)next.delete(key);next.delete('page');setParams(next,{replace:true});setSelected([])}
+  const clearSecondaryFilters=()=>{const next=new URLSearchParams(params);for(const key of secondaryFilterKeys)next.delete(key);next.delete('page');setParams(next,{replace:true});setSelected([]);setQuickViewId(null)}
   /* Row density is a rendering preference, not a filter, so it belongs behind the overflow rather
    * than beside the controls that change which records are shown -- it was a three-segment control
    * sitting permanently in the rail for a setting most users touch once. A check mark rather than a
@@ -261,8 +300,6 @@ export function CandidatesPage(){
     onSelect:()=>chooseDensity(option.id),
     disabled:density===option.id,
   }))
-  // Straight off the loaded page, so the pane costs no request and j/k stays instant.
-  const previewed=rows.find((row)=>row.id===active)||null
   const pages=Math.max(1,Math.ceil((query.data?.count||0)/pageSize));const showPagination=(query.data?.count||0)>pageSize
 
   /* One cell per column id, so dropping a column is purely a matter of it not being in the list.
@@ -296,6 +333,7 @@ export function CandidatesPage(){
          * wondering where the action went. */
         const blocked=candidate.status==='do_not_contact'||candidate.status==='archived'
         const items:MenuItemSpec[]=[
+          {id:'quick',label:'Quick view',icon:<PanelRightOpen size={15}/>,onSelect:()=>openQuickView(candidate.id,'menu')},
           {id:'open',label:'Open candidate',icon:<UserRoundSearch size={15}/>,href:`/app/${organization?.slug}/candidates/${candidate.id}`},
           ...(capabilities.data?.canMovePipeline?[{id:'add',label:'Add to job',icon:<Users size={15}/>,disabled:blocked,
             text:blocked?'Add to job (not available for this candidate)':'Add to job',
@@ -374,34 +412,28 @@ export function CandidatesPage(){
         <span className="toolbar-count">{query.data?.count??0} candidates</span>
         <Menu className="toolbar-overflow" label="List options" items={listOptions} trigger={(props)=>
           <Button {...props} type="button" size="sm" variant="quiet" iconOnlyLabel="List options" leadingIcon={<MoreHorizontal size={16}/>}/>}/>
-        {/* Hidden below 1440px by CSS, where the pane is unavailable anyway -- a control that cannot
-          * change anything is worse than no control. Toggling never fires on a resize, so narrowing
-          * the window hides the pane without overwriting what the user chose. */}
-        <button type="button" className="pane-toggle" aria-pressed={paneOpen} title={paneOpen?'Hide the preview pane':'Show the preview pane'} onClick={()=>choosePane(!paneOpen)}>{paneOpen?'Hide preview':'Show preview'}</button>
       </div>
     <CandidateQueueTabs queue={queue} mine={Boolean(currentMemberId)&&filters.ownerMemberId===currentMemberId}
       mineAvailable={Boolean(currentMemberId)}
       onQueue={(next)=>setFilter('queue',next||'')}
       onMine={(next)=>setFilter('owner',next?currentMemberId||'':'')}/>
     <ActiveFilterChips filters={chips} onClear={(key)=>setFilter(key,'')} onClearAll={clearAllFilters}/>
-      <div className={`candidate-split${paneOpen?'':' candidate-split-solo'}`}>
-      {/* The measured region. Deliberately the grid track the table occupies -- AFTER the sidebar and
-        * the pane have taken their share -- so the column ladder responds to space the table can
-        * actually use. Measuring the viewport instead would need three media queries (window,
-        * sidebar-collapsed, pane-open) that can disagree; one observer here cannot. */}
+      {/* The measured region. Deliberately the track the table occupies -- AFTER the sidebar has taken
+        * its share -- so the column ladder responds to space the table can actually use. Measuring the
+        * viewport instead would need media queries for window width and sidebar state that can
+        * disagree; one observer here cannot. Quick View is an overlay and takes no share, so this
+        * measurement no longer moves when a candidate is being previewed. */}
       <div className="candidate-table-region" ref={tableRegion}>
       {query.isLoading?<TableSkeleton rows={8} columns={columns.length} label="Loading candidates…"/>:query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>:query.data?.rows.length===0?<EmptyState {...emptyQueueMessage(queue)}/>:<Table className={`candidates-table candidates-density-${density} candidates-table-${tier}`} headers={columns.map((column)=>({label:column.label,width:column.width,hideLabel:column.hideLabel}))}>{rows.map((candidate)=><tr key={candidate.id} data-row-id={candidate.id} tabIndex={candidate.id===active?0:-1}
         aria-selected={selected.includes(candidate.id)}
         onFocus={()=>setActiveId(candidate.id)}
+        /* The row is not a button and must not claim to be one: the name inside it is the link to the
+          * record, and that stays the accessible route. This is a mouse convenience on the dead space
+          * beside it, which is why there is a `v` shortcut and a menu item doing the same job. */
+        onClick={(event)=>{if(!isRowInteractive(event.target))openQuickView(candidate.id,'row')}}
         className={[candidate.status==='do_not_contact'||candidate.status==='archived'?'candidate-row-muted':'',candidate.id===active?'candidate-row-active':''].filter(Boolean).join(' ')||undefined}>{columns.map((column)=><td key={column.id}>{renderCell(column.id,candidate)}</td>)}</tr>)}</Table>}
       </div>
-      {/* Rendered at every width; CSS hides it below 1440px, and .candidate-split-solo hides it when
-        * the user has collapsed it. Eligibility and preference stay separate on purpose -- see
-        * readPaneOpen. There is still no behaviour to fork: j/k and Enter are unchanged either way. */}
-      <CandidatePreviewPane candidate={previewed} organizationSlug={organization?.slug||'workspace'}
-        canAddToJob={Boolean(capabilities.data?.canMovePipeline)} onAddToJob={(candidate)=>openPlacement([candidate])}/>
-      </div>
-      {showPagination&&<div className="pagination"><Button variant="secondary" disabled={page===0||query.isFetching} leadingIcon={<ChevronLeft size={14}/>} onClick={()=>{const next=new URLSearchParams(params);next.set('page',String(page-1));setParams(next,{replace:true})}}>Previous</Button><span>Page {page+1} of {pages}</span><Button variant="secondary" disabled={page+1>=pages||query.isFetching} trailingIcon={<ChevronRight size={14}/>} onClick={()=>{const next=new URLSearchParams(params);next.set('page',String(page+1));setParams(next,{replace:true})}}>Next</Button></div>}
+      {showPagination&&<div className="pagination"><Button variant="secondary" disabled={page===0||query.isFetching} leadingIcon={<ChevronLeft size={14}/>} onClick={()=>{const next=new URLSearchParams(params);next.set('page',String(page-1));setParams(next,{replace:true});setQuickViewId(null)}}>Previous</Button><span>Page {page+1} of {pages}</span><Button variant="secondary" disabled={page+1>=pages||query.isFetching} trailingIcon={<ChevronRight size={14}/>} onClick={()=>{const next=new URLSearchParams(params);next.set('page',String(page+1));setParams(next,{replace:true});setQuickViewId(null)}}>Next</Button></div>}
     </Panel>
     <AddCandidateModal open={open} onClose={()=>setOpen(false)} organizationId={organization!.id} organizationSlug={organization!.slug}
       userId={user!.id} baseCurrency={organization?.base_currency||'USD'} salaryPeriod={organization?.salary_period}
@@ -414,5 +446,21 @@ export function CandidatesPage(){
       * F5). Same idiom already used by mergeMutation, assignOwner and AddCandidateModal below. */}
     <AddCandidateToJobModal open={placementOpen} onClose={closePlacement} candidates={placementCandidates}
       onAdded={()=>cache.invalidateQueries({queryKey:['candidates-page',organization?.id]})}/>
+    {/* Mounted only while a candidate is chosen, so its CV and Activity queries cannot exist -- let
+      * alone run -- for a list nobody is previewing.
+      *
+      * Both quick actions CLOSE the drawer before opening their own dialog. useDialogShell traps Tab
+      * and listens for Escape at the document, with no notion of a stack: two open at once would give
+      * the drawer's trap the chance to yank focus out of the modal on top of it. */}
+    {quickView&&<CandidateQuickViewDrawer candidate={quickView} siblingIds={rowIds}
+      organizationSlug={organization?.slug||'workspace'}
+      onNavigate={(id)=>{revealRow(id);setQuickViewId(id)}} onClose={()=>closeQuickView()}
+      canAddToJob={Boolean(capabilities.data?.canMovePipeline)}
+      onAddToJob={(candidate)=>{closeQuickView(false);openPlacement([candidate])}}
+      onAddFollowUp={(candidate)=>{
+        closeQuickView(false)
+        const next=new URLSearchParams(params);next.set('task','1');next.set('linkType','candidate');next.set('linkId',candidate.id)
+        setParams(next,{replace:true})
+      }}/>}
   </Page>
 }

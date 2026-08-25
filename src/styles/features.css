@@ -207,47 +207,43 @@
 .bulk-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;width:100%}
 .bulk-bar-action{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 
-/* List and preview, side by side above 1024px only.
-   Single column by default and the pane hidden, so every narrower viewport keeps exactly the page it
-   had -- the pane is additive, and a side-by-side preview at 375px would leave neither usable. The
-   breakpoint is on the container, not the page, so a collapsed sidebar does not change it.
-   `min-width:0` on the list column is what stops the table's own horizontal scroller from forcing the
-   grid wider than its track. */
-.candidate-split{display:grid;grid-template-columns:minmax(0,1fr)}
-.candidate-split > .candidate-preview{display:none}
-/* min-width:0 or the grid track refuses to shrink below its content and the whole point -- measuring
-   the space the table actually has -- collapses. */
+/* The table's own track, measured for the column ladder. Quick View is a drawer now, so nothing
+   sits beside the table and there is no second column to reserve -- the table keeps its full width at
+   every desktop width, which is the whole reason the persistent pane was removed.
+   `min-width:0` is what stops the table's horizontal scroller forcing this track wider than its
+   parent. */
 .candidate-table-region{min-width:0}
-/* Collapsed by preference: one track at every width, so the table reclaims the full 320px. */
-.candidate-split-solo > .candidate-preview{display:none}
-/* 1440, not 1024. At 1024 the 268px sidebar plus this 320px pane left ~436px for six columns of
-   two-line cells -- the table could not fit and overflowed, which is the regression this replaces.
-   1440 is the first width where both fit with room for the identity column to stay readable.
-   The pane stays hidden below it regardless of the stored preference, and crossing the breakpoint
-   never writes that preference, so widening again restores what the user actually chose. */
-@media (min-width: 1440px){
-  .candidate-split:not(.candidate-split-solo){grid-template-columns:minmax(0,1fr) 320px;align-items:start}
-  .candidate-split:not(.candidate-split-solo) > .candidate-preview{display:flex}
-  .pane-toggle{display:inline-flex}
-}
-.candidate-preview{flex-direction:column;gap:var(--space-3);padding:var(--space-4);border-left:1px solid var(--color-line-soft);background:var(--color-surface-soft);
-  /* Sticks while the list scrolls, so the preview stays beside the row it describes on a long page. */
-  position:sticky;top:0;max-height:calc(100vh - var(--topbar-height));overflow-y:auto}
-.candidate-preview-empty{justify-content:center;text-align:center;gap:var(--space-2)}
-.candidate-preview-hint{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;font-size:var(--text-xs);color:var(--color-muted)}
-.candidate-preview-header{display:flex;align-items:center;gap:var(--space-2)}
-.candidate-preview-header strong{display:block;font-size:var(--text-base)}
+
+/* Quick View. The drawer shell (width, scroll region, header, footer) is components.css; these are
+   only the parts specific to a candidate's content, built from the same tokens the pane used so the
+   move changes where the panel lives and not how it reads. */
+.quick-view-panel{display:block;margin-top:var(--space-3)}
+/* The panel is a scroll container's child, not its own scroller: .drawer-content already scrolls, and
+   a nested one would trap the wheel over the CV frame. */
+.quick-view-panel:focus-visible{outline:none;box-shadow:var(--focus);border-radius:var(--radius-sm)}
+.quick-view-summary{display:flex;flex-direction:column;gap:var(--space-3)}
+.quick-view-identity{display:flex;align-items:center;gap:var(--space-2)}
+.quick-view-identity strong{display:block;font-size:var(--text-base)}
 /* :not(.avatar-sm) because the header's first child is the initials badge, also a bare <span> --
-   without the exclusion this rule's higher specificity overrode .avatar-sm's display:grid with
-   display:block, which silently broke place-items:center and left the initials pinned top-left. */
-.candidate-preview-header span:not(.avatar-sm){display:block;font-size:var(--text-xs)}
-.candidate-preview-facts{display:grid;gap:var(--space-2);margin:0}
-.candidate-preview-facts > div{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
-.candidate-preview-facts dt{font-size:var(--text-xs);color:var(--color-muted)}
-.candidate-preview-facts dd{margin:0;font-size:var(--text-sm);text-align:right}
-.candidate-preview-section h3{margin:0 0 var(--space-15);font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:0.04em}
-.candidate-preview-actions{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;margin-top:auto;padding-top:var(--space-2)}
-.candidate-preview-note{font-size:var(--text-xs)}
+   without the exclusion this rule's higher specificity overrides .avatar-sm's display:grid with
+   display:block, which silently breaks place-items:center and pins the initials top-left. */
+.quick-view-identity span:not(.avatar-sm){display:block;font-size:var(--text-xs)}
+.quick-view-context{margin:0;font-size:var(--text-sm);color:var(--color-ink-soft)}
+.quick-view-facts{display:grid;gap:var(--space-2);margin:0}
+.quick-view-facts > div{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2)}
+.quick-view-facts dt{font-size:var(--text-xs);color:var(--color-muted)}
+.quick-view-facts dd{margin:0;font-size:var(--text-sm);text-align:right}
+.quick-view-section h3{margin:0 0 var(--space-15);font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:0.04em}
+.quick-view-note{font-size:var(--text-xs)}
+.quick-view-actions{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.quick-view-cv{display:flex;flex-direction:column;gap:var(--space-3)}
+.quick-view-file-list{display:flex;flex-direction:column;gap:var(--space-2);margin:0;padding:0;list-style:none}
+.quick-view-file-list li{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.quick-view-file-name{display:flex;align-items:center;gap:6px;flex:1;min-width:0;font-size:var(--text-sm);font-weight:var(--weight-semibold);word-break:break-word}
+.quick-view-file-meta{font-size:var(--text-xs);color:var(--color-muted);white-space:nowrap}
+/* Tall enough to read a first page rather than to prove a PDF exists. Not 100% height: the file list
+   above it has to stay visible, or a second CV becomes unreachable without scrolling past the frame. */
+.quick-view-cv-frame{width:100%;height:min(60vh,520px);border:1px solid var(--color-line-soft);border-radius:var(--radius-sm);background:var(--color-surface-soft)}
 
 /* The keyboard's position in the list. A focus ring alone is not enough on a table row: the ring
    traces the row outline and reads as a rendering artifact, so the accent bar states "you are here"
@@ -400,15 +396,6 @@ tbody tr:focus-within .row-menu-trigger,
   .row-menu-trigger{opacity:1}
 }
 
-/* Only meaningful where the pane can exist; the media query above reveals it at 1440px. */
-.pane-toggle{
-  display:none;flex-shrink:0;min-height:28px;padding:3px 11px;
-  border:1px solid var(--color-line-strong);border-radius:var(--radius-pill);
-  background:var(--color-surface);color:var(--color-muted);
-  font-size:var(--text-xs);font-weight:var(--weight-semibold);cursor:pointer;white-space:nowrap;
-}
-.pane-toggle:hover{border-color:var(--color-muted);color:var(--color-ink)}
-.pane-toggle:focus-visible{outline:none;box-shadow:var(--focus)}
 
 /* A missing fact. The dashed pill this used to draw is gone: see the Gap component in
  * CandidatesPage for why a treatment that works for one or two gaps per screen fails at fifty rows

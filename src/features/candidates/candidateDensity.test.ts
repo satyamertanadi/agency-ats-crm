@@ -24,7 +24,7 @@ describe('candidate density preference',()=>{
   })
 
   /* Private-mode Safari throws on localStorage rather than returning null. A remembered row height is
-   * not worth taking the page down for, which is why all five keys in this app are wrapped. */
+   * not worth taking the page down for, which is why every key in this app is wrapped. */
   it('survives a browser that refuses storage',()=>{
     vi.spyOn(Storage.prototype,'getItem').mockImplementation(()=>{throw new Error('denied')})
     vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw new Error('denied')})
