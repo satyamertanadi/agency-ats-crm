@@ -4769,7 +4769,10 @@ export type Database = {
         }
       }
       storage_prefix_organization: { Args: { p_name: string }; Returns: string }
-      submission_delivery_priority: { Args: { p_state: string }; Returns: number }
+      submission_delivery_priority: {
+        Args: { p_state: string }
+        Returns: number
+      }
       submission_delivery_state: {
         Args: {
           p_email_status: string
