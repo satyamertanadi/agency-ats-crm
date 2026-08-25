@@ -322,3 +322,10 @@ export const candidateListRecordSchema=z.object({
   visibility:z.enum(['private','workspace']),
   created_at:z.string(),updated_at:z.string(),archived_at:z.string().nullable(),
 })
+
+/* What log_activity_with_follow_up returns. `task_id` is null when the composer's follow-up section
+ * was left closed -- an absence, not a failure, which is exactly why it is nullable here and why the
+ * caller must not treat a null as an error. */
+export const activityWithFollowUpSchema=z.object({
+  activity_id:z.string(),task_id:z.string().nullable(),
+})

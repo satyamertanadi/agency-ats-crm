@@ -5,9 +5,13 @@ import {ActivityFeed} from './ActivityFeed'
 import {ToastProvider} from '../../shared/ui/Toast'
 import type {ActivityLink} from '../core/repository'
 
-const {listActivities,createActivity}=vi.hoisted(()=>({listActivities:vi.fn(),createActivity:vi.fn()}))
-vi.mock('../core/repository',()=>({listActivities,createActivity}))
-vi.mock('../../app/OrganizationProvider',()=>({useOrganization:()=>({organization:{id:'org-1',slug:'northstar'}})}))
+const {listActivities,createActivityWithFollowUp,listTeamMembers,capabilities}=vi.hoisted(()=>({
+  listActivities:vi.fn(),createActivityWithFollowUp:vi.fn(),listTeamMembers:vi.fn(),capabilities:vi.fn(),
+}))
+vi.mock('../core/repository',()=>({listActivities,createActivityWithFollowUp}))
+vi.mock('../core/commercialRepository',()=>({listTeamMembers}))
+vi.mock('../../app/useWorkspaceCapabilities',()=>({useWorkspaceCapabilities:()=>({data:capabilities()})}))
+vi.mock('../../app/OrganizationProvider',()=>({useOrganization:()=>({organization:{id:'org-1',slug:'northstar'},membership:{id:'member-1'}})}))
 
 const entry={id:'a1',activity_type:'call',direction:'outbound',subject:'Intro call',summary:'Interested, three months notice.',occurred_at:new Date().toISOString(),created_by:'user-1',profiles:{full_name:'Satya Rao'}}
 
@@ -21,7 +25,13 @@ function renderFeed(links:ActivityLink[]=[{candidate_id:'cand-1'}]){
 }
 
 describe('ActivityFeed',()=>{
-  beforeEach(()=>{vi.clearAllMocks();listActivities.mockResolvedValue([]);createActivity.mockResolvedValue('new-id')})
+  beforeEach(()=>{
+    vi.clearAllMocks()
+    listActivities.mockResolvedValue([])
+    createActivityWithFollowUp.mockResolvedValue({activity_id:'new-id',task_id:null})
+    listTeamMembers.mockResolvedValue([{id:'member-1',user_id:'user-1',status:'active',profiles:{full_name:'Satya Rao'}}])
+    capabilities.mockReturnValue({readOnly:false})
+  })
 
   it('reads the feed for the record it is mounted on',async()=>{
     renderFeed([{candidate_id:'cand-1'}])
@@ -64,22 +74,123 @@ describe('ActivityFeed',()=>{
     fireEvent.click(await screen.findByRole('button',{name:'Log activity'}))
     fireEvent.change(screen.getByLabelText('What happened'),{target:{value:'Left a voicemail.'}})
     fireEvent.click(screen.getByRole('button',{name:'Save activity'}))
-    await waitFor(()=>expect(createActivity).toHaveBeenCalledWith('org-1',expect.objectContaining({activity_type:'call',direction:'outbound',summary:'Left a voicemail.'}),[{candidate_id:'cand-1'},{job_id:'job-9'}]))
+    await waitFor(()=>expect(createActivityWithFollowUp).toHaveBeenCalledWith('org-1',expect.objectContaining({activity_type:'call',direction:'outbound',summary:'Left a voicemail.'}),[{candidate_id:'cand-1'},{job_id:'job-9'}],undefined))
   })
 
   it('will not submit an entry with no summary',async()=>{
     renderFeed()
     fireEvent.click(await screen.findByRole('button',{name:'Log activity'}))
     expect(screen.getByRole('button',{name:'Save activity'})).toBeDisabled()
-    expect(createActivity).not.toHaveBeenCalled()
+    expect(createActivityWithFollowUp).not.toHaveBeenCalled()
   })
 
   it('surfaces a rejected write instead of implying it saved',async()=>{
-    createActivity.mockRejectedValue(new Error('permission_denied'))
+    createActivityWithFollowUp.mockRejectedValue(new Error('permission_denied'))
     renderFeed()
     fireEvent.click(await screen.findByRole('button',{name:'Log activity'}))
     fireEvent.change(screen.getByLabelText('What happened'),{target:{value:'Called the client.'}})
     fireEvent.click(screen.getByRole('button',{name:'Save activity'}))
     expect(await screen.findByRole('alert')).toHaveTextContent('permission_denied')
+  })
+})
+
+/* The follow-up half.
+ *
+ * The behaviour that matters is not the fields -- it is that the two writes are ONE write. Two calls
+ * can half-succeed, and the half that survives is the note claiming a follow-up exists. So the tests
+ * below check that exactly one request is made, that a refusal reports both halves as unsaved, and
+ * that the optional section stays genuinely optional.
+ */
+describe('ActivityFeed follow-up',()=>{
+  beforeEach(()=>{
+    vi.clearAllMocks()
+    listActivities.mockResolvedValue([])
+    createActivityWithFollowUp.mockResolvedValue({activity_id:'new-id',task_id:'task-1'})
+    listTeamMembers.mockResolvedValue([{id:'member-1',user_id:'user-1',status:'active',profiles:{full_name:'Satya Rao'}}])
+    capabilities.mockReturnValue({readOnly:false})
+  })
+
+  const openComposer=async()=>{fireEvent.click(await screen.findByRole('button',{name:'Log activity'}))}
+
+  it('leaves the follow-up closed by default',async()=>{
+    renderFeed()
+    await openComposer()
+    expect(screen.queryByLabelText('What needs to happen next?')).toBeNull()
+    expect(screen.getByRole('button',{name:'Save activity'})).toBeInTheDocument()
+  })
+
+  it('sends no follow-up when the section was never opened',async()=>{
+    renderFeed()
+    await openComposer()
+    fireEvent.change(screen.getByLabelText('What happened'),{target:{value:'Left a voicemail.'}})
+    fireEvent.click(screen.getByRole('button',{name:'Save activity'}))
+    await waitFor(()=>expect(createActivityWithFollowUp).toHaveBeenCalled())
+    expect(createActivityWithFollowUp.mock.calls.at(-1)?.[3]).toBeUndefined()
+  })
+
+  /* One request, carrying both. If this ever becomes two calls, the failure mode this whole design
+   * exists to prevent is back. */
+  it('saves the activity and the follow-up in a single request',async()=>{
+    renderFeed([{candidate_id:'cand-1'}])
+    await openComposer()
+    fireEvent.change(screen.getByLabelText('What happened'),{target:{value:'Discussed the counter-offer.'}})
+    fireEvent.click(screen.getByLabelText(/Schedule a follow-up/))
+    fireEvent.change(screen.getByLabelText('What needs to happen next?'),{target:{value:'Call back Friday'}})
+    fireEvent.click(screen.getByRole('button',{name:'Save activity and follow-up'}))
+    await waitFor(()=>expect(createActivityWithFollowUp).toHaveBeenCalledTimes(1))
+    const [organizationId,activity,links,followUp]=createActivityWithFollowUp.mock.calls[0]!
+    expect(organizationId).toBe('org-1')
+    expect(activity).toEqual(expect.objectContaining({summary:'Discussed the counter-offer.'}))
+    expect(links).toEqual([{candidate_id:'cand-1'}])
+    expect(followUp).toEqual(expect.objectContaining({title:'Call back Friday',priority:'normal',ownerMemberId:'member-1'}))
+  })
+
+  /* Asked for and left unnamed is not "no follow-up" -- it is an unfinished form, and dropping it
+   * quietly on the way to the server would save an activity the user thinks has a task attached. */
+  it('will not submit an opened follow-up with no title',async()=>{
+    renderFeed()
+    await openComposer()
+    fireEvent.change(screen.getByLabelText('What happened'),{target:{value:'Called the client.'}})
+    fireEvent.click(screen.getByLabelText(/Schedule a follow-up/))
+    expect(screen.getByRole('button',{name:'Save activity and follow-up'})).toBeDisabled()
+    expect(createActivityWithFollowUp).not.toHaveBeenCalled()
+  })
+
+  /* The message has to cover both halves, because one transaction wrote neither. A failure naming
+   * only the activity would leave the consultant to guess about the task. */
+  it('reports both halves as unsaved when the write is refused',async()=>{
+    createActivityWithFollowUp.mockRejectedValue(new Error('permission_denied'))
+    renderFeed()
+    await openComposer()
+    fireEvent.change(screen.getByLabelText('What happened'),{target:{value:'Called the client.'}})
+    fireEvent.click(screen.getByLabelText(/Schedule a follow-up/))
+    fireEvent.change(screen.getByLabelText('What needs to happen next?'),{target:{value:'Call back Friday'}})
+    fireEvent.click(screen.getByRole('button',{name:'Save activity and follow-up'}))
+    expect(await screen.findByRole('alert')).toHaveTextContent('permission_denied')
+    expect(screen.getByText(/If the follow-up cannot be created, neither is saved/)).toBeInTheDocument()
+  })
+
+  /* task_links reaches candidates, companies, contacts and jobs and nothing else. Rather than offer
+   * the section and let the server refuse it, a feed with no valid target does not offer it. */
+  it('does not offer a follow-up where a task cannot be attached',async()=>{
+    renderFeed([{candidate_submission_id:'sub-1'}])
+    await openComposer()
+    expect(screen.queryByLabelText(/Schedule a follow-up/)).toBeNull()
+  })
+
+  it('does not offer a follow-up to a read-only member',async()=>{
+    capabilities.mockReturnValue({readOnly:true})
+    renderFeed()
+    await openComposer()
+    expect(screen.queryByLabelText(/Schedule a follow-up/)).toBeNull()
+  })
+
+  // A closed section must not cost a team request on every record a consultant opens.
+  it('loads the team only once the section is opened',async()=>{
+    renderFeed()
+    await openComposer()
+    expect(listTeamMembers).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByLabelText(/Schedule a follow-up/))
+    await waitFor(()=>expect(listTeamMembers).toHaveBeenCalled())
   })
 })
