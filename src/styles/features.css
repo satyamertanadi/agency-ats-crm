@@ -1,45 +1,55 @@
 /* minmax raised 140 -> 160px: the labels are now 12px with --tracking-caps (they were 10.24px at
-   .055em), so they need the extra room. See responsive.css for the 4-up and 3-up steps. */
-/* auto-fit, not a hard `repeat(6,...)`: the pinned six-column grid left Clients' five tiles with a
+   .055em), so they need the extra room. See responsive.css for the 4-up and 3-up steps.
+
+   auto-fit, not a hard `repeat(6,...)`: the pinned six-column grid left Clients' five tiles with a
    visible hole at wide widths, and would have clipped a seventh. auto-fit fills the row with whatever
-   count the page renders while keeping the 160px floor the labels need. */
+   count the page renders while keeping the 160px floor the labels need.
+
+   ONE strip, not a row of cards. Six separate bordered boxes with gaps between them is six objects
+   competing for attention above the thing the page is actually about; a single bordered strip divided
+   by hairlines is one object that happens to hold six figures, which is what a KPI row is. `gap:0`
+   plus per-cell inline borders, so the divider count is always one fewer than the cell count no
+   matter how many tiles a page renders. */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--space-2);
-}
-/* Border dropped -- the box-shadow already signals "these are related, elevated tiles" on its own;
-   a border on top of a shadow was two affordances doing one job. .kpi-alert (below) is the one
-   exception, on different grounds: it needs its own border back to keep the "this is a problem"
-   signal since there's no longer a base border for it to just recolor. */
-.kpi {
-  position: relative;
-  background: var(--color-surface);
-  padding: var(--space-3);
+  gap: 0;
+  border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  box-shadow: var(--shadow-xs);
+  background: var(--color-surface);
   overflow: hidden;
 }
-/* The tinted icon square. KpiTile has always accepted an `icon`, but no product page passed one, so
-   the slot rendered a bare accent-coloured glyph that sat at the same visual weight as the label.
-   Giving it a soft-accent plate makes the tile scannable by shape before the number is read. */
+/* A cell of the strip above, not a card. Shadow gone (it was the loudest "dashboard widget" cue on
+   any screen), border gone with it -- the strip's own border and these hairline dividers do the work
+   that six full borders plus six shadows were doing badly. */
+.kpi {
+  position: relative;
+  padding: var(--space-3);
+  border-inline-start: 1px solid var(--color-line-soft);
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  overflow: hidden;
+}
+.kpi:first-child {
+  border-inline-start: 0;
+}
+/* The icon, no longer a plate. A 38px tinted square next to a 24px number gave the decoration more
+   area than the figure -- and since every ordinary tile drew the same blue square, the shape carried
+   no information to scan by. A plain glyph at the label's own weight annotates the tile instead of
+   competing with it, and the alert case below is now the ONLY tinted one, which is what makes it
+   readable as a problem at a glance. */
 .kpi-icon {
-  width: 38px;
-  height: 38px;
+  width: 20px;
+  height: 20px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-sm);
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
+  align-self: flex-start;
+  margin-top: 2px;
+  color: var(--color-faint);
 }
-/* An alert tile's plate follows its border, so the tile reads as a problem in one glance rather than
-   pairing a red edge with a calm blue icon. */
 .kpi-alert .kpi-icon {
-  background: var(--tone-bad-bg);
   color: var(--tone-bad-fg);
 }
 .kpi p {
@@ -62,18 +72,29 @@
 }
 .kpi strong {
   display: block;
-  font-family: var(--font-editorial);
   font-size: var(--text-2xl);
   /* Bumped to bold -- the KPI number is the one figure on a KPI tile actually worth reading, and
      it was sitting at the same semibold weight as most of the rest of the UI. */
   font-weight: var(--weight-bold);
   letter-spacing: -0.025em;
-  overflow-wrap: anywhere;
+  /* Tabular so a row of tiles has its digits on the same rhythm, and so a value that updates in
+     place (a count ticking up) does not change width as it does.
+     `overflow-wrap: anywhere` deliberately removed: it let "IDR 5,580,000,000" break mid-number
+     across two lines, which is worse than the overflow it was preventing. Long figures are
+     abbreviated at the source instead (see formatCompactCurrency), and the tile stays one line. */
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .kpi > div {min-width:0}
 .report-context {margin:0;color:var(--color-muted);font-size:var(--text-sm)}
+/* A tint rather than a border, now that the cell has no border of its own to recolour. It is the one
+   coloured cell in the strip, which is what makes "3 accounts need attention" findable at a glance --
+   and it only ever tints when the figure is non-zero (see KpiTile's `tone`), so a healthy workspace
+   shows a strip with no colour in it at all. */
 .kpi-alert {
-  border: 1px solid var(--tone-bad-border);
+  background: var(--tone-bad-bg);
 }
 .two-column {
   display: grid;
@@ -253,8 +274,7 @@
 
 /* Row density, remembered per browser. Sized down from the default segmented control because it sits
    in a toolbar beside a search box, not on its own as the add-candidate mode switch does. */
-.density-control{flex-shrink:0}
-.density-control button{padding:3px 9px;font-size:var(--text-xs)}
+
 
 /* Compact rows, and ONLY above the touch breakpoint.
  *
@@ -295,8 +315,23 @@
  * one baseline; anything carrying a class is already excluded, which is why .cell-strong exists at
  * all rather than a bare <strong>. */
 .cell-lead{display:flex;align-items:center;gap:6px;min-width:0}
-.cell-strong{font-weight:var(--weight-semibold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* min-width:0 so THIS is the flex item that gives way when the cell is tight, rather than the badge
+   beside it. Without it a flex item refuses to shrink below its min-content width, so the text held
+   its full length and squeezed the badge into wrapping -- see .badge in components.css. */
+.cell-strong{min-width:0;flex:0 1 auto;font-weight:var(--weight-semibold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cell-quiet{color:var(--color-muted);white-space:nowrap}
+/* The explicit second line of a two-line cell.
+ *
+ * components.css styles `td span:not([class])` as the sub-line, which is right for the common case
+ * and silently WRONG the moment the sub-line needs a class of its own -- adding `.cell-gap` or
+ * `.overdue-text` to it drops display:block, and the two lines collapse onto one. Every classed
+ * sub-line in an allocated table takes this instead, so the treatment is stated rather than inherited
+ * from the absence of an attribute. */
+.cell-sub{
+  display:block;margin-top:var(--space-05);
+  font-size:var(--text-sm);font-weight:var(--weight-regular);color:var(--color-muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
 
 /* Truncate EACH LINE, not the cell.
  *
@@ -329,8 +364,33 @@
    satisfy width:100% -- which is the unreadable identity column this whole change removes. Holding a
    real min-width makes .table-scroll scroll internally instead, which is the deliberate fallback at
    phone widths. 638 = 208 Candidate + 210 Pipeline + 220 Follow-up; see candidateColumns.ts. */
-.candidates-table-three table{min-width:638px}
-.candidates-table-four table{min-width:730px}
+.candidates-table-three table{min-width:658px}
+.candidates-table-four table{min-width:706px}
+
+/* The identity column, given the room the Action column used to take.
+ * The name gets its own line and does not share it with the role: `.record-link strong` is already
+ * ellipsised per line by the rule above, so a long name truncates rather than wrapping the row to
+ * three times its height. The role sub-line keeps its title attribute for the full string. */
+.candidates-table .candidate-row-identity-text > .record-link strong{
+  font-size:var(--text-base);
+}
+
+/* The row overflow. Invisible until the row is hovered, focused, or the menu itself is open, so a
+ * screenful of rows shows fifty names rather than fifty buttons -- but it is a real button at all
+ * times, never `display:none`, so Tab reaches it and a screen reader announces it. Opacity, not
+ * visibility, for exactly that reason. */
+.row-menu-trigger{
+  opacity:0;color:var(--color-muted);transition:opacity var(--motion-fast),background var(--motion-fast);
+}
+tbody tr:hover .row-menu-trigger,
+tbody tr:focus-within .row-menu-trigger,
+.row-menu-trigger[aria-expanded='true']{
+  opacity:1;
+}
+@media (hover:none){
+  /* No hover to reveal it on a touch device, so it is simply always there. */
+  .row-menu-trigger{opacity:1}
+}
 
 /* Only meaningful where the pane can exist; the media query above reveals it at 1440px. */
 .pane-toggle{
@@ -342,13 +402,13 @@
 .pane-toggle:hover{border-color:var(--color-muted);color:var(--color-ink)}
 .pane-toggle:focus-visible{outline:none;box-shadow:var(--focus)}
 
-/* A missing fact, drawn as a slot to fill rather than an empty cell. Dashed, because a solid border
- * would read as a value and no border at all reads as nothing -- which is exactly how "Unassigned"
- * used to get scanned past. */
+/* A missing fact. The dashed pill this used to draw is gone: see the Gap component in
+ * CandidatesPage for why a treatment that works for one or two gaps per screen fails at fifty rows
+ * times three columns. Plain muted italic-free text -- present enough to read, quiet enough that the
+ * eye goes to the names and the real badges instead. */
+.cell-sub.cell-gap,
 .cell-gap{
-  display:inline-flex;align-items:center;padding:1px 7px;
-  border:1px dashed var(--color-line-strong);border-radius:var(--radius-pill);
-  color:var(--color-muted);font-size:var(--text-xs);white-space:nowrap;
+  color:var(--color-faint);white-space:nowrap;
 }
 
 /* Weight carries urgency, matching .work-queue-badge on Today: solid for late, tinted outline for
@@ -359,10 +419,59 @@
 }
 .due-chip-late{background:var(--color-danger);color:var(--color-on-accent)}
 .due-chip-today{background:var(--tone-warn-bg);color:var(--tone-warn-fg);border:1px solid var(--tone-warn-border)}
-.filter-panel{margin:12px 0}.filter-panel>summary{cursor:pointer;color:var(--color-muted);font-weight:var(--weight-semibold)}.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:12px}
+/* The grid inside the Filters popover. `.filter-panel` -- the permanently visible "Filters and
+   sorting" <details> this grid used to live in -- is gone; see FilterPopover.tsx. */
+.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--space-3)}
 .task-date-shortcuts{display:flex;flex-wrap:wrap;gap:6px}
 .job-choice-context{display:flex;gap:12px;padding:14px;border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface-soft)}.job-choice-context dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 24px;margin:0;flex:1}.job-choice-context dt{font-size:var(--text-xs);color:var(--color-muted)}.job-choice-context dd{margin:2px 0 0;font-weight:var(--weight-semibold)}
-.pipeline-mini{display:flex;height:8px;min-width:130px;overflow:hidden;border-radius:var(--radius-pill);background:var(--color-surface-soft)}.pipeline-mini span{min-width:6px}.pipeline-mini .phase-sourcing{background:var(--color-faint)}.pipeline-mini .phase-screening{background:var(--color-info)}.pipeline-mini .phase-shortlist{background:var(--color-accent)}.pipeline-mini .phase-client_review{background:var(--color-violet)}.pipeline-mini .phase-interview{background:var(--color-warning)}.pipeline-mini .phase-offer{background:var(--color-danger)}.pipeline-mini .phase-placed{background:var(--tone-good-fg)}.job-health-filters{max-width:100%;overflow-x:auto}
+/* The owner cell: a name, and an edit affordance that appears on the row you are pointing at.
+   Shares .row-menu-trigger's reveal rules (features.css, candidate table) so both row-level edit
+   affordances in the product behave identically. */
+.owner-cell{display:inline-flex;align-items:center;gap:var(--space-1);min-width:0;max-width:100%}
+.owner-cell-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* The allocated floor. 960 = 260 Job / client + 140 Owner + 210 Pipeline health + 190 Age / next
+   action + 160 Expected fee. Below it .table-scroll scrolls internally rather than letting
+   table-layout:fixed crush the job title, which is the same rule the candidate table follows.
+   960 rather than 980, measured: at 1280px -- the narrowest laptop in the support matrix -- the panel
+   gives this table 971px, so a 980px floor put it 9px into an internal scroll for no gain. The 20px
+   came off Owner and Age, the two columns with the most slack. */
+.jobs-table table{min-width:960px}
+/* 890 = 190 BD stage / owner + 160 Open jobs / value + 170 Next action + 180 Agreement / status,
+   plus a 190px floor for the client name. Same rule as the other two allocated tables: scroll the
+   region rather than compress the identity column. */
+.clients-table table{min-width:890px}
+.clients-table .money strong{font-size:var(--text-base);font-weight:var(--weight-semibold)}
+
+/* Fee over salary band. The fee is the figure the row is scanned for, so it keeps the cell's full
+   type size and weight while the band beneath it drops to the sub-line treatment every other
+   two-line cell uses. Tabular digits come from .money on the cell itself. */
+.jobs-table .money strong{font-size:var(--text-base);font-weight:var(--weight-semibold)}
+
+/* One hue, getting darker as a candidate gets closer -- not seven unrelated colours.
+ *
+ * The bar used to run grey, cyan, blue, violet, amber, red, green. Seven hues means the reader has to
+ * learn a key before the bar says anything, and two of those hues were already spoken for elsewhere
+ * in the product: amber means "at risk" and red means "blocked or overdue" on every other surface, so
+ * a healthy pipeline with candidates at interview and offer -- the BEST possible state -- rendered as
+ * a bar that was mostly amber and red. It read as an alarm.
+ *
+ * A single-hue ramp encodes the one thing the bar is actually for: progression. Darker is further
+ * along, so "mostly pale" and "mostly deep" are legible at a glance with nothing to memorise. Placed
+ * keeps green because that is a confirmed success rather than another step, which is exactly the
+ * distinction the status-colour rule reserves green for.
+ *
+ * The cell's own text line ("4 candidates - 2 screening, 1 interview") is the legend, and carries the
+ * numbers for anyone who cannot use the colour at all. */
+.pipeline-mini{display:flex;height:8px;min-width:130px;overflow:hidden;border-radius:var(--radius-pill);background:var(--color-surface-soft)}
+.pipeline-mini span{min-width:6px}
+.pipeline-mini .phase-sourcing{background:color-mix(in srgb,var(--color-accent) 20%,var(--color-surface))}
+.pipeline-mini .phase-screening{background:color-mix(in srgb,var(--color-accent) 34%,var(--color-surface))}
+.pipeline-mini .phase-shortlist{background:color-mix(in srgb,var(--color-accent) 50%,var(--color-surface))}
+.pipeline-mini .phase-client_review{background:color-mix(in srgb,var(--color-accent) 66%,var(--color-surface))}
+.pipeline-mini .phase-interview{background:color-mix(in srgb,var(--color-accent) 82%,var(--color-surface))}
+.pipeline-mini .phase-offer{background:var(--color-accent)}
+.pipeline-mini .phase-placed{background:var(--tone-good-fg)}
 /* Add-to-job picker. The chips are the selection made durable: the list underneath is one search's
    results, and without a standing record of who is already chosen, building a shortlist from three
    searches would silently keep only the last one. Each chip is the control that removes it. */
@@ -370,7 +479,7 @@
 .selection-chip-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .candidate-pick-list{border:1px solid var(--color-line);border-radius:var(--radius-md);padding:10px 12px;margin:0;max-height:260px;overflow-y:auto}
 .candidate-pick-list>legend{padding:0 6px;font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted)}
-@media (max-width:700px){.job-choice-context dl{grid-template-columns:1fr}.job-health-filters{width:100%}}
+@media (max-width:700px){.job-choice-context dl{grid-template-columns:1fr}}
 .activity-item {
   display: flex;
   gap: var(--space-3);
@@ -505,7 +614,6 @@
     0 0 0 110px rgba(255, 255, 255, 0.018);
 }
 .auth-product-title {
-  font-family: var(--font-editorial);
   font-size: var(--text-5xl);
   font-weight: var(--weight-regular);
   line-height: 0.92;
@@ -526,9 +634,15 @@
   flex-direction: column;
   justify-content: center;
 }
+/* An explicit size rather than --text-3xl.
+ *
+ * That token exists to set the APPLICATION's page headings, and it was reduced to 26-28px so an
+ * operational screen leads with its data rather than its title. The sign-in page is the opposite kind
+ * of surface -- one heading, no data, the first thing anyone sees of the product -- so it should not
+ * shrink because a candidate table needed more room. This is the token's former value, pinned here so
+ * the two can move independently from now on. */
 .auth-card h1 {
-  font-family: var(--font-editorial);
-  font-size: var(--text-3xl);
+  font-size: clamp(1.75rem, 2.2vw, 2.125rem);
   font-weight: var(--weight-medium);
   margin: 0;
   letter-spacing: -0.035em;
@@ -589,19 +703,23 @@
 .candidate-card {
   background: var(--color-surface);
   padding: 12px;
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
   margin-bottom: 8px;
   cursor: grab;
-  box-shadow: var(--shadow-xs);
   transition:
-    box-shadow var(--motion-fast),
-    transform var(--motion-fast);
+    border-color var(--motion-fast),
+    background var(--motion-fast);
 }
 /* No translateY on hover: this card is draggable, and a card that lifts on mere hover fights the
-   drag affordance and reads as fidgety when you sweep across a column. Border dropped (the shadow
-   was already doing the same "this is a card" job); hover now just deepens the shadow. */
+   drag affordance and reads as fidgety when you sweep across a column.
+   Shadow swapped back for a border, matching .panel and .kpi. A column of eight shadowed cards on a
+   tinted column background is eight floating objects inside a ninth -- the elevation was spent
+   saying "card", which the border says for free, and it left nothing to distinguish the card that
+   is genuinely lifted: the one being dragged (see .workflow-candidate-card.dragging). */
 .candidate-card:hover {
-  box-shadow: var(--shadow-sm);
+  border-color: var(--color-line-strong);
+  background: var(--color-surface-soft);
 }
 .candidate-card:active {
   cursor: grabbing;
@@ -632,7 +750,6 @@
   color: var(--color-on-dark);
 }
 .review-header h1 {
-  font-family: var(--font-editorial);
   font-size: var(--text-4xl);
   font-weight: var(--weight-medium);
   line-height: var(--leading-tight);
@@ -703,7 +820,6 @@
 /* Had no font-size at all, so it rendered at the browser's default 1.5em (24px) -- a size
    nobody chose, on the one screen a paying client ever opens. */
 .review-card h2 {
-  font-family: var(--font-editorial);
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
@@ -874,7 +990,6 @@
   margin-top: 4px;
 }
 .settings-section-heading h2 {
-  font-family: var(--font-editorial);
   font-size: var(--text-xl);
   margin: 0;
 }
@@ -1005,7 +1120,6 @@
   padding-top: 13px;
 }
 .modal section h3 {
-  font-family: var(--font-editorial);
   font-size: var(--text-lg);
   margin: 0 0 10px;
 }
@@ -1149,7 +1263,19 @@
  * signal on top of the same fact -- it used to paint the row border red/amber AND tint the label,
  * which was the badge's job stated twice. */
 .work-queue-band+.work-queue-band{margin-top:var(--space-4)}
-.work-queue-band-label{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-caps);font-weight:var(--weight-bold);margin:0 0 var(--space-2);color:var(--color-muted)}
+/* The band heading now carries the band's severity, so the rows inside it no longer have to repeat
+   it -- see WorkQueueBadge in TodayPage. Colour on the LABEL and a count in a neutral chip: one
+   severity signal per band, instead of one per row multiplied by however many rows there are. */
+.work-queue-band-label{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:var(--tracking-caps);font-weight:var(--weight-bold);margin:0 0 var(--space-2);color:var(--color-muted)}
+.work-queue-band-label span{display:inline-flex;align-items:center;justify-content:center;min-width:20px;padding:1px 6px;border-radius:var(--radius-pill);background:var(--tone-neutral-bg);color:var(--tone-neutral-fg);border:1px solid var(--tone-neutral-border);font-size:var(--text-xs);letter-spacing:0;font-variant-numeric:tabular-nums}
+.work-queue-band-bad{color:var(--color-danger)}
+.work-queue-band-bad span{background:var(--tone-bad-bg);color:var(--tone-bad-fg);border-color:var(--tone-bad-border)}
+.work-queue-band-warn{color:var(--tone-warn-fg)}
+.work-queue-band-warn span{background:var(--tone-warn-bg);color:var(--tone-warn-fg);border-color:var(--tone-warn-border)}
+/* "View all 34" / "Show first 6". Quiet, because it is navigation within a list rather than an
+   action on the work in it. */
+.work-queue-band-more{display:flex;align-items:center;gap:var(--space-1);margin-top:var(--space-2);border:0;background:transparent;padding:var(--space-1) var(--space-2);color:var(--color-accent);font:inherit;font-size:var(--text-sm);font-weight:var(--weight-semibold);cursor:pointer}
+.work-queue-band-more:hover{text-decoration:underline}
 .work-queue{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-2)}
 .work-queue-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding:13px var(--space-4);border-radius:var(--radius-md);border:1px solid transparent;transition:background var(--motion-fast)}
 .work-queue-row:hover{background:var(--color-canvas-deep)}
@@ -1205,7 +1331,8 @@
 .record-metadata{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}.record-metadata>span:not(.badge){color:var(--color-muted);font-size:var(--text-sm)}
 .record-tabs{display:flex;gap:var(--space-1);border-bottom:1px solid var(--color-line)}.record-tabs button{border:0;background:transparent;padding:10px 15px;border-bottom:2px solid transparent;color:var(--color-muted);font:inherit;font-weight:var(--weight-semibold);cursor:pointer}.record-tabs button.active{color:var(--color-accent);border-bottom-color:var(--color-accent)}
 .workflow-toolbar{justify-content:space-between;gap:var(--space-4)}.workflow-toolbar>div:first-child strong,.workflow-toolbar>div:first-child span{display:block}.workflow-toolbar>div:first-child span{color:var(--color-muted);margin-top:3px}.detail-toggle{display:inline-flex;align-items:center;gap:7px;color:var(--color-muted);font-size:var(--text-sm);font-weight:var(--weight-semibold)}
-.workflow-kanban{min-height:460px}.workflow-column{min-height:440px}.workflow-candidate-card{padding:0;touch-action:none;overflow:hidden}.workflow-candidate-card.dragging{opacity:.65;box-shadow:var(--shadow-lg);z-index:5}.candidate-card-open{display:grid;grid-template-columns:1fr auto;width:100%;text-align:left;border:0;background:transparent;padding:var(--space-3);color:inherit;cursor:pointer}.candidate-card-open strong,.candidate-card-open span,.candidate-card-open small{grid-column:1}.candidate-card-open svg{grid-column:2;grid-row:1/4;align-self:center;color:var(--color-faint)}.candidate-card-open span,.candidate-card-open small{margin-top:2px;color:var(--color-muted)}.workflow-candidate-card>label{display:block;padding:0 var(--space-3) var(--space-3)}.workflow-candidate-card select{width:100%;font-size:var(--text-xs)}
+.workflow-kanban{min-height:460px}.workflow-column{min-height:440px}.workflow-candidate-card{padding:0;touch-action:none;overflow:hidden}.workflow-candidate-card.dragging{opacity:.65;box-shadow:var(--shadow-lg);z-index:5}.candidate-card-open{display:grid;grid-template-columns:1fr auto;width:100%;text-align:left;border:0;background:transparent;padding:var(--space-3);color:inherit;cursor:pointer}.candidate-card-open strong,.candidate-card-open span,.candidate-card-open small{grid-column:1}.candidate-card-open svg{grid-column:2;grid-row:1/4;align-self:center;color:var(--color-faint)}.candidate-card-open span,.candidate-card-open small{margin-top:2px;color:var(--color-muted)}/* The per-card phase <select> is gone -- its rules with it. `>label` now styles only the selection
+   checkbox wrapper, which positions itself absolutely (see .workflow-card-select). */
 
 /* ---- pipeline board redesign: SLA-aware cards, phase-ramp column headers --------
  * `.workflow-kanban` overrides the base `.kanban` auto-flow-column layout with a fixed grid. The
@@ -1213,7 +1340,7 @@
  * are not all equal any more -- an empty phase or an outcome/placed column gets a narrower share than
  * a populated phase. This rule is the fallback for the one case JS cannot size (zero columns); the
  * base `.kanban`'s own `overflow-x:auto` still applies as the narrow-viewport fallback below. */
-.workflow-kanban{grid-auto-flow:unset;grid-template-columns:repeat(6,minmax(186px,1fr));align-items:start}
+.workflow-kanban{grid-auto-flow:unset;grid-template-columns:repeat(6,minmax(288px,1fr));align-items:start}
 /* ...and hands it straight back below 840px. `grid-auto-columns:84vw` in responsive.css only sizes
  * IMPLICIT tracks, so the explicit template above silently defeated it: the phone got six 186px
  * columns to scroll through instead of one near-full-width column per swipe -- the exact layout the
@@ -1227,11 +1354,15 @@
  * (`phaseRampColor`), so this stays the one place the 3px thickness is declared. */
 .workflow-candidate-card{border-left-width:3px}
 .workflow-urgency-note{display:flex;align-items:center;gap:6px;font-size:var(--text-2xs);color:var(--color-faint);margin:0 0 var(--space-2)}
+/* The board scrolls horizontally inside .kanban but the PAGE scrolls vertically, so a column header
+   sticks to the viewport rather than to the board -- which is what keeps the phase named while
+   reading down a long column. Offset by the topbar, the only fixed chrome above it. */
+.workflow-column>header{position:sticky;top:var(--topbar-height);z-index:2;background:var(--color-canvas-deep);margin:0 calc(-1 * var(--space-1));padding-inline:var(--space-1)}
 .workflow-column-bar{height:3px;border-radius:var(--radius-pill);margin-bottom:9px}
 .workflow-column-stats{font-size:var(--text-2xs);color:var(--color-faint);margin:3px 0 var(--space-2)}
 .workflow-column-empty{min-height:80px;opacity:.72}
 /* Section header for the submissions rail folded into the board's own Panel. */
-.workflow-submissions-section h3{margin:var(--space-4) 0 var(--space-3);font-family:var(--font-editorial);font-size:var(--text-lg);font-weight:var(--weight-semibold)}
+.workflow-submissions-section h3{margin:var(--space-4) 0 var(--space-3);font-size:var(--text-lg);font-weight:var(--weight-semibold)}
 /* The collapse toggle. A plain text link rather than a button-styled control -- it is not a
  * destination, it is more of the same list, so it should read as lightweight as "show more" always
  * has on the web. */
@@ -1252,22 +1383,41 @@
 .workflow-candidate-card .workflow-card-top strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-base);color:var(--color-ink)}
 .workflow-candidate-card .workflow-card-avatar{display:grid;place-items:center;width:26px;height:26px;flex:0 0 auto;border-radius:var(--radius-circle);background:var(--color-accent-soft);color:var(--color-accent);font-weight:var(--weight-bold);font-size:var(--text-2xs)}
 .workflow-candidate-card .workflow-card-grip{color:var(--color-faint);flex:0 0 auto}
-.workflow-candidate-card .workflow-card-role{display:block;font-size:var(--text-xs);color:var(--color-muted);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:7px}
+.workflow-candidate-card .workflow-card-role{display:block;font-size:var(--text-sm);color:var(--color-muted);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:6px}
 .workflow-candidate-card .workflow-card-bottom{display:flex;align-items:center;gap:6px;margin-top:10px}
-.workflow-candidate-card .workflow-days-badge{display:inline-flex;align-items:center;gap:4px;font-size:var(--text-2xs);font-weight:var(--weight-semibold);padding:3px 8px;border-radius:var(--radius-pill);background:var(--tone-neutral-bg);color:var(--tone-neutral-fg);border:1px solid var(--tone-neutral-border);width:max-content}
+.workflow-candidate-card .workflow-days-badge{display:inline-flex;align-items:center;gap:4px;font-size:var(--text-xs);font-weight:var(--weight-semibold);padding:3px 8px;border-radius:var(--radius-pill);background:var(--tone-neutral-bg);color:var(--tone-neutral-fg);border:1px solid var(--tone-neutral-border);width:max-content}
 .workflow-candidate-card .workflow-days-badge.tone-warn{background:var(--tone-warn-bg);color:var(--tone-warn-fg);border-color:var(--tone-warn-border)}
 .workflow-candidate-card .workflow-days-badge.tone-bad{background:var(--tone-bad-bg);color:var(--tone-bad-fg);border-color:var(--tone-bad-border)}
-.workflow-candidate-card .workflow-card-owner{margin-left:auto;display:grid;place-items:center;width:20px;height:20px;border-radius:var(--radius-circle);background:var(--color-canvas-deep);color:var(--color-muted);font-size:var(--text-2xs);font-weight:var(--weight-bold);flex:0 0 auto}
+.workflow-candidate-card .workflow-card-owner{margin-left:auto;display:grid;place-items:center;width:22px;height:22px;border-radius:var(--radius-circle);background:var(--color-canvas-deep);color:var(--color-muted);font-size:var(--text-2xs);font-weight:var(--weight-bold);flex:0 0 auto}
 .record-overview-grid,.candidate-overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}
 /* Padded on its own -- every caller renders this inside a Panel that defaults to zero body padding
  * (only 3 Panel call sites in the app opt into a padding prop, and none of them wrap this), so
  * without its own padding the label/value pairs sit flush against the Panel's border. */
-.record-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4);margin:0;padding:var(--space-4) var(--space-5)}.record-summary div{min-width:0}.record-summary .full{grid-column:1/-1}.record-summary dt{font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:var(--tracking-caps)}.record-summary dd{margin:4px 0 0;color:var(--color-ink);overflow-wrap:anywhere}
+/* auto-fit, not a hard 2 columns. Two tracks meant a client overview showing five short values --
+   "Hospitality", "Bali", a stage badge, a URL -- spread each of them across half a 900px panel, so
+   the section was mostly empty space with a word in the corner of it. auto-fit packs as many 200px
+   columns as the panel can hold (four on a wide detail page, one on a phone) and the definition grid
+   reads as a compact block of facts rather than a sparse card. */
+.record-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-4) var(--space-5);margin:0;padding:var(--space-4) var(--space-5)}.record-summary div{min-width:0}.record-summary .full{grid-column:1/-1}.record-summary dt{font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-muted);text-transform:uppercase;letter-spacing:var(--tracking-caps)}.record-summary dd{margin:4px 0 0;color:var(--color-ink);overflow-wrap:anywhere}
 /* A divider between two sections sharing one Panel -- e.g. Client overview and Commercial terms,
- * which are two facts about one account rather than two separate records needing their own cards. */
-.panel-section-divider{border-top:1px solid var(--color-line-soft);margin:var(--space-4) 0}
+ * which are two facts about one account rather than two separate records needing their own cards.
+ * No vertical margin of its own: each section owns its padding (see .record-summary and
+ * .commercial-terms-section), so a margin here would add a second, different gap on top of theirs and
+ * make the two sides of the same line unequal. */
+.panel-section-divider{border-top:1px solid var(--color-line-soft)}
+
+/* THE spacing defect this pass was asked to fix.
+ *
+ * Panel's body is padding:none by default, and every other thing that goes in one brings its own
+ * padding (.record-summary, .table-scroll's cells, .toolbar). This section brought none, so on the
+ * client detail page the words "Commercial terms" and the sentence under them started exactly at the
+ * Panel's 1px border, hard against the left edge, with the section divider running out from directly
+ * beneath the heading's cap height. It read as a rendering fault rather than a section -- the single
+ * most visible unfinished thing in the product.
+ * Matched to .record-summary above it, so the two sections of one Panel share one left edge. */
+.commercial-terms-section{padding:var(--space-4) var(--space-5)}
 .commercial-terms-section-header{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-3);margin-bottom:var(--space-3)}
-.commercial-terms-section-header h3{margin:0;font-family:var(--font-editorial);font-size:var(--text-lg);font-weight:var(--weight-semibold)}
+.commercial-terms-section-header h3{margin:0;font-size:var(--text-lg);font-weight:var(--weight-semibold)}
 .commercial-terms-section-header p{margin:2px 0 0;color:var(--color-muted);font-size:var(--text-sm)}
 .phase-progress{display:grid;gap:var(--space-1);margin:0;padding:0;list-style:none}.phase-progress li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:9px 12px;border:1px solid var(--color-line-soft);border-radius:var(--radius-sm);color:var(--color-muted);font-size:var(--text-sm)}.phase-progress li strong{color:var(--color-faint);font-variant-numeric:tabular-nums}
 /* Three states, so the card answers "where is this job" at a glance: cleared phases the pipeline has
@@ -1304,14 +1454,24 @@
 
 /* Tone-coded facts a recruiter checks first, lifted to a scannable band under the header. Colours
  * come from the same --tone-*-fg role tokens the badges use, so nothing is a hand-picked hex. */
-.readiness-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);margin:0 0 var(--space-4)}
-.readiness-chip{display:flex;flex-direction:column;gap:3px;padding:var(--space-3) var(--space-4);border:1px solid var(--color-line);border-left:3px solid var(--color-line-strong);border-radius:var(--radius-md);background:var(--color-surface-soft)}
-.readiness-chip dt{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-caps);color:var(--color-faint);font-weight:var(--weight-semibold)}
+/* One strip, not a row of tiles.
+ *
+ * Each fact used to be its own bordered, rounded, tinted box with a 3px accent edge -- six cards
+ * above the record, before any of the record. Collapsing them into a single bordered strip divided
+ * by hairlines keeps every fact and its tone (the tone now colours the VALUE, which is the part that
+ * carries it) while spending one surface on the group instead of six. Roughly 40% shorter, and the
+ * page's first real content moves up by that much. */
+.readiness-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;margin:0 0 var(--space-3);border:1px solid var(--color-line);border-radius:var(--radius-lg);background:var(--color-surface);overflow:hidden}
+.readiness-chip{display:flex;flex-direction:column;gap:2px;padding:var(--space-2) var(--space-3);border-inline-start:1px solid var(--color-line-soft)}
+.readiness-chip:first-child{border-inline-start:0}
+.readiness-chip dt{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:var(--tracking-caps);color:var(--color-faint);font-weight:var(--weight-semibold)}
 .readiness-chip dd{margin:0;font-size:var(--text-sm);font-weight:var(--weight-semibold);color:var(--color-ink);overflow-wrap:anywhere}
-.readiness-chip.tone-good{border-left-color:var(--tone-good-fg)}.readiness-chip.tone-good dd{color:var(--tone-good-fg)}
-.readiness-chip.tone-bad{border-left-color:var(--tone-bad-fg)}.readiness-chip.tone-bad dd{color:var(--tone-bad-fg)}
-.readiness-chip.tone-warn{border-left-color:var(--tone-warn-fg)}.readiness-chip.tone-warn dd{color:var(--tone-warn-fg)}
-.readiness-chip.tone-info{border-left-color:var(--tone-info-fg)}.readiness-chip.tone-info dd{color:var(--tone-info-fg)}
+/* Tone on the value only. The 3px coloured left edge that used to carry it is gone with the cards;
+   a strip of six differently-edged segments would have been the rainbow this pass is removing. */
+.readiness-chip.tone-good dd{color:var(--tone-good-fg)}
+.readiness-chip.tone-bad dd{color:var(--tone-bad-fg)}
+.readiness-chip.tone-warn dd{color:var(--tone-warn-fg)}
+.readiness-chip.tone-info dd{color:var(--tone-info-fg)}
 
 /* ---- candidate detail redesign: two-tier readiness (act now vs reference) -----------------------
  * The action band only renders when something is genuinely actionable, so a fully-ready candidate
@@ -1352,12 +1512,9 @@
 
 /* Overflow menu for the secondary/destructive header actions (Generate profile, Upload CV, Archive).
  * Controlled by React state with a focus-out close; the panel floats over the tab content. */
-.record-actions-menu{position:relative}
-.record-actions-menu-panel{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:210px;display:grid;gap:2px;padding:var(--space-2);border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:var(--shadow-md)}
-.record-actions-menu-panel button,.record-actions-menu-panel a{display:flex;align-items:center;gap:var(--space-2);width:100%;text-align:left;border:0;background:transparent;color:var(--color-ink);font:inherit;font-size:var(--text-sm);padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;text-decoration:none}
-.record-actions-menu-panel button:hover,.record-actions-menu-panel a:hover{background:var(--color-surface-soft)}
-.record-actions-menu-panel .menu-caution{color:var(--color-danger)}
-.record-actions-menu-divider{height:1px;background:var(--color-line-soft);margin:var(--space-1) 0}
+/* .record-actions-menu* removed: the candidate detail overflow it styled was a hand-rolled div that
+   claimed role="menu" without implementing any of it, and now uses the shared Menu component (whose
+   own .ui-menu-panel rules cover this). .menu-caution survives there as Menu's `tone:'danger'`. */
 
 /* Actionable empty state: instead of a dead "No X yet" line, repeat the add affordance in the body. */
 .panel-empty{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-3) var(--space-4);color:var(--color-muted);font-size:var(--text-sm)}
@@ -1399,31 +1556,33 @@
  * border with nothing but its 1px line between them and the page. Matches the toolbar's own
  * horizontal rhythm (var(--space-4)) directly below it, so the two rows share one left/right edge
  * instead of the toolbar looking indented and this row looking flush. */
-.saved-views{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-3) var(--space-4) var(--space-3);margin-bottom:var(--space-3)}
-.saved-view-chips{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);min-width:0}
-.saved-view-chip{display:inline-flex;align-items:center;border:1px solid var(--color-line);border-radius:var(--radius-pill);background:var(--color-surface-soft);overflow:hidden}
-.saved-view-chip button{display:inline-flex;align-items:center;gap:var(--space-1);border:0;background:transparent;padding:5px 11px;font:inherit;font-size:var(--text-xs);color:var(--color-ink);cursor:pointer}
-.saved-view-chip button:hover{background:var(--color-canvas)}
-.saved-view-chip-shared{border-style:dashed}
-.saved-view-chip .saved-view-delete{border-left:1px solid var(--color-line);color:var(--color-muted);padding:5px 8px}
-/* Matches a chip's vertical padding so the empty-state line sits at the same height/baseline as
-   the Export/Save buttons beside it, instead of reading as a thinner, oddly-placed fragment when
-   no chips are present to set the row's rhythm. */
-.saved-view-chips > .muted{padding-block:5px}
+/* The View menu's trigger. The saved-view band this replaces -- a full-width row of pill chips with
+   its own padding, its own bottom border, and a "No saved views yet." placeholder for the common case
+   -- is gone entirely; see ViewMenu.tsx. */
+.view-menu{flex:0 0 auto}
+.view-menu-label{color:var(--color-muted);font-weight:var(--weight-medium)}
+.managed-view-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-2)}
+.managed-view-list li{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-2) var(--space-3);border:1px solid var(--color-line);border-radius:var(--radius-sm)}
+.managed-view-list li > div{display:grid;min-width:0}
+.managed-view-list strong{font-size:var(--text-base)}
+.managed-view-list .muted{font-size:var(--text-sm)}
 .checkbox-row{display:flex;align-items:flex-start;gap:var(--space-2);font-size:var(--text-sm)}
 .checkbox-row small{display:block;color:var(--color-muted);font-size:var(--text-xs)}
 .fee-suggestion{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);margin:0 0 var(--space-3);padding:var(--space-3);border:1px solid var(--tone-good-border);background:var(--tone-good-bg);color:var(--tone-good-fg);border-radius:var(--radius-sm);font-size:var(--text-sm)}
 
-/* ---- mobile phase jump -----------------------------------------------------------------------
- * Hidden on desktop, where all seven phases are already visible and a jump control would be a
- * second way to do something a glance already does. It earns its space only where the board is a
- * scroller you cannot see the end of.
- */
-/* Shown at every width. It was phone-only on the theory that a desktop board needs no scroll
-   shortcut, which mistook the control for its lesser half: the counts say where the work is without
-   navigating to it, and that is worth as much on a 1440px screen -- where six phases still exceed the
-   viewport -- as on a 375px one. */
-.phase-jump{display:flex;gap:var(--space-2);overflow-x:auto;padding:0 0 var(--space-3);scroll-snap-type:x proximity}
+/* ---- mobile phase jump ----------------------------------------------------------------------- */
+/* Below 1100px only.
+ *
+ * It was shown at every width, directly above a row of columns carrying the same phase names and the
+ * same counts -- the board's structure stated twice, a few pixels apart, with equal visual weight.
+ * On a phone that duplication is the price of navigation: the columns are one-per-swipe, so the pill
+ * bar is the only way to see that Offer has three people in it without swiping there. On a desktop
+ * board the columns are visible and the bar buys nothing, which is why it stops at 1100px.
+ *
+ * The board scrolls horizontally on desktop now (288px columns), so a scroll shortcut is arguably
+ * more useful than before -- but the rule is that one structure gets one representation, and the
+ * columns are the better one. */
+.phase-jump{display:none;gap:var(--space-2);overflow-x:auto;padding:0 0 var(--space-3);scroll-snap-type:x proximity}
 .phase-jump button{display:inline-flex;align-items:center;gap:var(--space-15);flex:0 0 auto;border:1px solid var(--color-line);background:var(--color-surface);color:var(--color-muted);border-radius:var(--radius-pill);padding:7px 12px;font:inherit;font-size:var(--text-xs);font-weight:var(--weight-semibold);cursor:pointer;scroll-snap-align:start}
 .phase-jump button.active{background:var(--color-accent-soft);border-color:var(--tone-good-border);color:var(--tone-good-fg)}
 .phase-jump button span{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:var(--radius-pill);background:var(--color-canvas-deep);font-size:var(--text-xs)}
@@ -1432,7 +1591,7 @@
  * rather than competing with phases that actually hold work. */
 .phase-jump button span.phase-jump-empty{opacity:.45}
 @media(max-width:1100px){
-  .phase-jump{padding:0 var(--space-3) var(--space-3);-webkit-overflow-scrolling:touch}
+  .phase-jump{display:flex;padding:0 var(--space-3) var(--space-3);-webkit-overflow-scrolling:touch}
   /* 11px vertical takes the control to a ~44px target. This is the primary way a phone user moves
      around the board, so it is sized as a real touch target rather than inheriting the desktop
      chip's proportions. */
