@@ -24,9 +24,12 @@ const candidate=(id:string,name:string,stageId:string,history?:Array<{occurred_a
 describe('CandidateCardMenu',()=>{
   /* Rejecting used to mean opening the drawer and working its move form -- and the drag-to-tray
    * shortcut is mouse-only, so this menu is the accessible path, not a convenience duplicate. */
+  const targets=[{key:'sourcing',label:'Sourcing'},{key:'interview',label:'Interview'}] as const
+
   it('offers every outcome stage and reports the one chosen',()=>{
     const onOutcome=vi.fn();const onOpen=vi.fn()
-    render(<CandidateCardMenu candidateName="Ana Chen" outcomeStages={[rejected,withdrawn,onHold]} onOpen={onOpen} onOutcome={onOutcome}/>)
+    render(<CandidateCardMenu candidateName="Ana Chen" columnKey="sourcing" targets={targets}
+      outcomeStages={[rejected,withdrawn,onHold]} onOpen={onOpen} onMove={vi.fn()} onOutcome={onOutcome}/>)
     fireEvent.click(screen.getByRole('button',{name:'Actions for Ana Chen'}))
 
     // The ellipsis promises a prompt rather than an immediate destructive act.
@@ -36,6 +39,22 @@ describe('CandidateCardMenu',()=>{
 
     fireEvent.click(screen.getByRole('menuitem',{name:'Reject…'}))
     expect(onOutcome).toHaveBeenCalledWith(rejected)
+  })
+
+  /* The card's phase <select> was removed, so this menu is now the only keyboard route to a move.
+   * If it ever stops offering the phases, drag-and-drop becomes the sole way to move a candidate --
+   * which is exactly the pointer-only trap the outcomes menu above exists to avoid. */
+  it('is the keyboard route to a phase move, and never offers the phase already occupied',()=>{
+    const onMove=vi.fn()
+    render(<CandidateCardMenu candidateName="Ana Chen" columnKey="sourcing" targets={targets}
+      outcomeStages={[]} onOpen={vi.fn()} onMove={onMove} onOutcome={vi.fn()}/>)
+    fireEvent.click(screen.getByRole('button',{name:'Actions for Ana Chen'}))
+
+    // Present but disabled, so the menu still states where the candidate currently is.
+    expect(screen.getByRole('menuitem',{name:'Move to Sourcing'})).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('menuitem',{name:'Move to Interview'}))
+    expect(onMove).toHaveBeenCalledWith('interview')
   })
 })
 

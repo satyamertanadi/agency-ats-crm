@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from 'react'
 import {DndContext,KeyboardSensor,PointerSensor,useDraggable,useDroppable,useSensor,useSensors,type DragEndEvent,type KeyboardCoordinateGetter} from '@dnd-kit/core'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ArrowLeft,ChevronDown,Clock,GripVertical,Plus,Send} from 'lucide-react'
+import {ArrowLeft,ChevronDown,Clock,GripVertical,Plus,Send,SquareCheck} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
@@ -37,6 +37,7 @@ import {AddCandidateToJobModal} from '../candidates/AddCandidateToJobModal'
 import {TaskButton} from '../activities/TaskButton'
 import {formatMoney,formatSalary} from '../../shared/lib/format'
 import {useShortcut} from '../../shared/lib/useShortcut'
+import {NOT_RECORDED} from '../../shared/lib/labels'
 
 type WorkspaceView='pipeline'|'activity'|'details'
 
@@ -94,7 +95,12 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
   const owner=members.find((member)=>member.id===item.candidates?.owner_member_id)
   const ownerName=owner?.profiles?.full_name||owner?.profiles?.email||'Unassigned'
   return <article ref={setNodeRef} style={style} className={`candidate-card workflow-candidate-card ${isDragging?'dragging':''} ${selected?'card-selected':''}`.trim()} {...(canMove?listeners:{})} {...attributes}>
-    {/* stopPropagation on pointerdown is what keeps this from being read as the start of a drag --
+    {/* Only while selection mode is on. The checkbox used to render on every card whenever the user
+      * could recruit at all, so the default state of the board was twenty checkboxes for a bulk move
+      * that is not what anyone is doing most of the time -- and each one sat in the top-left corner,
+      * directly over the avatar and name it was meant to accompany.
+      *
+      * stopPropagation on pointerdown is what keeps this from being read as the start of a drag --
       * the same guard the open button below has always used, since dnd-kit's listeners sit on the
       * whole card rather than a handle. */}
     {onToggleSelect&&<label className="workflow-card-select" onPointerDown={(event)=>event.stopPropagation()}>
@@ -106,7 +112,7 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
         <strong>{name}</strong>
         <GripVertical size={13} className="workflow-card-grip" aria-hidden="true"/>
       </span>
-      <span className="workflow-card-role">{item.candidates?.current_position||'Role not recorded'}{item.candidates?.current_company?` · ${item.candidates.current_company}`:''}</span>
+      <span className="workflow-card-role">{item.candidates?.current_position||NOT_RECORDED}{item.candidates?.current_company?` · ${item.candidates.current_company}`:''}</span>
       <span className="workflow-card-bottom">
         <span className="workflow-days-badge"><Clock size={10}/>{days}d</span>
         {/* Two initials are unreadable to anyone who does not already know the team, and were hidden
@@ -115,10 +121,11 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
         <span className="workflow-card-owner" title={`Candidate owner: ${ownerName}`}>{memberInitials(owner)}<span className="sr-only">Candidate owner: {ownerName}</span></span>
       </span>
     </button>
-    {canMove&&<label onPointerDown={(event)=>event.stopPropagation()}><span className="sr-only">Move {name}</span><Select aria-label={`Move ${name}`} value={columnKey} onChange={(event)=>onMove(event.target.value)}>{targets.map((target)=><option value={target.key} key={target.key}>{target.label}</option>)}</Select></label>}
-    {/* The keyboard-reachable route to an outcome. The stage dropdown beside it only offers active
-      * columns, so before this the only way to reject someone was the drawer's move form. */}
-    {canMove&&outcomeStages.length>0&&<CandidateCardMenu candidateName={name} outcomeStages={outcomeStages} onOpen={onOpen} onOutcome={onOutcome}/>}
+    {/* One overflow, carrying both routes a keyboard user needs: the phase move (formerly a permanent
+      * <select> on every card) and the outcomes (which drag-to-tray can reach but a keyboard cannot).
+      * Drag-and-drop is untouched and remains the pointer shortcut for the move. */}
+    {canMove&&<CandidateCardMenu candidateName={name} columnKey={columnKey} targets={targets}
+      outcomeStages={outcomeStages} onOpen={onOpen} onMove={onMove} onOutcome={onOutcome}/>}
   </article>
 }
 
@@ -159,6 +166,11 @@ export function JobWorkspacePage(){
    * changes hook order between renders, which React forbids outright. */
   const [picked,setPicked]=useState<string[]>([])
   const togglePicked=(id:string)=>setPicked((current)=>current.includes(id)?current.filter((value)=>value!==id):[...current,id])
+  /* Selection is a MODE now, not the board's resting state. Turning it off also clears the selection,
+   * so leaving the mode can never leave a hidden set of picked cards behind that a later bulk action
+   * would act on. */
+  const [selecting,setSelecting]=useState(false)
+  const stopSelecting=()=>{setSelecting(false);setPicked([]);setBulkColumn('')}
   const [bulkColumn,setBulkColumn]=useState('')
   /* Takes its data as mutate() variables rather than closing over `columns` and the pipeline items,
    * which are derived below this point. Passing them in is also what keeps the mutation from acting
@@ -238,8 +250,21 @@ export function JobWorkspacePage(){
   // second toolbar next to it. Zero-count stages are left out entirely, matching OutcomesDrawer's own
   // filter over the same items, so a job with no withdrawals never shows a "Withdrawn 0" column.
   const outcomeCounts=outcomeStages.map((stage)=>({stage,count:pipeline.data!.items.filter((item)=>item.current_stage_id===stage.id).length})).filter((entry)=>entry.count>0)
-  const kanbanGridColumns=[...columnData.map(({items})=>items.length>0?'minmax(186px,1fr)':'minmax(96px,0.4fr)'),
-    ...outcomeCounts.map(()=>'minmax(96px,0.5fr)'),...(placedCount>0?['minmax(96px,0.5fr)']:[])].join(' ')
+  /* 288px, not 186px.
+   *
+   * Six phases at 186px were sized to make every column fit on one screen without scrolling, and the
+   * card paid for it: a 186px column leaves about 150px of content width, into which the card had to
+   * fit an avatar, a full name, "Senior Financial Controller at PT Sinar Mas", a days badge, an owner
+   * chip and a phase dropdown. Everything truncated, and the cards read as compressed control panels
+   * rather than as people.
+   *
+   * Fitting every phase on screen was never the requirement -- being able to READ the phase you are
+   * working in is. At 288px roughly 3.5 columns show on a 1366px laptop and the board scrolls
+   * horizontally inside its own container (`.kanban` is overflow:auto), which is a gesture every
+   * board interface already teaches. Empty and outcome columns stay narrow, so the width goes where
+   * the candidates are. */
+  const kanbanGridColumns=[...columnData.map(({items})=>items.length>0?'minmax(288px,1fr)':'minmax(140px,0.4fr)'),
+    ...outcomeCounts.map(()=>'minmax(140px,0.5fr)'),...(placedCount>0?['minmax(140px,0.5fr)']:[])].join(' ')
   const moveToColumn=(item:JobCandidate,columnKey:string)=>{const stageId=resolveStageForColumn(columns,columnKey,item.current_stage_id);if(stageId)move.mutate({itemId:item.id,stageId,name:item.candidates?.full_name,label:columns.find((column)=>column.key===columnKey)?.label||'the next phase'})}
   /* Reinstating lands on the first active stage of the board rather than the stage they were closed
    * from: that stage is often deep in the pipeline and putting someone straight back into, say,
@@ -272,6 +297,11 @@ export function JobWorkspacePage(){
         <div><strong>{pipeline.data!.items.length} in pipeline</strong><span>Move candidates between phases, then open a card for the next action.</span></div>
         <div className="table-actions">
           {capabilities.data?.canSubmit&&shortlisted.length>0&&job.status==='open'&&<Button size="sm" variant="secondary" leadingIcon={<Send size={14}/>} onClick={()=>setComposerCandidates(shortlisted)}>Send {shortlisted.length} to client</Button>}
+          {/* The switch that reveals the per-card checkboxes. It replaces having them on permanently:
+            * one control on the board, rather than one on every card. */}
+          {canRecruit&&<Button size="sm" variant={selecting?'secondary':'quiet'} aria-pressed={selecting}
+            leadingIcon={<SquareCheck size={14}/>} onClick={()=>selecting?stopSelecting():setSelecting(true)}>
+            {selecting?'Done selecting':'Select candidates'}</Button>}
           {canRecruit&&<Button variant="secondary" leadingIcon={<Plus size={14}/>} onClick={()=>setAddOpen(true)}>Add candidates</Button>}
         </div>
       </div>
@@ -288,7 +318,7 @@ export function JobWorkspacePage(){
           </Select>
           <Button size="sm" variant="secondary" disabled={!bulkColumn||bulkMove.isPending} loading={bulkMove.isPending}
             onClick={()=>bulkMove.mutate({items:pickedItems,columns,columnKey:bulkColumn,label:columns.find((column)=>column.key===bulkColumn)?.label||'the next phase'})}>Move {picked.length}</Button>
-          <Button size="sm" variant="quiet" onClick={()=>{setPicked([]);setBulkColumn('')}}>Clear</Button>
+          <Button size="sm" variant="quiet" onClick={()=>setPicked([])}>Clear</Button>
         </div>}
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div ref={boardRef} className="kanban workflow-kanban" style={{gridTemplateColumns:kanbanGridColumns} as React.CSSProperties}>
@@ -301,7 +331,7 @@ export function JobWorkspacePage(){
               const hiddenCount=items.length-visibleItems.length
               return <PhaseColumn id={column.key} label={column.label} count={items.length} color={color} stats={stats} key={column.key}>
                 {visibleItems.map((item)=><CandidateCard item={item} key={item.id} columnKey={column.key} columnColor={color} now={now} members={members.data||[]} onOpen={()=>openCandidate(item)} onMove={(columnKey)=>moveToColumn(item,columnKey)} onOutcome={(stage)=>setOutcome({item,stage})} outcomeStages={outcomeStages} targets={targets} canMove={canRecruit}
-                  selected={picked.includes(item.id)} onToggleSelect={canRecruit?()=>togglePicked(item.id):undefined}/>)}
+                  selected={picked.includes(item.id)} onToggleSelect={canRecruit&&selecting?()=>togglePicked(item.id):undefined}/>)}
                 {hiddenCount>0&&<button type="button" className="workflow-column-more" onClick={()=>toggleColumnExpanded(column.key)}>+{hiddenCount} more candidate{hiddenCount===1?'':'s'}<ChevronDown size={13}/></button>}
                 {expanded&&items.length>6&&<button type="button" className="workflow-column-more workflow-column-more-collapse" onClick={()=>toggleColumnExpanded(column.key)}>Show fewer<ChevronDown size={13}/></button>}
               </PhaseColumn>

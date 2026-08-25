@@ -42,13 +42,16 @@ export function AppShell() {
    * cost nothing to learn and their absence is felt. Ctrl+K keeps working; `/` is the same door. */
   useShortcut('/',()=>setCommandOpen(true))
   useShortcut('?',()=>setShortcutsOpen((value)=>!value))
-  // A job's pipeline board wants every stage column visible without horizontal scroll, which the
-  // 268px sidebar leaves no room for at typical laptop widths -- so it defaults to the icon rail on
-  // that route only. A manual toggle (either direction) overrides the route default for the rest of
-  // the session rather than snapping back on the next navigation, which would fight the user.
-  const pathSegments=location.pathname.split('/').filter(Boolean)
-  const isJobWorkspace=pathSegments[2]==='jobs'&&Boolean(pathSegments[3])
-  const collapsed=manualCollapsed??isJobWorkspace
+  /* The sidebar no longer collapses itself on a job route.
+   *
+   * That behaviour existed to squeeze every stage column onto one screen without horizontal scroll.
+   * The board has since been rebuilt to scroll horizontally on purpose -- 288px columns, roughly
+   * 3.5 visible on a laptop -- because fitting six phases into one viewport is what made the cards
+   * unreadable in the first place. With the reason gone, all that was left was navigation that
+   * rearranged itself when you opened a job and stayed rearranged afterwards.
+   *
+   * Collapsing is still available, and still sticky for the session, from the sidebar footer. */
+  const collapsed=manualCollapsed??false
   const topbarMenus=useRef<HTMLDivElement>(null)
   // Both topbar popovers dismiss on Escape or a click elsewhere, which a bare toggle does not do.
   useEffect(()=>{
