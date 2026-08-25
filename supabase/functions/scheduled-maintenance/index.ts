@@ -106,9 +106,15 @@ async function runMaintenance(request:Request,requestID:string){
   // Kept as a chunked loop rather than one big Promise.all so the two-phase contract per candidate
   // is unchanged: remove that candidate's objects, THEN ask the database to re-check inactivity and
   // legal hold and anonymize. The RPC still rejects finalization if a document appeared in between.
-  const dueCandidates=due.data||[]
+  /* Named explicitly rather than left implicit. The previous `for (const candidate of due.data||[])`
+   * got away with an untyped RPC result because iteration does not trip noImplicitAny; a .map()
+   * callback parameter does. Writing the shape down is the better answer than widening to any: these
+   * two fields are the entire contract this loop depends on from
+   * list_candidates_due_for_retention, and the Edge Function client carries no generated types. */
+  type DueCandidate={candidate_id:string;storage_paths:unknown}
+  const dueCandidates=(due.data||[]) as DueCandidate[]
   for(let index=0;index<dueCandidates.length;index+=6){
-    const results=await Promise.all(dueCandidates.slice(index,index+6).map(async(candidate)=>{
+    const results=await Promise.all(dueCandidates.slice(index,index+6).map(async(candidate:DueCandidate)=>{
       const storagePaths=Array.isArray(candidate.storage_paths)?candidate.storage_paths.filter((path:unknown):path is string=>typeof path==='string'&&path.length>0):[]
       if(storagePaths.length){
         const removed=await admin.storage.from(bucket).remove(storagePaths)
