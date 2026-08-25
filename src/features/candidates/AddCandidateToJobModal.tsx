@@ -10,6 +10,7 @@ import {Checkbox,Field,Input,Select} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
 import {addCandidatesToJob,listCandidatesPage,listJobHealth,listPipelineStagesForJob} from '../core/repository'
 import {useToast} from '../../shared/ui/Toast'
+import {NOT_RECORDED} from '../../shared/lib/labels'
 
 export interface PlacementCandidate {id:string;full_name:string;current_position:string|null;status:CandidateStatus}
 /* The job side of this modal knows its job already, so it hands one over rather than making the
@@ -61,7 +62,7 @@ export function AddCandidateToJobModal({open,onClose,candidates:fixedCandidates=
       {picked.length>0&&<div className="chip-row" aria-label="Selected candidates">{picked.map((candidate)=><button type="button" className="selection-chip" key={candidate.id} onClick={()=>toggle(candidate,false)}><span className="selection-chip-label">{candidate.full_name}</span><X size={12} aria-hidden="true"/><span className="sr-only">Remove {candidate.full_name}</span></button>)}</div>}
       <fieldset className="candidate-pick-list"><legend>Candidates</legend>
         {search.isLoading?<p className="muted">Searching…</p>:results.length===0&&picked.length===0?<p className="muted">{query?'No active candidates match that search.':'Search to find candidates.'}</p>:results.map((candidate)=>
-          <Checkbox key={candidate.id} label={candidate.full_name} description={`${candidate.current_position||'Role not recorded'}${alreadyIn.has(candidate.id)?' · already in this job':''}`}
+          <Checkbox key={candidate.id} label={candidate.full_name} description={`${candidate.current_position||NOT_RECORDED}${alreadyIn.has(candidate.id)?' · already in this job':''}`}
             checked={false} disabled={alreadyIn.has(candidate.id)}
             onChange={(event)=>toggle({id:candidate.id,full_name:candidate.full_name,current_position:candidate.current_position,status:candidate.status},event.target.checked)}/>)}
       </fieldset>

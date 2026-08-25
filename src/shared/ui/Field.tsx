@@ -2,8 +2,12 @@ import { forwardRef, useId } from 'react'
 import { ChevronDown } from 'lucide-react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 
-export function Field({ label, error, children }: { label:string; error?:string; children:ReactNode }) {
-  return <label className="field"><span>{label}</span>{children}{error && <small role="alert">{error}</small>}</label>
+/* `hint` is guidance shown before anything goes wrong; `error` is what is shown after. They are
+ * different jobs and both are needed: a URL field whose rule ("a full web address") only surfaces once
+ * the browser has already refused the submit teaches the rule at the least useful moment. The hint
+ * renders below the control and is quiet; the error keeps role="alert" so it is announced. */
+export function Field({ label, error, hint, children }: { label:string; error?:string; hint?:ReactNode; children:ReactNode }) {
+  return <label className="field"><span>{label}</span>{children}{hint&&!error&&<small className="field-hint">{hint}</small>}{error && <small role="alert">{error}</small>}</label>
 }
 export const Input=forwardRef<HTMLInputElement,InputHTMLAttributes<HTMLInputElement>>(function Input(props,ref){return <input ref={ref} className="input" {...props}/>})
 // Native selects otherwise render the browser's own arrow, which is inconsistent across

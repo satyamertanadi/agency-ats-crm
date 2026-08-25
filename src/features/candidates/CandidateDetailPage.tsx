@@ -1,4 +1,4 @@
-import {useEffect,useRef,useState,type FocusEvent} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
@@ -11,6 +11,8 @@ import {addCandidateTag,deleteCandidateDocument,deleteCandidateProfileItem,getCa
 import {candidateProfileEditSchema} from '../core/schemas'
 import {CandidateForm} from './CandidateForm'
 import {Button} from '../../shared/ui/Button'
+import {Menu,type MenuItemSpec} from '../../shared/ui/Menu'
+import {ExternalLink} from '../../shared/ui/ExternalLink'
 import {Field,Input,Textarea} from '../../shared/ui/Field'
 import {Modal} from '../../shared/ui/Modal'
 import {Badge,Page,Panel,StatusBadge} from '../../shared/ui/Page'
@@ -29,6 +31,7 @@ import {phaseForStage,pipelinePhases} from '../workflow/workflow'
 import {AddCandidateToJobModal} from './AddCandidateToJobModal'
 import {TaskButton} from '../activities/TaskButton'
 import {useToast} from '../../shared/ui/Toast'
+import {NOT_RECORDED} from '../../shared/lib/labels'
 
 type EditFormInput=z.input<typeof candidateProfileEditSchema>;type EditFormData=z.output<typeof candidateProfileEditSchema>
 type EditableEmployment=EmploymentItem&{id?:string}
@@ -44,7 +47,7 @@ const TABS=[{key:'overview',label:'Overview'},{key:'profile',label:'Profile'},{k
 type TabKey=typeof TABS[number]['key']
 
 export function CandidateDetailPage(){
-  const {candidateId=''}=useParams();const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams();const [tagOpen,setTagOpen]=useState(false);const [tagName,setTagName]=useState('');const [cvOpen,setCvOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false);const [editing,setEditing]=useState(false);const [jobOpen,setJobOpen]=useState(false);const [menuOpen,setMenuOpen]=useState(false);const [legalHoldOpen,setLegalHoldOpen]=useState(false);const [legalHoldReason,setLegalHoldReason]=useState('');const [renderedAt]=useState(Date.now)
+  const {candidateId=''}=useParams();const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const [params,setParams]=useSearchParams();const [tagOpen,setTagOpen]=useState(false);const [tagName,setTagName]=useState('');const [cvOpen,setCvOpen]=useState(false);const [profileOpen,setProfileOpen]=useState(false);const [editing,setEditing]=useState(false);const [jobOpen,setJobOpen]=useState(false);const [legalHoldOpen,setLegalHoldOpen]=useState(false);const [legalHoldReason,setLegalHoldReason]=useState('');const [renderedAt]=useState(Date.now)
   const detail=useQuery({queryKey:['candidate-detail',organization?.id,candidateId],enabled:Boolean(organization&&candidateId),queryFn:()=>getCandidateDetail(organization!.id,candidateId)})
   const documents=useQuery({queryKey:['candidate-documents',organization?.id,candidateId],enabled:Boolean(organization&&candidateId),queryFn:()=>listCandidateDocuments(organization!.id,candidateId)})
   const profileVersions=useQuery({queryKey:['candidate-profile-versions',organization?.id,candidateId],enabled:Boolean(organization&&candidateId&&organization.profile_enabled),queryFn:()=>listCandidateProfileVersions(organization!.id,candidateId)})
@@ -144,33 +147,48 @@ export function CandidateDetailPage(){
   const actionItems:ActionItem[]=[]
   if(cvMissing)actionItems.push({key:'cv',title:'CV missing',description:'This candidate cannot be submitted to a client without one.',cta:'Upload CV',primary:true,onClick:()=>setCvOpen(true)})
   const referenceFacts=readiness.filter((item)=>!(item.label==='CV'&&cvMissing))
-  const closeMenu=(event:FocusEvent<HTMLDivElement>)=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setMenuOpen(false)}
-  const runFromMenu=(action:()=>void)=>{setMenuOpen(false);action()}
+
   /* Every overflow entry is write-gated, so a reader sees no menu button at all rather than one
    * that opens onto nothing. */
-  const hasOverflow=canWrite
+  /* Everything infrequent, in one place.
+   *
+   * The header used to carry five controls of near-equal weight -- Add to job, Add task, Set legal
+   * hold, Edit candidate, and an overflow -- so "put this record under legal hold", an action taken
+   * during litigation, sat beside "add a task", which is taken every day. Legal hold moved in here;
+   * the primary/secondary split above is now Add to job (primary), Add task and Edit candidate
+   * (secondary), everything else behind the overflow.
+   *
+   * Rebuilt on the shared Menu rather than the hand-rolled div this page had. That one declared
+   * role="menu" and role="menuitem" and implemented none of what those roles promise -- no arrow
+   * keys, no typeahead, no roving focus -- so a screen-reader user was told "menu" and handed a div
+   * of buttons. See Menu.tsx, which names this exact component as one of the three it replaces. */
+  const overflowItems:MenuItemSpec[]=[
+    ...(organization?.profile_enabled&&canWrite?[{id:'profile',label:'Generate client profile',icon:<FileSignature size={15}/>,onSelect:()=>setProfileOpen(true)}]:[]),
+    ...(canWrite?[{id:'cv',label:'Upload or parse CV',icon:<Upload size={15}/>,onSelect:()=>setCvOpen(true)}]:[]),
+    ...(capabilities.data?.canManageOrganization?[{id:'legal-hold',
+      label:privateData?.legal_hold?'Remove legal hold':'Set legal hold',
+      icon:<ShieldAlert size={15}/>,separatorBefore:true,onSelect:()=>setLegalHoldOpen(true)}]:[]),
+    ...(canWrite?[{id:'archive',
+      label:candidate.deleted_at?'Restore candidate':'Archive candidate',
+      icon:candidate.deleted_at?<RotateCcw size={15}/>:<Archive size={15}/>,
+      separatorBefore:true,tone:'danger' as const,disabled:archive.isPending,
+      onSelect:()=>archive.mutate(!candidate.deleted_at)}]:[]),
+  ]
 
   // Hidden while editing: switching tabs would not change what is on screen, since the edit form
   // replaces the tab content entirely (see below).
   const detailTabs=!editing&&<div className="record-tabs" role="tablist">{TABS.map((item)=><button key={item.key} type="button" role="tab" aria-selected={tab===item.key} className={tab===item.key?'active':''} onClick={()=>selectTab(item.key)}>{item.label}</button>)}</div>
   return <Page title={candidate.full_name}
-    description={`${candidate.current_position||'Role not recorded'}${candidate.current_company?` at ${candidate.current_company}`:''}`}
+    description={`${candidate.current_position||NOT_RECORDED}${candidate.current_company?` at ${candidate.current_company}`:''}`}
     breadcrumbs={<Link className="button button-quiet" to={`/app/${organization?.slug}/candidates`}><ArrowLeft size={15}/>Candidates</Link>}
     metadata={<div className="record-metadata"><StatusBadge map={candidateStatus} value={candidate.status}/>{candidate.location&&<span>{candidate.location}</span>}</div>}
     tabs={detailTabs}
     actions={<>
-        {capabilities.data?.canMovePipeline&&<Button onClick={()=>setJobOpen(true)} disabled={Boolean(candidate.deleted_at)||candidate.status==='do_not_contact'}>Add to job</Button>}
+        {overflowItems.length>0&&<Menu label="More candidate actions" items={overflowItems} trigger={(props)=>
+          <Button {...props} type="button" variant="secondary" iconOnlyLabel="More actions" leadingIcon={<MoreHorizontal size={16}/>}/>}/>}
         <TaskButton linkType="candidate" linkId={candidateId}/>
-        {capabilities.data?.canManageOrganization&&<Button variant="secondary" leadingIcon={<ShieldAlert size={14}/>} onClick={()=>setLegalHoldOpen(true)}>{privateData?.legal_hold?'Remove legal hold':'Set legal hold'}</Button>}
         {canWrite&&<Button variant="secondary" onClick={()=>editing?setEditing(false):startEditing()}>{editing?'Cancel edit':'Edit candidate'}</Button>}
-        {hasOverflow&&<div className="record-actions-menu" onBlur={closeMenu}>
-          <Button variant="secondary" aria-haspopup="menu" aria-expanded={menuOpen} iconOnlyLabel="More actions" leadingIcon={<MoreHorizontal size={16}/>} onClick={()=>setMenuOpen((value)=>!value)} onKeyDown={(event)=>{if(event.key==='Escape')setMenuOpen(false)}}/>
-          {menuOpen&&<div className="record-actions-menu-panel" role="menu">
-            {organization?.profile_enabled&&canWrite&&<button type="button" role="menuitem" onClick={()=>runFromMenu(()=>setProfileOpen(true))}><FileSignature size={15}/>Generate client profile</button>}
-            {canWrite&&<button type="button" role="menuitem" onClick={()=>runFromMenu(()=>setCvOpen(true))}><Upload size={15}/>Upload or parse CV</button>}
-            {canWrite&&<><span className="record-actions-menu-divider"/><button type="button" role="menuitem" className="menu-caution" disabled={archive.isPending} onClick={()=>runFromMenu(()=>archive.mutate(!candidate.deleted_at))}>{candidate.deleted_at?<><RotateCcw size={15}/>Restore candidate</>:<><Archive size={15}/>Archive candidate</>}</button></>}
-          </div>}
-        </div>}
+        {capabilities.data?.canMovePipeline&&<Button onClick={()=>setJobOpen(true)} disabled={Boolean(candidate.deleted_at)||candidate.status==='do_not_contact'}>Add to job</Button>}
       </>}>
     {candidate.deleted_at&&<p className="warning-box">This record is archived and excluded from normal candidate searches.</p>}
     {privateData?.legal_hold&&<p className="warning-box"><ShieldAlert size={15}/> Legal hold is active. Automated retention will not anonymize this candidate.</p>}
@@ -195,7 +213,7 @@ export function CandidateDetailPage(){
     </form>:<>
         {tab==='overview'&&<>
           <div ref={pipelinesRef}><Panel title="In pipelines" icon={<Layers3 size={17}/>} subtitle="Every job this candidate is being considered for, using the same operating phases as the job board." className={highlightPipelines?'panel-highlight':''}>{pipelineCount?<Table headers={['Job','Client','Phase','Owner','Added','Days in phase']}>{pipelines.data!.map((assignment)=>{const stage=assignment.pipeline_stages;const phase=stage?pipelinePhases.find((item)=>item.key===phaseForStage(stage))?.label:'Unknown';const changed=assignment.stage_history[0]?.occurred_at||assignment.updated_at;const days=Math.max(0,Math.floor((renderedAt-new Date(changed).getTime())/86_400_000));return <tr key={assignment.id}><td><Link className="record-link" to={`/app/${organization?.slug}/jobs/${assignment.job_id}`}>{assignment.jobs?.title||'Job'}</Link></td><td>{assignment.jobs?.companies?.name||'—'}</td><td>{phase}</td><td>{assignment.jobs?.organization_members?.profiles?.full_name||assignment.jobs?.organization_members?.profiles?.email||'Unassigned'}</td><td>{formatDate(assignment.added_at)}</td><td>{days}</td></tr>})}</Table>:<EmptyState title="Not in a job pipeline" description="This candidate is not being considered for any job yet. Add them to one to start tracking their progress." action={capabilities.data?.canMovePipeline&&<Button onClick={()=>setJobOpen(true)} disabled={Boolean(candidate.deleted_at)||candidate.status==='do_not_contact'}>Add to job</Button>}/>}</Panel></div>
-          <Panel title="Contact details" icon={<Mail size={17}/>}><dl className="record-summary"><div><dt>Email</dt><dd>{privateData?.email||'Not recorded'}</dd></div><div><dt>Phone</dt><dd>{privateData?.phone||'Not recorded'}{privateData?.phone&&canWrite&&<Button size="sm" variant="secondary" leadingIcon={<MessageSquare size={13}/>} onClick={openWhatsApp}>WhatsApp</Button>}</dd></div><div><dt>Notice period</dt><dd>{candidate.notice_period_days!=null?`${candidate.notice_period_days} days`:'Not recorded'}</dd></div><div><dt>Source</dt><dd>{candidate.source||'Not recorded'}</dd></div><div><dt>LinkedIn</dt><dd>{candidate.linkedin_url?<a className="record-link" href={candidate.linkedin_url} target="_blank" rel="noreferrer">Profile</a>:'Not recorded'}</dd></div><div><dt>Portfolio</dt><dd>{candidate.portfolio_url?<a className="record-link" href={candidate.portfolio_url} target="_blank" rel="noreferrer">Portfolio</a>:'Not recorded'}</dd></div></dl></Panel>
+          <Panel title="Contact details" icon={<Mail size={17}/>}><dl className="record-summary"><div><dt>Email</dt><dd>{privateData?.email||'Not recorded'}</dd></div><div><dt>Phone</dt><dd>{privateData?.phone||'Not recorded'}{privateData?.phone&&canWrite&&<Button size="sm" variant="secondary" leadingIcon={<MessageSquare size={13}/>} onClick={openWhatsApp}>WhatsApp</Button>}</dd></div><div><dt>Notice period</dt><dd>{candidate.notice_period_days!=null?`${candidate.notice_period_days} days`:'Not recorded'}</dd></div><div><dt>Source</dt><dd>{candidate.source||'Not recorded'}</dd></div><div><dt>LinkedIn</dt><dd><ExternalLink value={candidate.linkedin_url} label="Profile"/></dd></div><div><dt>Portfolio</dt><dd><ExternalLink value={candidate.portfolio_url} label="Portfolio"/></dd></div></dl></Panel>
         </>}
 
         {tab==='profile'&&<div className="two-column">

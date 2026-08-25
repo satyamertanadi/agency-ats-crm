@@ -22,6 +22,7 @@ import type {StageMoveInput} from '../core/useStageMove'
 import {JobCandidateLifecycle} from './JobCandidateLifecycle'
 import {recordWorkflowEvent} from '../../shared/lib/productAnalytics'
 import {useListNavigation} from '../../shared/lib/useListNavigation'
+import {NOT_RECORDED} from '../../shared/lib/labels'
 
 type ActionName='check_feedback'|'check_offer'|'outcome'|'retry_cancel'|'interview'|'offer'|'placement'|'move'
 
@@ -125,7 +126,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
     <button type="button" className="icon-button" onClick={navigation.next} disabled={!navigation.hasNext||showForm} aria-label="Next candidate"><ChevronRight size={18}/></button>
   </div>:null
   return <Drawer title={item.candidates?.full_name||'Candidate'} description={`${stage.name} · ${job.title}`} eyebrow="Candidate action" open onClose={closePanel} headerActions={pager} onKeyDown={navigation.onKeyDown}>
-    <div className="candidate-context"><div className="candidate-context-summary"><span className="candidate-context-avatar">{item.candidates?.full_name?.split(/\s+/).slice(0,2).map((part)=>part[0]).join('')}</span><div><strong>{item.candidates?.current_position||'Role not recorded'}</strong><p>{[item.candidates?.current_company,item.candidates?.location].filter(Boolean).join(' · ')||'Profile details need review'}</p></div></div><div className="context-badges"><Badge tone="info">{stage.name}</Badge></div><Link className="record-link" to={`/app/${organization!.slug}/candidates/${item.candidate_id}`}>Open full candidate profile</Link></div>
+    <div className="candidate-context"><div className="candidate-context-summary"><span className="candidate-context-avatar">{item.candidates?.full_name?.split(/\s+/).slice(0,2).map((part)=>part[0]).join('')}</span><div><strong>{item.candidates?.current_position||NOT_RECORDED}</strong><p>{[item.candidates?.current_company,item.candidates?.location].filter(Boolean).join(' · ')||'Profile details need review'}</p></div></div><div className="context-badges"><Badge tone="info">{stage.name}</Badge></div><Link className="record-link" to={`/app/${organization!.slug}/candidates/${item.candidate_id}`}>Open full candidate profile</Link></div>
     {/* Recommendation and active form are the same box now (see showForm above) -- never both drawn
       * at once, so there is exactly one bordered region here, not two stacked ones. */}
     <section className={`next-action-card${showForm?' next-action-card-form':''}`}>

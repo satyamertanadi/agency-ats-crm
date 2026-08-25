@@ -1,4 +1,4 @@
-import {useState,type FormEvent} from 'react'
+import {useState,type FormEvent,type ReactNode} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ArrowDownLeft,ArrowUpRight,CircleDot,Handshake,Mail,MessageSquare,Phone,Send,StickyNote,Users} from 'lucide-react'
 import {useOrganization} from '../../app/OrganizationProvider'
@@ -28,7 +28,19 @@ const relative=(iso:string)=>{const diff=Date.now()-new Date(iso).getTime();cons
  * entry should appear on: logging a call from a vacancy's pipeline can file it against the
  * candidate and the vacancy at once.
  */
-export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, and meetings, plus pipeline movement recorded automatically.',readOnly=false}:{links:ActivityLink[];title?:string;subtitle?:string;readOnly?:boolean}){
+export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, and meetings, plus pipeline movement recorded automatically.',readOnly=false,headerAction}:{
+  links:ActivityLink[]
+  title?:string
+  subtitle?:string
+  readOnly?:boolean
+  /* An extra control for this panel's header, rendered beside "Log activity".
+   *
+   * It exists so "Add task" can live next to the history it belongs to instead of as a full-width
+   * bar of its own above the panel -- a bare <Button> as a direct child of the page grid stretched
+   * edge to edge and read as a section, not a control. Scheduling the next contact and reading the
+   * last one are the same moment of work, so they belong in the same header. */
+  headerAction?:ReactNode
+}){
   const {organization}=useOrganization();const cache=useQueryClient();const toast=useToast()
   const primary=links[0]
   const [open,setOpen]=useState(false)
@@ -51,7 +63,7 @@ export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, an
   const submit=(event:FormEvent)=>{event.preventDefault();if(summary.trim())log.mutate()}
 
   return <Panel title={title} subtitle={subtitle} elevation="raised"
-    action={!readOnly&&<Button variant={open?'quiet':'secondary'} onClick={()=>{setOpen(!open);log.reset()}} aria-expanded={open}>{open?'Cancel':'Log activity'}</Button>}>
+    action={<span className="panel-header-actions">{headerAction}{!readOnly&&<Button variant={open?'quiet':'secondary'} onClick={()=>{setOpen(!open);log.reset()}} aria-expanded={open}>{open?'Cancel':'Log activity'}</Button>}</span>}>
     {open&&!readOnly&&<form className="form-grid activity-form" onSubmit={submit}>
       <Field label="Type"><Select value={type} onChange={(event)=>setType(event.target.value)}>{manualTypes.map((item)=><option key={item.value} value={item.value}>{item.label}</option>)}</Select></Field>
       <Field label="Direction"><Select value={direction} onChange={(event)=>setDirection(event.target.value)}><option value="outbound">Outbound</option><option value="inbound">Inbound</option><option value="internal">Internal</option></Select></Field>

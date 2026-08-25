@@ -49,16 +49,26 @@ describe('the column ladder',()=>{
 })
 
 describe('visible columns',()=>{
-  it('drops Owner first, then Status, then Action',()=>{
-    expect(ids('six')).toEqual(['candidate','pipeline','followUp','owner','status','action'])
-    expect(ids('five')).toEqual(['candidate','pipeline','followUp','status','action'])
-    expect(ids('four')).toEqual(['candidate','pipeline','followUp','action'])
+  it('drops Owner first, then Status, then the row menu',()=>{
+    expect(ids('six')).toEqual(['candidate','pipeline','followUp','owner','status','menu'])
+    expect(ids('five')).toEqual(['candidate','pipeline','followUp','status','menu'])
+    expect(ids('four')).toEqual(['candidate','pipeline','followUp','menu'])
     expect(ids('three')).toEqual(['candidate','pipeline','followUp'])
   })
 
   // The two columns the rebuild exists for. A tier that dropped either would be the record viewer again.
-  it.each(['six','five','four','three'] as const)('protects Pipeline and Follow-up at %s',(tier)=>{
+  it.each(['six','five','four','three'] as const)('protects Current process and Next action at %s',(tier)=>{
     expect(ids(tier)).toEqual(expect.arrayContaining(['candidate','pipeline','followUp']))
+  })
+
+  /* The two columns whose heading is for assistive technology only. An empty-string label would have
+   * been the easy way to hide them and would leave the <th> with no accessible name, which is what
+   * unlinks every cell beneath it from its header. */
+  it('keeps an accessible heading on the columns whose label is hidden',()=>{
+    const columns=visibleCandidateColumns('six',true)
+    const hidden=columns.filter((column)=>column.hideLabel)
+    expect(hidden.map((column)=>column.id)).toEqual(['select','menu'])
+    for(const column of hidden)expect(column.label.length).toBeGreaterThan(0)
   })
 
   it('prepends the checkbox only while selecting',()=>{
@@ -68,6 +78,15 @@ describe('visible columns',()=>{
 
   /* Candidate is the one column with no width: it absorbs the remainder, so identity grows on a wide
    * screen instead of being squeezed. Giving it a width would recreate the overflow. */
+  /* Identity has the largest floor of any column, which is the whole point of the reallocation --
+   * before it, Candidate had the SMALLEST fixed budget of the five and was the column that wrapped. */
+  it('gives Candidate the largest minimum of any column',()=>{
+    const fixed=visibleCandidateColumns('six',true)
+      .filter((column)=>column.width)
+      .map((column)=>Number.parseInt(column.width!,10))
+    expect(Math.max(...fixed)).toBeLessThan(MIN_CANDIDATE)
+  })
+
   it('leaves Candidate flexible and fixes every other column',()=>{
     for(const column of visibleCandidateColumns('six',true)){
       if(column.id==='candidate')expect(column.width).toBeUndefined()
@@ -80,14 +99,14 @@ describe('the physical floor',()=>{
   /* Two numbers doing two different jobs. Conflating them is how Candidate ends up compressed below
    * the point where a name is readable, which is the failure this whole change is about. */
   it('separates "when three activates" from "how narrow three may be drawn"',()=>{
-    expect(THREE_COLUMN_MIN_WIDTH).toBe(638)
-    expect(TIER_THRESHOLDS.three).toBe(646)
+    expect(THREE_COLUMN_MIN_WIDTH).toBe(658)
+    expect(TIER_THRESHOLDS.three).toBe(666)
     expect(TIER_THRESHOLDS.three).toBeGreaterThan(THREE_COLUMN_MIN_WIDTH)
   })
 
   it('reserves the full Candidate floor inside that minimum',()=>{
-    // 638 = 208 Candidate + 210 Pipeline + 220 Follow-up, so Candidate keeps its floor rather than
-    // being the column that absorbs the shortfall.
-    expect(THREE_COLUMN_MIN_WIDTH-210-220).toBe(MIN_CANDIDATE)
+    // 658 = 248 Candidate + 200 Current process + 210 Next action, so Candidate keeps its floor
+    // rather than being the column that absorbs the shortfall.
+    expect(THREE_COLUMN_MIN_WIDTH-200-210).toBe(MIN_CANDIDATE)
   })
 })

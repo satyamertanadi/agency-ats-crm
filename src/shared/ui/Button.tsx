@@ -1,7 +1,14 @@
 import { LoaderCircle } from 'lucide-react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /* React 19 passes `ref` to function components as an ordinary prop, so declaring it here is all
+   * that is needed -- no forwardRef wrapper. Added for Menu, whose `trigger` hands the caller a ref
+   * it must attach so focus can return to the trigger on Escape. Without this, every menu trigger in
+   * the app had to be a hand-written <button className="button button-secondary button-sm">, which is
+   * exactly the drift the comment below warns about, and it silently missed the loading and
+   * icon-slot behaviour this component owns. */
+  ref?: Ref<HTMLButtonElement>
   /* 'danger' is reserved for irreversible actions and 'caution' for reversible ones -- see Severity
    * in lib/status.ts. Reach for 'caution' by default when something is destructive; 'danger' is for
    * the cases that also warrant a ConfirmDialog. */

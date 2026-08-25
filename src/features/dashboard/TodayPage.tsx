@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ArrowRight,BriefcaseBusiness,CalendarClock,CheckCircle2,ChevronDown,ListChecks,OctagonAlert,Plus} from 'lucide-react'
+import {ArrowRight,BriefcaseBusiness,CalendarClock,CheckCircle2,ChevronDown,ListChecks,Plus} from 'lucide-react'
 import {Link} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
@@ -15,6 +15,7 @@ import {nextActionDetail,phaseSegments} from '../jobs/jobHealth'
 import {SetupChecklist,buildSetupSteps} from './SetupChecklist'
 import {Button} from '../../shared/ui/Button'
 import {useToast} from '../../shared/ui/Toast'
+import {NOT_RECORDED} from '../../shared/lib/labels'
 
 /* Deliberately short. This is a work queue: a client response from three weeks ago has either been
  * actioned or turned into a different problem, so surfacing it today is noise rather than work. */
@@ -44,14 +45,51 @@ const writeSetupDismissed=(organizationId?:string)=>{try{localStorage.setItem(se
 
 const latenessLabel=(dueAt:string,now:Date)=>{const days=Math.max(1,Math.ceil((now.getTime()-new Date(dueAt).getTime())/86_400_000));return `${days} day${days===1?'':'s'} late`}
 
-/* Badge weight, not just colour, is what separates "Do now" from "Today" -- solid fill for the red
- * band, an outline/tint for the amber one, nothing at all in "Later". Overdue items read their exact
- * lateness instead of the generic word "Overdue", per the redesign brief. */
+/* A badge only where it says something the band heading has not already said.
+ *
+ * Every row used to carry one, and inside a band those badges were identical to each other and to
+ * the heading above them: eight rows under "Do now", each stamped with a solid red "BLOCKED". Red
+ * repeated eight times down a column is not eight warnings, it is a red column -- and once the whole
+ * band is red, the genuinely worst row in it has no way to stand out. Alarm fatigue, built in.
+ *
+ * So 'blocked' now renders nothing: the band it sits in is called Blocked, and the row's own reason
+ * line says what is blocking it. 'overdue' and 'today' keep theirs, because those carry a value that
+ * DIFFERS per row -- "6 days late" against "1 day late", "09:30" against "16:00" -- which is the
+ * information the reader is actually sorting by. */
 function WorkQueueBadge({item,now}:{item:TodayWorkItem;now:Date}){
-  if(item.kind==='blocked')return <span className="work-queue-badge work-queue-badge-solid"><OctagonAlert size={11}/>{lookup(todayWorkKind,item.kind).label}</span>
   if(item.kind==='overdue')return <span className="work-queue-badge work-queue-badge-solid">{item.dueAt?latenessLabel(item.dueAt,now):lookup(todayWorkKind,item.kind).label}</span>
   if(item.kind==='today')return <span className="work-queue-badge work-queue-badge-outline">{item.dueAt?formatTime(item.dueAt):lookup(todayWorkKind,item.kind).label}</span>
   return null
+}
+
+/* One band of the queue, capped.
+ *
+ * An agency mid-import can land forty overdue follow-ups in one band, which buries every other kind
+ * of work under a wall of the same row. Showing the first few and counting the rest keeps the page
+ * about "what needs doing" rather than "how far behind are we". The count states the full size
+ * honestly, so nothing is concealed, and one click expands it in place. */
+const BAND_LIMIT=6
+function WorkQueueBand({label,tone,items,now,working,onTaskAction}:{
+  label:string
+  tone:'bad'|'warn'|'neutral'
+  items:TodayWorkItem[]
+  now:Date
+  working:boolean
+  onTaskAction:(taskId:string,action:'complete'|'snooze')=>void
+}){
+  const [expanded,setExpanded]=useState(false)
+  if(items.length===0)return null
+  const visible=expanded?items:items.slice(0,BAND_LIMIT)
+  const hidden=items.length-visible.length
+  return <div className="work-queue-band">
+    <p className={`work-queue-band-label work-queue-band-${tone}`}>{label} <span>{items.length}</span></p>
+    <ol className={`work-queue${tone==='neutral'?' work-queue-later':''}`}>
+      {visible.map((item)=><WorkQueueRow item={item} now={now} working={working} onTaskAction={onTaskAction} key={item.id}/>)}
+    </ol>
+    {(hidden>0||expanded)&&<button type="button" className="work-queue-band-more" onClick={()=>setExpanded((value)=>!value)}>
+      {expanded?`Show first ${BAND_LIMIT}`:`View all ${items.length}`}<ChevronDown size={13}/>
+    </button>}
+  </div>
 }
 
 function TaskActions({taskId,working,onAction}:{taskId?:string;working:boolean;onAction:(taskId:string,action:'complete'|'snooze')=>void}){
@@ -95,9 +133,15 @@ export function TodayPage(){
   // was stuck on a permanently unfinished list with the operating brief suppressed behind it.
   const showSetup=!setupComplete&&!setupHidden
   const dismissSetup=()=>{writeSetupDismissed(organization?.id);setSetupHidden(true)}
-  // Three bands, split by the same `kind` buildTodayWorkItems already assigns -- no second urgency
-  // model to keep in sync with the first.
-  const doNow=items.filter((item)=>item.kind==='blocked'||item.kind==='overdue')
+  /* Four bands, split by the same `kind` buildTodayWorkItems already assigns -- no second urgency
+   * model to keep in sync with the first.
+   *
+   * Blocked and Overdue used to share one "Do now" band, which conflated two different problems with
+   * two different fixes: blocked means something is preventing the work (a bounced email, a missing
+   * approval) and is usually not the consultant's own doing, while overdue means a commitment they
+   * made has passed. Read as one list, the blocked items look like personal backlog. */
+  const blocked=items.filter((item)=>item.kind==='blocked')
+  const overdue=items.filter((item)=>item.kind==='overdue')
   const todayItems=items.filter((item)=>item.kind==='today')
   const later=items.filter((item)=>item.kind==='upcoming'||item.kind==='recommended')
   const activeJobs=query.data.jobs.filter((job)=>job.status==='open'&&(scope==='team'||!job.owner_member_id||job.owner_member_id===currentMember?.id))
@@ -108,11 +152,15 @@ export function TodayPage(){
       * counts the three bands below already carry in their own labels ("Do now · 3"), one scroll
       * apart. Same numbers, twice, before the queue that actually needed the space. */}
     <div className="today-layout">
-      <Panel title="Next actions" subtitle="One click opens the right record with its context preserved." icon={<ListChecks size={16}/>} elevation="raised">
+      {/* The subtitle "One click opens the right record with its context preserved." is gone. It
+        * described the behaviour of a link, above a list of links, to people who click links for a
+        * living. */}
+      <Panel title="Next actions" icon={<ListChecks size={16}/>} elevation="raised">
         {items.length===0?<div className="today-clear"><CheckCircle2 size={24}/><div><strong>Nothing needs attention</strong><p>Open a job to continue sourcing or add a follow-up when new work arrives.</p></div></div>:<>
-          {doNow.length>0&&<div className="work-queue-band"><p className="work-queue-band-label">Do now · {doNow.length}</p><ol className="work-queue">{doNow.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
-          {todayItems.length>0&&<div className="work-queue-band"><p className="work-queue-band-label">Today · {todayItems.length}</p><ol className="work-queue">{todayItems.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
-          {later.length>0&&<div className="work-queue-band"><p className="work-queue-band-label">Later · {later.length}</p><ol className="work-queue work-queue-later">{later.map((item)=><WorkQueueRow item={item} now={now} working={taskAction.isPending} onTaskAction={actOnTask} key={item.id}/>)}</ol></div>}
+          <WorkQueueBand label="Blocked" tone="bad" items={blocked} now={now} working={taskAction.isPending} onTaskAction={actOnTask}/>
+          <WorkQueueBand label="Overdue" tone="bad" items={overdue} now={now} working={taskAction.isPending} onTaskAction={actOnTask}/>
+          <WorkQueueBand label="Due today" tone="warn" items={todayItems} now={now} working={taskAction.isPending} onTaskAction={actOnTask}/>
+          <WorkQueueBand label="Later" tone="neutral" items={later} now={now} working={taskAction.isPending} onTaskAction={actOnTask}/>
         </>}
       </Panel>
       <Panel title={scope==='mine'?'My active jobs':'Active jobs'} subtitle="Pipeline health at a glance." icon={<BriefcaseBusiness size={16}/>}>
@@ -124,7 +172,7 @@ export function TodayPage(){
             :{label:`${health?.candidate_count||0} active`,tone:'info',title:'Candidates currently in this job pipeline.'}
           return <Link to={`${base}/jobs/${job.id}`} key={job.id} className="today-job-row">
             <div className="today-job-row-top"><strong>{job.title}</strong><span className={`today-job-chip tone-${chip.tone}`} title={chip.title}>{chip.label}</span></div>
-            <small>{job.companies?.name||'Client'} · {job.location||'Location not set'}{health?` · ${health.candidate_count} candidates`:''}</small>
+            <small>{job.companies?.name||'Client'} · {job.location||NOT_RECORDED}{health?` · ${health.candidate_count} candidates`:''}</small>
             {health&&health.candidate_count>0&&<div className="pipeline-mini" aria-label={`${health.candidate_count} candidates by phase`}>{phaseSegments(health).map((segment)=><span key={segment.key} className={`phase-${segment.key}`} style={{flexGrow:segment.count}}/>)}</div>}
           </Link>
         })}{activeJobs.length===0&&<p className="muted">No active jobs in this view.</p>}</div>

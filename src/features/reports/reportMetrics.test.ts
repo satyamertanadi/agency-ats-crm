@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {buildConsultantRows,buildRecruitmentFunnel,isCompletedPlacement,isOverdueTask,reportDateRange} from './reportMetrics'
+import {buildConsultantRows,buildRecruitmentFunnel,isCompletedPlacement,isOverdueTask,reportDateRange,shortNameLabels} from './reportMetrics'
 
 describe('canonical report metrics',()=>{
   it('counts unique submitted candidates and never lets later events exceed the cohort',()=>{
@@ -99,5 +99,28 @@ describe('consultant attribution',()=>{
     const ayu=rows.find((row)=>row.id==='m1')!
     expect(ayu.placements).toBe(0)
     expect(ayu.fees).toBe(0)
+  })
+})
+
+describe('shortNameLabels',()=>{
+  /* The chart labelled its bars with `name.split(' ')[0]`, so an agency with two consultants called
+   * Satya rendered two bars both labelled "Satya" -- and Recharts keys categories by that string, so
+   * the two could collapse into a single bar. A stacked chart has no other identifier. */
+  it('keeps first names while they are unique',()=>{
+    expect(shortNameLabels(['Satya Wijaya','Dewi Kusuma'])).toEqual(['Satya','Dewi'])
+  })
+
+  it('adds a surname initial only for the names that actually collide',()=>{
+    expect(shortNameLabels(['Satya Wijaya','Satya Pratama','Dewi Kusuma']))
+      .toEqual(['Satya W.','Satya P.','Dewi'])
+  })
+
+  it('falls back to the full name when the initial collides too',()=>{
+    expect(shortNameLabels(['Satya Wijaya','Satya Wibowo']))
+      .toEqual(['Satya Wijaya','Satya Wibowo'])
+  })
+
+  it('survives a one-word name',()=>{
+    expect(shortNameLabels(['Satya','Satya','Dewi Kusuma'])).toEqual(['Satya','Satya','Dewi'])
   })
 })

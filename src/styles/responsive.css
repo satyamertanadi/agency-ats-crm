@@ -42,16 +42,17 @@
     padding: 0 14px;
   }
   .global-search {
-    min-width: 38px;
-    width: 38px;
-    padding: 9px;
+    min-width: 36px;
+    width: 36px;
+    padding: 8px;
+    justify-content: center;
   }
   .global-search span,
   .global-search kbd {
     display: none;
   }
   .page {
-    padding: 22px 16px 42px;
+    padding: var(--space-4) var(--space-4) var(--space-10);
   }
   .page-header {
     align-items: flex-start;
@@ -87,11 +88,41 @@
   .mapping-grid {
     grid-template-columns: 1fr;
   }
-  /* No `top` here: position:sticky was removed from .toolbar (see components.css) because its
-   * nearest scroll container is .panel, which is overflow:hidden and never scrolls. `top` on a
-   * static element does nothing -- it was left behind when the sticky went. */
+  /* The rail wraps now (see .toolbar in components.css), so it no longer needs -- or wants -- to be a
+   * horizontal scroller. `overflow-x:auto` put filters off the right edge of a phone with nothing to
+   * say they were there; wrapping keeps every control reachable without a gesture nobody performs on
+   * a toolbar.
+   * Search takes a full row of its own and comes first: on a phone it is the control the page exists
+   * for, and sharing a line with a dropdown left it too narrow to read a placeholder in. Everything
+   * else shares the rows below it, each free to shrink rather than each claiming its desktop width. */
   .toolbar {
-    overflow-x: auto;
+    padding: var(--space-2);
+  }
+  .toolbar .search-box {
+    order: -1;
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .toolbar .select-wrap {
+    flex: 1 1 8rem;
+  }
+  .toolbar .select-wrap select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .toolbar .view-menu,
+  .toolbar .filter-popover {
+    flex: 1 1 auto;
+  }
+  .toolbar .view-menu > .button,
+  .toolbar .filter-popover > .button {
+    width: 100%;
+  }
+  /* The popover is anchored to a trigger that is now most of the row, so it takes the row's width
+     rather than a fixed 560px that would overhang the screen. */
+  .filter-popover-panel {
+    width: calc(100vw - var(--space-6));
   }
   .date-range {
     width: 100%;

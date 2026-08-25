@@ -27,15 +27,21 @@
   gap: var(--space-3);
 }
 
+/* No shadow. A panel is not floating -- it is a region of the page, and the 1px border plus the
+   surface/canvas step already says where it starts and stops. The shadow it used to carry was
+   doing the same job a second time, and doing it on every panel at once, which is how a screen of
+   eight sections ends up reading as eight tiles on a tray. */
 .panel {
   background: var(--color-surface);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: var(--shadow-xs);
 }
+/* Kept as a token so `elevation="raised"` still means something, but now the faintest step rather
+   than a drop shadow: the two call sites use it to mark a panel that is genuinely above its
+   siblings, not to make an ordinary panel look more expensive. */
 .panel-raised {
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
 }
 .panel-soft {
   background: var(--color-surface-soft);
@@ -70,6 +76,15 @@
    * header reads as a subtle step off the panel body in both light and dark. */
   background: var(--color-surface-soft);
 }
+/* Two controls in a panel header. `action` is a single slot, so a panel needing both a primary and a
+   secondary control was previously stuck putting one of them somewhere else on the page -- which is
+   how "Add task" ended up as a full-width bar above the relationship history. */
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
 .panel-header-title {
   display: flex;
   align-items: center;
@@ -88,7 +103,6 @@
 }
 .panel-header h2 {
   margin: 0;
-  font-family: var(--font-editorial);
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
   letter-spacing: -0.015em;
@@ -114,28 +128,31 @@
   justify-content: center;
   gap: var(--space-15);
   cursor: pointer;
+  /* transform is deliberately absent from both the transition and the hover state. A button that
+     rises 1px under the cursor moves the thing you are aiming at while you aim at it, and in a
+     toolbar of six controls the whole row twitches as the pointer crosses it. Hover changes colour
+     and border instead: same feedback, nothing moves. */
   transition:
     background var(--motion-fast),
     border-color var(--motion-fast),
-    color var(--motion-fast),
-    box-shadow var(--motion-fast),
-    transform var(--motion-fast);
+    color var(--motion-fast);
   white-space: nowrap;
-}
-.button:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-.button:active:not(:disabled) {
-  transform: translateY(0);
 }
 .button:disabled {
   opacity: 0.52;
   cursor: not-allowed;
 }
+/* One control height across the whole product: 36px, matched by .button, .icon-button and .input.
+   `sm` now means narrower and lighter, not shorter.
+   It was 30px against a 38px input and a 36px button, so a list-page rail of view/search/status/
+   filter controls sat on three different baselines and looked assembled rather than designed --
+   the single most visible source of "not quite enterprise" on those screens. 30px with 12px type
+   was also below what stays comfortable for a control hit hundreds of times a day. */
 .button-sm {
-  min-height: 30px;
-  padding: 5px 9px;
-  font-size: var(--text-xs);
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
 }
 .button-lg {
   min-height: 44px;
@@ -146,22 +163,33 @@
   width: 36px;
   padding: 0;
 }
+/* Flat fill, no coloured glow. The glow was elevation used as emphasis -- but the button is
+   already the only saturated object in the header, which is emphasis enough, and the halo made it
+   read as a floating widget rather than part of the toolbar.
+   Press is acknowledged by going a shade darker again rather than by moving, so the pointer target
+   stays exactly where the user put it. */
 .button-primary {
   background: var(--color-accent);
   color: var(--color-on-accent);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 .button-primary:hover:not(:disabled) {
   background: var(--color-accent-hover);
+}
+.button-primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent-hover) 88%, black);
+}
+.button-secondary:active:not(:disabled),
+.button-quiet:active:not(:disabled) {
+  background: var(--color-canvas-deep);
 }
 .button-secondary {
   background: var(--color-surface);
   color: var(--color-ink);
   border-color: var(--color-line-strong);
-  box-shadow: var(--shadow-xs);
 }
 .button-secondary:hover:not(:disabled) {
   border-color: var(--color-muted);
+  background: var(--color-surface-soft);
 }
 .button-quiet {
   background: transparent;
@@ -186,7 +214,6 @@
   background: var(--color-danger);
   color: var(--color-on-dark);
   border-color: var(--color-danger);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-danger) 22%, transparent);
 }
 .button-danger:hover:not(:disabled) {
   background: var(--color-danger-hover);
@@ -196,7 +223,6 @@
   background: var(--color-surface);
   color: var(--color-danger);
   border-color: var(--tone-bad-border);
-  box-shadow: var(--shadow-xs);
 }
 .button-caution:hover:not(:disabled) {
   border-color: var(--color-danger);
@@ -218,17 +244,62 @@
 .icon-button:hover {
   background: var(--color-canvas-deep);
 }
+/* The in-row variant. Deliberately under the 36px floor every other control holds: this one lives
+   inside a table row whose whole purpose is density, and a 36px target in a 36px row would either
+   burst the row or sit edge to edge with the text above and below it. Negative block margin keeps it
+   from adding height at all, so turning row menus on did not cost a row per screen. Row menus are
+   never the only route to their actions -- see the Menu items in CandidatesPage -- so the smaller
+   target is a convenience affordance, not the sole path. */
+.icon-button-sm {
+  width: 26px;
+  height: 26px;
+  margin-block: -3px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
 /* `position:sticky; top:var(--topbar-height)` was removed rather than fixed: the toolbar's
    nearest scroll container is .panel, which is `overflow:hidden` and therefore never scrolls,
    so the sticky never engaged. It was a lie in the stylesheet, plus a z-index and a
    backdrop-filter paying for a blur that never composited against anything. */
+/* THE control rail. Everything that narrows or configures a list lives on this one row: view, search,
+   the one or two filters worth permanent space, the overflow for everything else, and the result
+   count. Nothing else is allowed to become a second full-width band above the data -- that is the
+   pattern this pass exists to undo.
+   `flex-wrap` so a narrow window folds the rail onto a second line rather than clipping a control or
+   scrolling the page sideways; `min-height` so a wrapped rail and an unwrapped one still read as the
+   same object. */
 .toolbar {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-line);
   background: var(--color-surface-soft);
+}
+/* Selects in the rail size to their content instead of stretching, so "All statuses" and "All health"
+   sit side by side as two compact controls rather than two half-width slabs. */
+.toolbar .select-wrap {
+  flex: 0 0 auto;
+}
+.toolbar .select-wrap select {
+  width: auto;
+  min-width: 8.5rem;
+  max-width: 13rem;
+}
+/* Pushed to the right-hand end, and stated as a fact rather than as another control. It is the answer
+   to "did my filter do anything", so it belongs at the end of the rail that asked the question. */
+.toolbar-count {
+  margin-left: auto;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Sits after the count, so the rail ends with "how many, and what else can I do to this list". */
+.toolbar-overflow {
+  flex: 0 0 auto;
 }
 /* The toolbar IS the search surface. Previously .search-box's input carried its own white
    background and its own border inside a toolbar that already had a background and a border --
@@ -271,11 +342,17 @@
 }
 .input {
   width: 100%;
-  min-height: 38px;
+  /* 36, not 38 -- see .button-sm for the shared-height rationale.
+     Vertical padding came down from 8px with it, and that is the half that actually matters:
+     min-height only sets a floor, so at 14px/1.5 the content box was 39px and the input overshot
+     every button beside it in the rail regardless of what min-height said. 6px puts the natural
+     height at 35px and lets the 36px floor govern, which is what makes a rail of mixed controls sit
+     on one baseline. */
+  min-height: 36px;
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
-  padding: 8px 10px;
+  padding: 6px 10px;
   color: var(--color-ink);
   outline: none;
   transition:
@@ -313,8 +390,36 @@
 .input::placeholder {
   color: var(--color-faint);
 }
+/* Guidance before the mistake, in the quietest voice that is still readable. Sits under the control
+   and is suppressed once a real error takes its place, so a field never shows advice and a complaint
+   at the same time. */
+.field-hint {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+}
+/* A stored value that is not a usable web address (see ExternalLink). Amber, not red: the record is
+   readable and nothing is broken -- it is a missing-information problem, which is exactly what amber
+   is reserved for. Shown rather than hidden, because a bad value nobody can see is a bad value nobody
+   fixes. `break-all` because these are frequently long unbroken junk strings, and a detail page must
+   not be widened by one of them. */
+.broken-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  color: var(--tone-warn-fg);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.broken-link svg {
+  flex: 0 0 auto;
+  align-self: center;
+}
 .textarea {
   min-height: 100px;
+  /* Its own padding: a textarea is a writing surface, not a rail control, so the tightened vertical
+     padding that keeps .input on the 36px grid would just crowd the first line of prose. */
+  padding: 9px 10px;
   resize: vertical;
   line-height: 1.55;
 }
@@ -322,7 +427,7 @@
   display: grid;
   align-content: start;
   gap: var(--space-15);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   color: var(--color-ink-soft);
 }
@@ -372,7 +477,9 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--color-surface);
-  border-radius: var(--radius-lg);
+  /* The overlay tier keeps the larger corner -- see --radius-lg in tokens.css for why in-page
+     panels dropped to 10px while things that float above the page did not. */
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
@@ -412,7 +519,6 @@
 }
 .modal h2,
 .drawer h2 {
-  font-family: var(--font-editorial);
   margin: 2px 0 0;
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
@@ -469,7 +575,11 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: var(--text-sm);
+  /* 14px, up from 13px. Table text is the product's body copy -- it is what the job consists of
+     reading -- and it was set one rung below the size used for a sentence in a panel. Row height
+     absorbs the extra 1px through the existing 7px vertical padding, so the table gained
+     legibility without losing a row per screen. */
+  font-size: var(--text-base);
 }
 .table-scroll caption {
   text-align: left;
@@ -515,7 +625,7 @@ td span:not([class]) {
   display: block;
 }
 td span:not([class]) {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-regular);
   color: var(--color-muted);
   margin-top: var(--space-05);
@@ -580,13 +690,27 @@ td span:not([class]) {
   text-align: right;
   white-space: nowrap;
 }
+/* `flex-shrink:0` and `nowrap` together, and both are load-bearing.
+ *
+ * `width:max-content` sizes the badge to its text but does NOT stop it shrinking when it is a flex
+ * item -- which it is, inside every .cell-lead and .chip-row in the product. Measured in a 200px
+ * table column: a "+2 more" badge beside a long job title was squeezed to 47px and wrapped onto two
+ * lines, taking that row from 51px to 64px. One such badge per screenful is enough to destroy the
+ * scan rhythm of the whole table, and the same squeeze is what clips a status word mid-break.
+ *
+ * The badge holds a short word that changes what the reader does; the prose beside it is what should
+ * give way. That is what .cell-strong's min-width:0 below arranges. */
 .badge {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
   width: max-content;
   border-radius: var(--radius-pill);
   padding: var(--space-1) var(--space-2);
-  font-size: var(--text-2xs);
+  /* 12px. A badge carries a word that changes what the reader does next -- "Blocked", "Do not
+     contact" -- so it was the wrong thing to have sitting at the scale's 11px exception rung. */
+  font-size: var(--text-xs);
   line-height: 1.1;
   font-weight: var(--weight-semibold);
   text-transform: capitalize;
@@ -639,7 +763,6 @@ td span:not([class]) {
   color: var(--color-accent);
 }
 .state h3 {
-  font-family: var(--font-editorial);
   font-size: var(--text-2xl);
   color: var(--color-ink);
   font-weight: var(--weight-semibold);
@@ -752,7 +875,7 @@ td span:not([class]) {
   grid-template-rows: auto minmax(0, 1fr) auto;
   background: var(--color-surface);
   border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
 }
@@ -1119,6 +1242,41 @@ td span:not([class]) {
 
 /* Menu: the shared popover. Positioning and item styling match the .record-actions-menu-panel it
    generalises, so migrating a call site is a markup change with no visual diff. */
+/* The list-page filter disclosure. Positioned relative to its own trigger rather than portalled: the
+   rail is inside a Panel with `overflow:hidden`, so the panel is allowed to escape via z-index but
+   would be clipped by a transform-based approach. */
+.filter-popover {
+  position: relative;
+  flex: 0 0 auto;
+}
+/* An applied filter set is a state the trigger has to carry, since the fields themselves are hidden.
+   Accent border and text, not a filled button: it is reporting a condition, not competing with the
+   page's primary action. */
+.filter-popover-trigger-active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.filter-popover-panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  inset-inline-start: 0;
+  z-index: 30;
+  width: min(560px, calc(100vw - var(--space-8)));
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+.filter-popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-line-soft);
+}
+
 .ui-menu {
   position: relative;
   display: inline-flex;
