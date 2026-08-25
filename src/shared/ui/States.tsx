@@ -49,3 +49,30 @@ export function BoardSkeleton({columns=5,cards=3,label='Loading pipeline…'}:{c
   </div>
 }
 
+/* The shape of a record page while its primary query is in flight: summary strip, then the section
+ * stack. Paired with the real <Page> header (title, breadcrumbs, tabs), which the detail routes now
+ * render immediately rather than withholding behind the spinner -- so what arrives is the body
+ * filling in, not the whole workspace appearing at once.
+ *
+ * `sections` should match what the route actually renders below the strip. Getting it wrong is a
+ * layout shift with extra steps, which is exactly what the centred spinner this replaces already
+ * did. */
+export function DetailSkeleton({sections=3,label='Loading record…'}:{sections?:number;label?:string}) {
+  return <div className="skeleton-detail" role="status" aria-busy="true">
+    <span className="sr-only">{label}</span>
+    <div className="skeleton-detail-summary">
+      <Skeleton height={44} width={44} radius="var(--radius-circle)"/>
+      <div className="skeleton-detail-summary-text">
+        <Skeleton height={15} width="38%"/>
+        <Skeleton height={12} width="56%"/>
+      </div>
+    </div>
+    {Array.from({length:sections},(_unused,section)=>(
+      <div className="skeleton-detail-section" key={section}>
+        <Skeleton height={13} width="24%"/>
+        <Skeleton height={11} width={`${78-section*9}%`}/>
+        <Skeleton height={11} width={`${64-section*7}%`}/>
+      </div>
+    ))}
+  </div>
+}

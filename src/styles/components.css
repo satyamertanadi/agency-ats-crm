@@ -1236,6 +1236,31 @@ td span:not([class]) {
   gap: var(--space-2);
 }
 
+/* Mirrors the record pages' own body rhythm: a summary strip with an avatar and two lines, then a
+   stack of sections. Padded like .skeleton-table and for the same reason -- it renders inside the
+   same padding:none Panel the real content will, so an unpadded placeholder would jump inward the
+   moment it is replaced. */
+.skeleton-detail {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-4);
+}
+.skeleton-detail-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.skeleton-detail-summary-text {
+  display: grid;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.skeleton-detail-section {
+  display: grid;
+  gap: var(--space-2);
+}
+
 /* ---- Shared interaction primitives (src/shared/ui) -------------------------------------------
    Each block below backs one component that replaced two or more hand-written treatments. Styles live
    here rather than in features.css because none of them belong to a single feature. */

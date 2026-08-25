@@ -3,6 +3,7 @@ import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ChevronLeft,ChevronRight,CopyCheck,Merge,MoreHorizontal,Plus,Rows3,Search,SquareCheck,UserRoundSearch,Users} from 'lucide-react'
 import {Link,useNavigate,useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
+import {prefetchHandlers,usePrefetchRecord} from '../core/usePrefetchRecord'
 import {useAuth} from '../../app/AuthProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {listCandidatesPage,type CandidateListFilters} from '../core/repository'
@@ -107,6 +108,7 @@ function StatusCell({row}:{row:CandidateSearchRow}){
 export function CandidatesPage(){
   const {organization}=useOrganization();const {user}=useAuth();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast();const navigate=useNavigate();const [params,setParams]=useSearchParams()
   const [open,setOpen]=useState(false);const [selectionMode,setSelectionMode]=useState<SelectionMode>('none');const [mergeOpen,setMergeOpen]=useState(false);const [selected,setSelected]=useState<string[]>([]);const [keptId,setKeptId]=useState('');const [mergeReason,setMergeReason]=useState('Duplicate candidate record');const [placementCandidates,setPlacementCandidates]=useState<PlacementCandidate[]>([]);const placementOpen=placementCandidates.length>0||params.get('addToJob')==='1';const pageSize=50
+  const prefetch=usePrefetchRecord()
   useOpenOnNewParam(setOpen)
   /* A browser preference, not workspace state, so it lives in localStorage and not in the URL: it
    * must not travel in a shared link or get captured by a saved view, where one person's row height
@@ -278,7 +280,7 @@ export function CandidatesPage(){
         return <div className="candidate-row-identity">
           <span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span>
           <div className="candidate-row-identity-text">
-            <Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`}><strong title={candidate.full_name}>{candidate.full_name}</strong></Link>
+            <Link className="record-link" to={`/app/${organization?.slug}/candidates/${candidate.id}`} {...prefetchHandlers(()=>prefetch('candidate',candidate.id))}><strong title={candidate.full_name}>{candidate.full_name}</strong></Link>
             <span title={role}>{role}</span>
           </div>
         </div>
