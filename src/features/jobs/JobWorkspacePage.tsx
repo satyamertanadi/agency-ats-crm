@@ -5,7 +5,7 @@ import {ArrowLeft,ChevronDown,Clock,GripVertical,Plus,Send} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
-import {getPipeline,listInterviews,listJobHealth,listJobs,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
+import {getJob,getPipeline,listInterviews,listJobHealth,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
 import {useStageMove} from '../core/useStageMove'
 import {describeBulk,runBulk} from '../core/bulkResult'
 import {moveCandidate} from '../core/repository'
@@ -131,7 +131,9 @@ export function JobWorkspacePage(){
    * in Sourcing" says nothing about whether Screening should also be full. */
   const [expandedColumns,setExpandedColumns]=useState<Set<string>>(new Set())
   const toggleColumnExpanded=(key:string)=>setExpandedColumns((current)=>{const next=new Set(current);if(next.has(key))next.delete(key);else next.add(key);return next})
-  const jobs=useQuery({queryKey:['jobs',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobs(organization!.id)});const job=jobs.data?.find((item)=>item.id===jobId)
+  /* By id, not "fetch the list and search it". The old shape pulled up to 1,000 jobs to find one and
+   * rendered "not found" for any job past that cap -- a real, open board that simply would not open. */
+  const jobs=useQuery({queryKey:['job',organization?.id,jobId],enabled:Boolean(organization&&jobId),queryFn:()=>getJob(organization!.id,jobId)});const job=jobs.data??undefined
   const pipeline=useQuery({queryKey:['pipeline',jobId],enabled:Boolean(job),queryFn:()=>getPipeline(job!)});const health=useQuery({queryKey:['job-health',organization?.id],enabled:Boolean(organization),queryFn:()=>listJobHealth(organization!.id)})
   /* Scoped to this job, not to the organization. These four decorate the candidate panel for
    * candidates on this board only -- fetching every interview, offer, placement and submission
