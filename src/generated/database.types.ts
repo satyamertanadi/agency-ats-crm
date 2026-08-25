@@ -4156,6 +4156,13 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      add_candidates_to_list: {
+        Args: { p_candidate_ids: string[]; p_list_id: string }
+        Returns: {
+          added: number
+          skipped: number
+        }[]
+      }
       anonymize_candidate_for_retention: {
         Args: {
           p_as_of?: string
@@ -4163,13 +4170,6 @@ export type Database = {
           p_removed_storage_paths?: string[]
         }
         Returns: boolean
-      }
-      add_candidates_to_list: {
-        Args: { p_candidate_ids: string[]; p_list_id: string }
-        Returns: {
-          added: number
-          skipped: number
-        }[]
       }
       archive_candidate_profile_template: {
         Args: { p_organization_id: string; p_template_id: string }
@@ -4757,6 +4757,13 @@ export type Database = {
         Args: { p_before?: string }
         Returns: number
       }
+      remove_candidates_from_list: {
+        Args: { p_candidate_ids: string[]; p_list_id: string }
+        Returns: {
+          removed: number
+          skipped: number
+        }[]
+      }
       replace_candidate_profile_section: {
         Args: {
           p_candidate_id: string
@@ -4777,13 +4784,6 @@ export type Database = {
         }[]
       }
       resolve_submission_link: { Args: { p_token: string }; Returns: Json }
-      remove_candidates_from_list: {
-        Args: { p_candidate_ids: string[]; p_list_id: string }
-        Returns: {
-          removed: number
-          skipped: number
-        }[]
-      }
       revoke_organization_invitation: {
         Args: { p_invitation_id: string }
         Returns: undefined
