@@ -1,6 +1,6 @@
 import {describe,expect,it} from 'vitest'
 import type {CompanyPipelineRow} from '../../shared/types/domain'
-import {accountRisks,bdSummary,groupCompaniesByStage} from './bdPipeline'
+import {accountRisks,bdStageLabel,bdSummary,filterAccountHealth,groupCompaniesByStage} from './bdPipeline'
 
 const now=new Date('2026-07-18T10:00:00Z')
 const company=(overrides:Partial<CompanyPipelineRow> = {}):CompanyPipelineRow=>({
@@ -95,5 +95,51 @@ describe('BD summary',()=>{
     const summary=bdSummary([company({owner_member_id:null,next_follow_up_at:null,last_activity_at:null})],now)
     expect(summary.atRisk).toBe(1)
     expect(summary.unowned).toBe(1)
+  })
+})
+
+describe('bdStageLabel',()=>{
+  it('uses the product vocabulary for a known stage',()=>{
+    expect(bdStageLabel('negotiating')).toBe('Negotiating')
+  })
+
+  /* The column has no check constraint, so an import brings whatever the previous system wrote. Three
+   * casing conventions in one column read as three different values rather than one written three
+   * ways. */
+  const importedStages=[['NEGOTIATING','Negotiating'],['client_review','Client review'],['Warm Lead','Warm lead']] as const
+  it.each(importedStages)('normalises the casing of an unknown stage %j',(stored,shown)=>{
+    expect(bdStageLabel(stored)).toBe(shown)
+  })
+
+  it('never returns an empty label for a value that had one',()=>{
+    expect(bdStageLabel('___')).toBe('___')
+  })
+})
+
+describe('filterAccountHealth',()=>{
+  const now=new Date('2026-08-25T00:00:00Z')
+  const worked=company({business_development_stage:'won',owner_member_id:null,next_follow_up_at:null,last_activity_at:null})
+  const clean=company({business_development_stage:'won',owner_member_id:'m1',
+    next_follow_up_at:'2026-09-01T00:00:00Z',last_activity_at:'2026-08-24T00:00:00Z',terms_status:'active',open_jobs:1})
+
+  it('passes everything through on "all"',()=>{
+    expect(filterAccountHealth([worked,clean],'all',now)).toHaveLength(2)
+  })
+
+  /* Every option is a question about accountRisks rather than its own predicate, so the filter cannot
+   * disagree with the risk badges on the rows it is filtering, or with the "Need attention" figure
+   * above the table. That is the property worth pinning, not the individual thresholds. */
+  it('agrees with accountRisks about which accounts need attention',()=>{
+    const rows=[worked,clean]
+    const byFilter=filterAccountHealth(rows,'attention',now)
+    const byRisk=rows.filter((row)=>accountRisks(row,now).length>0)
+    expect(byFilter).toEqual(byRisk)
+  })
+
+  it('treats "no open risks" as the complement, over worked accounts only',()=>{
+    expect(filterAccountHealth([worked,clean],'healthy',now)).toEqual([clean])
+    // A lost account has no risks, but calling it healthy would be an odd claim for the list to make.
+    const lost=company({business_development_stage:'lost'})
+    expect(filterAccountHealth([lost],'healthy',now)).toEqual([])
   })
 })

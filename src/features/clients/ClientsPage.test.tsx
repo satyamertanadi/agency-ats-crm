@@ -108,7 +108,7 @@ describe('ClientsPage industry',()=>{
     fireEvent.change(filter,{target:{value:'food_beverage'}})
     expect(await screen.findByText('Warung Group')).toBeInTheDocument()
     expect(screen.queryByText('Meridian Hospitality')).not.toBeInTheDocument()
-    expect(screen.getByText('1 clients')).toBeInTheDocument()
+    expect(screen.getByText('1 client')).toBeInTheDocument()
   })
 
   it('finds a keyed row by the label a consultant reads',async()=>{
