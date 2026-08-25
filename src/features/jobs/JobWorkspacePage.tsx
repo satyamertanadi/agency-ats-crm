@@ -41,9 +41,14 @@ import {NOT_RECORDED} from '../../shared/lib/labels'
 
 type WorkspaceView='pipeline'|'activity'|'details'
 
+/* Returns null rather than a placeholder glyph when there is nobody to initial. It used to return
+ * an em-dash, which rendered as a 22px circle containing "—" on every unowned card -- a symbol that
+ * means "no owner" only to someone who already knows that is what it means, and reads as a redaction
+ * or a loading state to everyone else. The card decides how to say "nobody" (see below); this
+ * function's job is initials, and it should not answer a question it was not asked. */
 const memberInitials=(member?:Pick<TeamMember,'profiles'>|null)=>{
   const name=member?.profiles?.full_name||member?.profiles?.email||''
-  return name.split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0]?.toUpperCase()||'').join('')||'—'
+  return name.split(/\s+/).filter(Boolean).slice(0,2).map((part)=>part[0]?.toUpperCase()||'').join('')||null
 }
 
 /* Arrow keys move a picked-up card a whole column at a time.
@@ -118,7 +123,13 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
         {/* Two initials are unreadable to anyone who does not already know the team, and were hidden
           * from assistive tech entirely -- so the chip told a screen-reader user nothing at all and a
           * new consultant nothing they could act on. The name travels with it both ways now. */}
-        <span className="workflow-card-owner" title={`Candidate owner: ${ownerName}`}>{memberInitials(owner)}<span className="sr-only">Candidate owner: {ownerName}</span></span>
+        {/* Unowned is a state a recruiter has to ACT on -- it is one of the account-health risks the
+          * client list reports -- so it says so in words rather than in a glyph. Still restrained: a
+          * muted 11px pill on the cards that need it, not a badge on all of them. Owned cards keep
+          * the compact initials circle, with the full name carried by title and sr-only. */}
+        {memberInitials(owner)
+          ?<span className="workflow-card-owner" title={`Candidate owner: ${ownerName}`}>{memberInitials(owner)}<span className="sr-only">Candidate owner: {ownerName}</span></span>
+          :<span className="workflow-card-owner workflow-card-owner-empty">Unassigned<span className="sr-only"> candidate owner</span></span>}
       </span>
     </button>
     {/* One overflow, carrying both routes a keyboard user needs: the phase move (formerly a permanent
@@ -296,12 +307,19 @@ export function JobWorkspacePage(){
       <div className="workflow-toolbar">
         <div><strong>{pipeline.data!.items.length} in pipeline</strong><span>Move candidates between phases, then open a card for the next action.</span></div>
         <div className="table-actions">
-          {capabilities.data?.canSubmit&&shortlisted.length>0&&job.status==='open'&&<Button size="sm" variant="secondary" leadingIcon={<Send size={14}/>} onClick={()=>setComposerCandidates(shortlisted)}>Send {shortlisted.length} to client</Button>}
+          {/* "Send 1 to client" sat directly beside "Select candidates", so the number read as the count of
+            * things the user had selected. It is not: `shortlisted` filters the pipeline by PHASE, so the
+            * figure is however many candidates are sitting in Shortlist, chosen by nobody. Naming the
+            * phase removes the implied selection; the exact count stays in the accessible name, where it
+            * cannot be misread as one. */}
+          {capabilities.data?.canSubmit&&shortlisted.length>0&&job.status==='open'&&<Button size="sm" variant="secondary" leadingIcon={<Send size={14}/>} aria-label={`Send ${shortlisted.length} shortlisted ${shortlisted.length===1?'candidate':'candidates'} to client`} onClick={()=>setComposerCandidates(shortlisted)}>Send shortlist to client</Button>}
           {/* The switch that reveals the per-card checkboxes. It replaces having them on permanently:
             * one control on the board, rather than one on every card. */}
           {canRecruit&&<Button size="sm" variant={selecting?'secondary':'quiet'} aria-pressed={selecting}
             leadingIcon={<SquareCheck size={14}/>} onClick={()=>selecting?stopSelecting():setSelecting(true)}>
-            {selecting?'Done selecting':'Select candidates'}</Button>}
+            {/* "Cancel selection", not "Done selecting": stopSelecting() DISCARDS the picked set, and
+              * "Done" reads as committing it. The label now matches what the button actually does. */}
+            {selecting?'Cancel selection':'Select candidates'}</Button>}
           {canRecruit&&<Button variant="secondary" leadingIcon={<Plus size={14}/>} onClick={()=>setAddOpen(true)}>Add candidates</Button>}
         </div>
       </div>

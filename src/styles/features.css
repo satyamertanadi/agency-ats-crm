@@ -192,7 +192,15 @@
    touch and invisible to anyone scanning for how to select. */
 .workflow-card-select{position:absolute;top:6px;right:6px;z-index:1;display:grid;place-items:center;padding:2px}
 .workflow-candidate-card{position:relative}
-.workflow-candidate-card.card-selected{box-shadow:var(--focus)}
+/* Selection, said differently from focus. This was --focus, the same ring the browser draws on the
+   card you have merely tabbed to -- so "selected" and "focused" were indistinguishable, on the one
+   screen where the difference decides what a bulk action will do. Selection now takes an accent
+   border and a tinted fill (state), leaving the ring to mean focus (position). */
+.workflow-candidate-card.card-selected{
+  border-color:var(--color-accent);
+  background:var(--color-accent-soft);
+  box-shadow:inset 0 0 0 1px var(--color-accent);
+}
 
 /* The selection's own action row, inside the callout that states the count. Wraps rather than
    scrolls, so a narrow screen stacks the picker under the count instead of hiding the button. */
@@ -1389,6 +1397,17 @@ tbody tr:focus-within .row-menu-trigger,
 .workflow-candidate-card .workflow-days-badge.tone-warn{background:var(--tone-warn-bg);color:var(--tone-warn-fg);border-color:var(--tone-warn-border)}
 .workflow-candidate-card .workflow-days-badge.tone-bad{background:var(--tone-bad-bg);color:var(--tone-bad-fg);border-color:var(--tone-bad-border)}
 .workflow-candidate-card .workflow-card-owner{margin-left:auto;display:grid;place-items:center;width:22px;height:22px;border-radius:var(--radius-circle);background:var(--color-canvas-deep);color:var(--color-muted);font-size:var(--text-2xs);font-weight:var(--weight-bold);flex:0 0 auto}
+/* Unowned, stated in words. Auto-width and pill-shaped rather than the 22px circle its owned
+   sibling uses, because it holds a word rather than two letters -- and deliberately the same muted
+   weight, so a board of unowned candidates does not read as a board of errors. The dashed border is
+   the one place this codebase still uses that treatment: here it marks a genuinely absent
+   assignment, which is the semantic the candidate table's decorative dashed pills were removed for
+   NOT having. */
+.workflow-candidate-card .workflow-card-owner-empty{
+  width:auto;height:auto;padding:1px var(--space-15);border-radius:var(--radius-pill);
+  border:1px dashed var(--color-line-strong);background:transparent;color:var(--color-muted);
+  font-size:var(--text-2xs);font-weight:var(--weight-medium);letter-spacing:0;
+}
 .record-overview-grid,.candidate-overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}
 /* Padded on its own -- every caller renders this inside a Panel that defaults to zero body padding
  * (only 3 Panel call sites in the app opt into a padding prop, and none of them wrap this), so
