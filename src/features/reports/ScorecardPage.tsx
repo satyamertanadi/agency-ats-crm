@@ -1,6 +1,6 @@
-import {useMemo,useState} from 'react'
+import {useMemo,useState,type ReactNode} from 'react'
 import {useQuery} from '@tanstack/react-query'
-import {Link} from 'react-router'
+import {Link,useSearchParams} from 'react-router'
 import {ArrowRight} from 'lucide-react'
 import {Bar,BarChart,CartesianGrid,Legend,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts'
 import {useAuth} from '../../app/AuthProvider'
@@ -15,6 +15,8 @@ import {Table} from '../../shared/ui/Table'
 import {ChartCard,chartTooltipStyle} from '../../shared/ui/ChartCard'
 import {formatDateRange,formatDateTime,formatMoney,formatMoneyCompact} from '../../shared/lib/format'
 import {buildConsultantRows,buildRecruitmentFunnel,isCompletedPlacement,isOverdueTask,isRecordedPlacement,metricDefinitions,reportDateRange,shortNameLabels,type ConsultantRow} from './reportMetrics'
+import {parseMetric,type DrilldownContext,type DrilldownInput} from './scorecardDrilldown'
+import {ScorecardDrilldownDrawer} from './ScorecardDrilldownDrawer'
 
 /* A money figure sized for a KPI cell: abbreviated on screen, exact on hover and to a screen reader.
  *
@@ -52,13 +54,46 @@ const dateValue=(date:Date)=>date.toISOString().slice(0,10)
 type Scope='mine'|'team'
 
 /* Every tile states its own definition. A scorecard whose numbers a consultant cannot interpret is
- * a scorecard they argue with rather than act on. */
+ * a scorecard they argue with rather than act on.
+ *
+ * The interview and offer definitions changed here, and the NUMBERS did not. These tiles are built by
+ * buildConsultantRows, which applies no cohort constraint -- so they were labelled with the team
+ * funnel's cohort sentences while counting something slightly wider. A consultant reconciling the
+ * tile against the sentence under their cursor would have found a discrepancy that does not exist.
+ *
+ * `placements` likewise carries the RECORDED definition, because that is what buildConsultantRows
+ * counts. The cohort placement figure still exists, in the funnel, where it is labelled as such. */
 const tiles=[
-  {key:'submissions',label:'Submissions',definition:metricDefinitions.submission},
-  {key:'interviews',label:'Interviews',definition:metricDefinitions.interview},
-  {key:'offers',label:'Offers',definition:metricDefinitions.offer},
-  {key:'placements',label:'Placements',definition:metricDefinitions.placement},
+  {key:'submissions',label:'Submissions',definition:metricDefinitions.submission,metric:'submissions'},
+  {key:'interviews',label:'Interviews',definition:metricDefinitions.consultantInterview,metric:'interviews'},
+  {key:'offers',label:'Offers',definition:metricDefinitions.consultantOffer,metric:'offers'},
+  {key:'placements',label:'Placements',definition:metricDefinitions.recordedPlacement,metric:'recordedPlacements'},
 ] as const
+
+/* A KPI tile that may or may not be openable.
+ *
+ * `metric` is what decides, and it is absent far more often than it is present. A tile becomes a
+ * button only when a drilldown can show exactly the records it counted -- see scorecardDrilldown --
+ * and the ones left inert are inert deliberately: "Jobs opened" has no destination that means the
+ * same thing, and a fee total is an amount rather than a population, so there is no list whose length
+ * is the number on the tile.
+ *
+ * The openable ones become a real <button> rather than a clickable <article>, so they are reachable
+ * by keyboard and announced as actionable. Keeping the same .kpi class means the two kinds sit in one
+ * grid without the openable ones shouting; .kpi-actionable adds the hover and focus affordance only. */
+function MetricTile({label,value,definition,caption,metric,onOpen}:{
+  label:string
+  value:ReactNode
+  definition?:string
+  caption?:ReactNode
+  metric?:string
+  onOpen?:(metric:string)=>void
+}){
+  const body=<div><p>{label}</p><strong>{value}</strong>{caption&&<small className="kpi-caption">{caption}</small>}</div>
+  if(!metric||!onOpen)return <article className="kpi" title={definition}>{body}</article>
+  return <button type="button" className="kpi kpi-actionable" title={definition}
+    aria-label={`${label}: show the records behind this number`} onClick={()=>onOpen(metric)}>{body}</button>
+}
 
 const rate=(numerator:number,denominator:number)=>denominator>0?`${Math.round(numerator/denominator*100)}%`:'—'
 
@@ -67,6 +102,12 @@ export function ScorecardPage(){
   const now=useMemo(()=>new Date(),[])
   const [from,setFrom]=useState(dateValue(new Date(now.getFullYear(),0,1)));const [to,setTo]=useState(dateValue(now))
   const [scope,setScope]=useState<Scope>('mine')
+  /* The open drilldown lives in the URL so it survives a reload and can be linked to in a message
+   * that says "look at these fourteen". The date range does not, which is a pre-existing asymmetry
+   * and out of scope here -- a shared link therefore opens the drawer over whatever range the
+   * recipient's page defaults to, and the drawer's count is always the count of the tile beside it
+   * rather than of the range the sender was reading. */
+  const [params,setParams]=useSearchParams()
   const range=reportDateRange(from,to,organization?.timezone||'UTC')
   const performance=useQuery({queryKey:['agency-performance',organization?.id,from,to],enabled:Boolean(organization&&from&&to),queryFn:()=>getAgencyPerformance(organization!.id,range.fromIso,range.toIso)})
   const team=useQuery({queryKey:['team',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
@@ -89,6 +130,19 @@ export function ScorecardPage(){
   const rows=buildConsultantRows({members:team.data||[],submissions:data.submissions,interviews:data.interviews,offers:data.offers,placements:data.placements,activeJobs:data.activeJobs,overdueTasks,baseCurrency:organization?.base_currency})
   const mine:ConsultantRow=rows.find((row)=>row.id===currentMember?.id)??{id:currentMember?.id||'me',name:user?.user_metadata.full_name as string||'You',jobs:0,submissions:0,interviews:0,offers:0,placements:0,fees:0,overdue:0}
   const base=`/app/${organization!.slug}`
+
+  /* Built from the records the page already loaded. No request per tile, and no second definition of
+   * any of these numbers on the server -- the id set IS the tile's population, computed by the same
+   * predicates a few lines above. */
+  const drilldownInput:DrilldownInput={submissions:data.submissions,interviews:data.interviews,offers:data.offers,placements:data.placements}
+  const drilldownContext:DrilldownContext={scope:activeScope,userId:user?.id}
+  const metric=parseMetric(params.get('metric'))
+  const openMetric=(id:string)=>{const next=new URLSearchParams(params);next.set('metric',id);setParams(next,{replace:true})}
+  const closeMetric=()=>{const next=new URLSearchParams(params);next.delete('metric');setParams(next,{replace:true})}
+  const drilldown=metric
+    ?<ScorecardDrilldownDrawer metric={metric} definition={metric.definition(drilldownContext)}
+      ids={metric.select(drilldownInput,drilldownContext)} onClose={closeMetric}/>
+    :null
 
   const scopeToggle=canViewTeam?<SegmentedControl label="Report scope" value={scope} onChange={setScope}
     options={[{id:'mine',label:'My scorecard'},{id:'team',label:'Team view'}]}/>:null
@@ -120,12 +174,19 @@ export function ScorecardPage(){
         * reconcile and no explanation anywhere. It now states its own definition, and its caption names
         * the funnel figure beside it so the difference is visible rather than discovered. */}
       <div className="kpi-grid">
-        <article className="kpi"><div><p>Jobs opened</p><strong>{data.jobs.length}</strong></div></article>
-        <article className="kpi" title={metricDefinitions.submission}><div><p>Candidates submitted</p><strong>{funnel[0]!.value}</strong></div></article>
-        <article className="kpi" title={metricDefinitions.interview}><div><p>Candidates interviewed</p><strong>{funnel[1]!.value}</strong></div></article>
-        <article className="kpi" title={metricDefinitions.offer}><div><p>Candidates offered</p><strong>{funnel[2]!.value}</strong></div></article>
-        <article className="kpi" title={metricDefinitions.recordedPlacement}><div><p>Recorded placements</p><strong>{recordedPlacementCount}</strong><small className="kpi-caption">{funnel[3]!.value} from this period&apos;s submissions</small></div></article>
-        <article className="kpi"><div><p>Fees · base currency</p><strong><CompactMoney value={baseFees} currency={organization?.base_currency}/></strong></div></article>
+        {/* Jobs opened is not openable: the jobs list has no "created in this range" filter, so every
+          * destination it could point at would show a different set of jobs from the one counted
+          * here. A tile that opens the wrong list is worse than one that does nothing. */}
+        <MetricTile label="Jobs opened" value={data.jobs.length}/>
+        <MetricTile label="Candidates submitted" value={funnel[0]!.value} definition={metricDefinitions.submission} metric="submissions" onOpen={openMetric}/>
+        <MetricTile label="Candidates interviewed" value={funnel[1]!.value} definition={metricDefinitions.interview} metric="interviews" onOpen={openMetric}/>
+        <MetricTile label="Candidates offered" value={funnel[2]!.value} definition={metricDefinitions.offer} metric="offers" onOpen={openMetric}/>
+        <MetricTile label="Recorded placements" value={recordedPlacementCount} definition={metricDefinitions.recordedPlacement}
+          caption={`${funnel[3]!.value} from this period's submissions`} metric="recordedPlacements" onOpen={openMetric}/>
+        {/* A fee total is an amount, not a population. There is no list whose LENGTH is this number,
+          * so the one promise a drilldown makes -- that it contains exactly what the tile counted --
+          * cannot be kept here. */}
+        <MetricTile label="Fees · base currency" value={<CompactMoney value={baseFees} currency={organization?.base_currency}/>}/>
       </div>
       <div className="chart-grid">
         {/* One series, so no legend: the axis already names every bar, and a legend reading "value"
@@ -138,6 +199,7 @@ export function ScorecardPage(){
       <div className="two-column"><Panel title="Funnel conversion" subtitle="Within the cohort submitted during this period, so it will not match the recorded-placement total above."><Table caption="Funnel conversion by unique candidate/job milestone" headers={['Milestone','Count','Conversion from submissions']}>{funnel.map((item)=><tr key={item.name}><td>{item.name}</td><td>{item.value}</td><td>{item.conversion==null?'—':`${item.conversion}%`}</td></tr>)}</Table></Panel><Panel title="Workload health"><div className="settings-list"><article className="finance-row"><span>Overdue tasks</span><strong className={overdueTasks.length?'overdue-text':''}>{overdueTasks.length}</strong></article><article className="finance-row"><span>Accepted offers</span><strong>{data.offers.filter((item)=>item.status==='accepted').length}</strong></article><article className="finance-row"><span>Completed placements</span><strong>{data.placements.filter(isCompletedPlacement).length}</strong></article></div></Panel></div>
       <Panel title="Consultant performance"><Table caption="Consultant performance for selected date range" headers={['Consultant','Active jobs','Submissions','Interviews','Offers','Placements',{label:'Fees',align:'right'},'Overdue tasks']}>{rows.map((row)=><tr key={row.id}><td><strong>{row.name}</strong></td><td>{row.jobs}</td><td>{row.submissions}</td><td>{row.interviews}</td><td>{row.offers}</td><td>{row.placements}</td><td className="money">{formatMoney(row.fees,organization?.base_currency)}</td><td className={row.overdue?'overdue-text':''}>{row.overdue}</td></tr>)}</Table></Panel>
       {footnote}
+      {drilldown}
     </Page>
   }
 
@@ -153,9 +215,13 @@ export function ScorecardPage(){
     {context}
     {!currentMember&&<EmptyState title="No membership found" description="Your user is not an active member of this workspace, so there is no activity to attribute."/>}
     <div className="kpi-grid">
-      {tiles.map((tile)=><article className="kpi" key={tile.key} title={tile.definition}><div><p>{tile.label}</p><strong>{mine[tile.key]}</strong></div></article>)}
-      <article className="kpi"><div><p>Fees · base currency</p><strong><CompactMoney value={mine.fees} currency={organization?.base_currency}/></strong></div></article>
-      <article className="kpi"><div><p>Jobs owned</p><strong>{mine.jobs}</strong></div></article>
+      {tiles.map((tile)=><MetricTile key={tile.key} label={tile.label} value={mine[tile.key]}
+        definition={tile.definition} metric={tile.metric} onOpen={openMetric}/>)}
+      <MetricTile label="Fees · base currency" value={<CompactMoney value={mine.fees} currency={organization?.base_currency}/>}/>
+      {/* Jobs owned counts open jobs, which the jobs list can show -- but only filtered by owner, and
+        * the link below already goes there. A drawer repeating it would be a second answer to a
+        * question one surface already owns. */}
+      <MetricTile label="Jobs owned" value={mine.jobs}/>
     </div>
     <div className="two-column">
       <Panel title="Conversion" subtitle="Your own progression rates for the selected period.">
@@ -178,5 +244,6 @@ export function ScorecardPage(){
       </Panel>
     </div>
     {footnote}
+    {drilldown}
   </Page>
 }

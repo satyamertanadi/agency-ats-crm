@@ -252,6 +252,35 @@ export async function getAgencyPerformance(organizationId:string,from:string,to:
   return {jobs:jobs.data||[],activeJobs:activeJobs.data||[],submissions,interviews:interviews.data||[],offers:offers.data||[],placements:placements.data||[],tasks:tasks.data||[]}
 }
 
+/* Display names for a page of scorecard drilldown rows.
+ *
+ * Takes ids rather than a filter, and that is the whole point: the id set was computed from the
+ * records the scorecard already loaded, using the same predicates that produced the tile, so it IS
+ * the tile's population. Re-deriving it here with a server-side date filter would produce a second
+ * definition of the same number, and the two would disagree the first time either moved.
+ *
+ * Called once per page of the drawer, not once per tile, and only while a drawer is open. Batching by
+ * the visible page also keeps the `in(...)` list short enough that the request stays a URL rather
+ * than an argument about URL length limits.
+ *
+ * Rows this member cannot read simply do not come back. The drawer keeps the missing ones as rows
+ * without names rather than dropping them, because the COUNT is the tile's count and must not shrink
+ * to match one reader's permissions.
+ */
+export async function listJobCandidateSummaries(organizationId:string,ids:string[]){
+  if(ids.length===0)return []
+  const {data,error}=await supabase.from('job_candidates')
+    .select('id,candidate_id,job_id,candidates(full_name),jobs(title,companies(name))')
+    .eq('organization_id',organizationId).in('id',ids)
+  if(error)fail(error,'Could not load the records behind this number')
+  return (data||[]) as unknown as JobCandidateSummary[]
+}
+export interface JobCandidateSummary {
+  id:string;candidate_id:string|null;job_id:string|null
+  candidates:{full_name:string}|null
+  jobs:{title:string;companies:{name:string}|null}|null
+}
+
 export async function createRevenueSplit(organizationId:string,placementId:string,memberId:string,percentage:number){const {error}=await supabase.rpc('create_placement_revenue_split',{p_organization_id:organizationId,p_placement_id:placementId,p_member_id:memberId,p_percentage:percentage});if(error)fail(error,error.message.includes('split_total_exceeds_100')?'Consultant credits cannot exceed 100%.':'Could not create revenue split')}
 export async function createInvoice(organizationId:string,placementId:string,invoiceNumber:string,amount:number,currency:string,dueDate:string){const {error}=await supabase.from('placement_invoices').insert({organization_id:organizationId,placement_id:placementId,invoice_reference:invoiceNumber,amount,currency,due_on:dueDate,status:'draft'});if(error)fail(error,'Could not create invoice')}
 export async function updateInvoiceStatus(organizationId:string,invoiceId:string,status:'issued'|'paid'|'void'){const values=status==='issued'?{status,issued_on:new Date().toISOString().slice(0,10)}:status==='paid'?{status,paid_on:new Date().toISOString().slice(0,10)}:{status};const {error}=await supabase.from('placement_invoices').update(values).eq('organization_id',organizationId).eq('id',invoiceId);if(error)fail(error,'Could not update invoice')}

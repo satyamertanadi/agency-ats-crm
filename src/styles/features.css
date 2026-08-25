@@ -34,6 +34,32 @@
 .kpi:first-child {
   border-inline-start: 0;
 }
+/* An openable KPI.
+ *
+ * A real <button> rather than a clickable <article>, so it is reachable by keyboard and announced as
+ * actionable -- but styled to sit in the same strip as the inert tiles without shouting, because MOST
+ * tiles here cannot be opened and a grid where four items look like buttons and two do not would read
+ * as four broken ones. Every button default is stripped back to the .kpi it inherits; the only
+ * additions are the pointer, the hover lift and a focus ring.
+ *
+ * text-align:start because a button centres its content and the tiles beside it do not. */
+.kpi-actionable {
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  width: 100%;
+  background: none;
+  border-block: 0;
+  border-inline-end: 0;
+  cursor: pointer;
+}
+.kpi-actionable:hover {
+  background: var(--color-surface-soft);
+}
+.kpi-actionable:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
 /* The icon, no longer a plate. A 38px tinted square next to a 24px number gave the decoration more
    area than the figure -- and since every ordinary tile drew the same blue square, the shape carried
    no information to scan by. A plain glyph at the label's own weight annotates the tile instead of
@@ -1605,6 +1631,16 @@ tbody tr:focus-within .row-menu-trigger,
    they are history, and history should not compete with the live lists above it for attention. */
 .managed-view-list-archived li{border-style:dashed;background:var(--color-surface-soft)}
 .managed-view-list-archived strong{color:var(--color-muted);font-weight:var(--weight-medium)}
+
+/* ---- scorecard drilldown --------------------------------------------------------------------- */
+/* The reconciliation line at the top of the drawer: the tile's number, repeated beside the records,
+   so agreeing with the tile is something the reader can see rather than take on trust. */
+.drilldown-total{margin:0 0 var(--space-3);color:var(--color-muted);font-size:var(--text-sm)}
+.drilldown-total strong{color:var(--color-ink);font-size:var(--text-base);font-variant-numeric:tabular-nums}
+/* Two columns in a drawer that is narrower than a page. Candidate takes what is left after the job,
+   and both truncate rather than forcing the drawer to scroll sideways. */
+.drilldown-table td{vertical-align:top}
+.drilldown-table td:first-child{width:45%}
 
 .checkbox-row{display:flex;align-items:flex-start;gap:var(--space-2);font-size:var(--text-sm)}
 .checkbox-row small{display:block;color:var(--color-muted);font-size:var(--text-xs)}
