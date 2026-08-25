@@ -68,8 +68,12 @@ export function SubmissionComposerDrawer({open,onClose,job,organizationId,candid
   const requestKey=useRef('');const requestFingerprint=useRef('')
 
   const rows=useQuery({queryKey:['submission-candidates',organizationId,job.id],enabled:open,queryFn:()=>listSubmissionCandidateDocuments(organizationId,job.id)})
-  const contacts=useQuery({queryKey:['contacts',organizationId],enabled:open,queryFn:()=>listContacts(organizationId)})
-  const clientContacts=(contacts.data||[]).filter((contact)=>contact.company_id===job.company_id&&contact.contact_status!=='do_not_contact')
+  /* Scoped to this job's client in SQL rather than fetched org-wide and filtered here. The old shape
+   * read up to LIST_SAFETY_LIMIT contacts ordered `updated_at desc` and then kept one company's --
+   * so past that cap, a client whose contacts had not been touched lately produced an empty
+   * recipient list and no error. The company id is part of the key so switching jobs refetches. */
+  const contacts=useQuery({queryKey:['contacts',organizationId,job.company_id],enabled:open,queryFn:()=>listContacts(organizationId,{companyId:job.company_id})})
+  const clientContacts=(contacts.data||[]).filter((contact)=>contact.contact_status!=='do_not_contact')
 
   /* Default title states what the client is receiving before they open it -- "3 candidates · Head of
    * Brand" is a subject line; "Submission" is not. */

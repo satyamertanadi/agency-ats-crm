@@ -3,7 +3,7 @@ import {useIsMutating,useQueryClient} from '@tanstack/react-query'
 import type {RealtimeChannel} from '@supabase/supabase-js'
 import {supabase} from '../../shared/lib/supabase'
 import {captureError} from '../../shared/lib/observability'
-import {queriesForTable,realtimeTables} from './realtimeSync'
+import {queriesForTable,queriesForTables,realtimeTables} from './realtimeSync'
 
 /* Keeps one workspace's operational data live across colleagues.
  *
@@ -45,9 +45,10 @@ export function useRealtimeSync(organizationId:string|undefined){
   useEffect(()=>{
     if(!organizationId){setStatus('off');return}
     setStatus('connecting')
-    const flush=(table:string)=>{
-      for(const key of queriesForTable(table))void cache.invalidateQueries({queryKey:[key]})
+    const flushKeys=(keys:readonly string[])=>{
+      for(const key of keys)void cache.invalidateQueries({queryKey:[key]})
     }
+    const flush=(table:string)=>flushKeys(queriesForTable(table))
     let channel:RealtimeChannel|undefined
     try{
       channel=supabase.channel(`workspace:${organizationId}`)
@@ -60,10 +61,12 @@ export function useRealtimeSync(organizationId:string|undefined){
           })
       }
       channel.subscribe((status)=>{
-        // A resubscribe means the socket dropped and came back, so anything that changed while it
-        // was down was never delivered. Refetch everything this channel covers rather than sit on
-        // a cache that is quietly behind.
-        if(status==='SUBSCRIBED'){setStatus('live');for(const table of realtimeTables)flush(table)}
+        /* A resubscribe means the socket dropped and came back, so anything that changed while it
+         * was down was never delivered. Refetch everything this channel covers rather than sit on
+         * a cache that is quietly behind -- but as a DE-DUPLICATED key set, not table by table.
+         * Ten of the eleven tables map to 'today'; the per-table loop invalidated it ten times in one
+         * pass, each cancelling the last while its request kept flying. See queriesForTables. */
+        if(status==='SUBSCRIBED'){setStatus('live');flushKeys(queriesForTables(realtimeTables))}
         // Every non-subscribed status is reported the same way, for the reason given on RealtimeStatus.
         if(status!=='SUBSCRIBED')setStatus('connecting')
         if(status==='CHANNEL_ERROR')captureError(new Error('Realtime channel error'),{area:'realtime',organizationId})
@@ -81,7 +84,9 @@ export function useRealtimeSync(organizationId:string|undefined){
     if(mutating>0||deferred.current.size===0)return
     const pending=[...deferred.current]
     deferred.current.clear()
-    for(const table of pending)for(const key of queriesForTable(table))void cache.invalidateQueries({queryKey:[key]})
+    // De-duplicated for the same reason as the reconnect flush: a mutation that spanned events from
+    // several tables would otherwise invalidate the keys they share once per table.
+    for(const key of queriesForTables(pending))void cache.invalidateQueries({queryKey:[key]})
   },[mutating,cache])
 
   return status

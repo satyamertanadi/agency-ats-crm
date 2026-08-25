@@ -10,9 +10,16 @@
  * subscribed to without a mapping or vice versa.
  */
 export const realtimeQueryMap={
-  // A stage move changes the board, the job-health aggregate that counts candidates per phase, and
-  // the Today queue that reads pipeline state. It does not touch the candidate list.
-  job_candidates:['pipeline','job-health','today','candidate-pipelines'],
+  /* A stage move changes the board, the job-health aggregate that counts candidates per phase, and
+   * the Today queue that reads pipeline state.
+   *
+   * `candidates-page` is here now, and was deliberately absent before. The old comment read "It does
+   * not touch the candidate list", which was true when that list showed only attributes. It now
+   * renders open_job_count / primary_job_title / primary_stage_name per row, so a job_candidates
+   * write changes exactly what it displays -- and without this a colleague's add or stage move left
+   * every other open Candidates list showing "Not in a pipeline" indefinitely, since
+   * refetchOnWindowFocus is off and nothing else would correct it. */
+  job_candidates:['pipeline','job-health','today','candidate-pipelines','candidates-page'],
   // Ownership and status changes: the jobs list, the health aggregate, and Today's unowned-jobs item.
   jobs:['jobs','job-health','today','company-pipeline'],
   tasks:['tasks','today'],
@@ -41,3 +48,14 @@ export const realtimeTables=Object.keys(realtimeQueryMap) as RealtimeTable[]
 /** Query-key prefixes to invalidate for a change on `table`, or [] for a table we do not track. */
 export const queriesForTable=(table:string):readonly string[]=>
   realtimeQueryMap[table as RealtimeTable]??[]
+
+/* The union of keys for several tables at once, each appearing once.
+ *
+ * Ten of the eleven tables map to 'today'. Invalidating table-by-table therefore hit that one key ten
+ * times in a single synchronous pass -- and because invalidateQueries defaults to cancelRefetch, each
+ * pass aborted the refetch the previous one had just started. The queryFn never receives an
+ * AbortSignal, so those abandoned attempts' HTTP requests stayed in flight regardless: one reconnect
+ * could put ~230 requests on the wire and keep the results of nine. Collapsing to a set first makes
+ * it one refetch per key, which is all that was ever wanted. */
+export const queriesForTables=(tables:readonly string[]):string[]=>
+  [...new Set(tables.flatMap((table)=>queriesForTable(table)))]
