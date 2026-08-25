@@ -1479,3 +1479,65 @@ td span:not([class]) {
   font-size: var(--text-sm);
   line-height: 1.55;
 }
+
+/* The disclosure for text that is genuinely cut off. Only ever active on [data-truncated], which
+   TruncatedText sets from a real scrollWidth measurement -- a tooltip over text the reader can
+   already see teaches them to ignore the affordance entirely.
+
+   Shown on hover of the text AND on :focus-within of the cell, so tabbing to the link a name sits
+   inside reveals it without the component adding a single tab stop of its own (see TruncatedText for
+   why that constraint drove the design).
+
+   Positioned against the nearest positioned ancestor -- the td, via .table-allocated td below -- and
+   clamped so a long value near the right edge cannot push past the viewport. `inset-inline-start:0`
+   anchors it to the cell's leading edge rather than centring it, which is what keeps the rightmost
+   column's tooltip inside the table instead of hanging off it. */
+.truncate-reveal {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.truncate-reveal[data-truncated]::after {
+  content: attr(data-full);
+  position: absolute;
+  inset-inline-start: 0;
+  top: calc(100% - 2px);
+  z-index: 40;
+  width: max-content;
+  max-width: min(340px, 46vw);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding: var(--space-15) var(--space-2);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-snug);
+  letter-spacing: normal;
+  text-transform: none;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  pointer-events: none;
+}
+/* Revealed by pointer on the text itself, or by keyboard anywhere in the surrounding cell. */
+td:hover > .truncate-reveal[data-truncated]::after,
+td:focus-within > .truncate-reveal[data-truncated]::after,
+.truncate-reveal[data-truncated]:hover::after,
+td:hover .truncate-reveal[data-truncated]::after,
+td:focus-within .truncate-reveal[data-truncated]::after {
+  opacity: 1;
+}
+/* The tooltip is absolutely positioned, so the cell has to be its containing block. Paired with the
+   existing .table-allocated td{overflow:hidden} -- which would clip the tooltip -- the overflow cap
+   is lifted only while the cell is being read, so cells still cannot widen the table at rest. */
+.table-allocated td {
+  position: relative;
+}
+.table-allocated td:hover,
+.table-allocated td:focus-within {
+  overflow: visible;
+}

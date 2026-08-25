@@ -17,7 +17,10 @@ type Listener=(event:AuthEvent,session:{user:{id:string}}|null)=>void
  * only has to be callable; a test that fires an event before mount is asserting nothing. */
 let listener:Listener=()=>undefined
 const unsubscribe=vi.fn()
-const getSession=vi.fn(async()=>({data:{session:null},error:null}))
+/* Typed on the alias rather than inferred from the default implementation: inference would pin the
+ * return to `session: null` and reject the one test that needs getSession to resolve WITH a user. */
+type SessionResult={data:{session:{user:{id:string}}|null};error:null}
+const getSession=vi.fn<()=>Promise<SessionResult>>(async()=>({data:{session:null},error:null}))
 
 vi.mock('../shared/lib/supabase',()=>({
   supabase:{
