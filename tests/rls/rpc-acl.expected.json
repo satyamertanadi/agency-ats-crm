@@ -20,6 +20,7 @@
     "create_submission_delivery",
     "create_task_with_link",
     "finalize_candidate_profile",
+    "get_maintenance_diagnostics",
     "get_maintenance_health",
     "get_my_access_state",
     "get_my_workspace_capabilities",

@@ -1883,3 +1883,36 @@ tbody tr:focus-within .row-menu-trigger,
   display: grid;
   gap: var(--space-2);
 }
+
+/* The evidence rows under the maintenance banner. A definition grid rather than prose because an
+   operator reads it by scanning for the one timestamp that is missing -- the gap between "last
+   attempt" and "last start" is the whole diagnosis, and that comparison only works if the labels
+   line up. Sits inside a Callout, so it takes the Callout's own text colour rather than restating
+   a tone. */
+.maintenance-diagnostics {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+}
+.maintenance-diagnostics > div {
+  display: grid;
+  grid-template-columns: 10.5rem minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+}
+.maintenance-diagnostics dt {
+  color: var(--color-muted);
+  font-weight: var(--weight-medium);
+}
+.maintenance-diagnostics dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 520px) {
+  .maintenance-diagnostics > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

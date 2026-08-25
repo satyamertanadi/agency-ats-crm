@@ -2467,30 +2467,45 @@ export type Database = {
       }
       maintenance_heartbeats: {
         Row: {
+          consecutive_failures: number
           job_key: string
+          last_attempt_at: string | null
           last_detail: Json
           last_error: string | null
+          last_finished_at: string | null
+          last_request_id: number | null
           last_run_at: string | null
+          last_started_at: string | null
           last_status: string
           last_successful_run_at: string | null
           stale_after_hours: number
           updated_at: string
         }
         Insert: {
+          consecutive_failures?: number
           job_key: string
+          last_attempt_at?: string | null
           last_detail?: Json
           last_error?: string | null
+          last_finished_at?: string | null
+          last_request_id?: number | null
           last_run_at?: string | null
+          last_started_at?: string | null
           last_status?: string
           last_successful_run_at?: string | null
           stale_after_hours?: number
           updated_at?: string
         }
         Update: {
+          consecutive_failures?: number
           job_key?: string
+          last_attempt_at?: string | null
           last_detail?: Json
           last_error?: string | null
+          last_finished_at?: string | null
+          last_request_id?: number | null
           last_run_at?: string | null
+          last_started_at?: string | null
           last_status?: string
           last_successful_run_at?: string | null
           stale_after_hours?: number
@@ -4226,13 +4241,31 @@ export type Database = {
         }
         Returns: string
       }
+      get_maintenance_diagnostics: {
+        Args: { p_organization_id: string }
+        Returns: {
+          cron_last_error: string
+          cron_last_run_at: string
+          cron_last_status: string
+          cron_registered: boolean
+          cron_schedule: string
+          transport_completed_at: string
+          transport_error: string
+          transport_status_code: number
+        }[]
+      }
       get_maintenance_health: {
         Args: { p_organization_id: string }
         Returns: {
+          consecutive_failures: number
+          fault_stage: string
           is_stale: boolean
           job_key: string
+          last_attempt_at: string
           last_error: string
+          last_finished_at: string
           last_run_at: string
+          last_started_at: string
           last_status: string
           last_successful_run_at: string
           stale_after_hours: number
@@ -4503,6 +4536,10 @@ export type Database = {
           p_template_id: string
         }
         Returns: string
+      }
+      run_scheduled_maintenance: {
+        Args: { p_function_url: string; p_worker_secret: string }
+        Returns: number
       }
       schedule_maintenance_cron: {
         Args: { p_function_url: string; p_worker_secret: string }
