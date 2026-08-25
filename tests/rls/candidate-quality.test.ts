@@ -21,9 +21,21 @@ if(!anon)throw new Error('SUPABASE_ANON_KEY is required; RLS tests must not sile
 
 const owner=createClient(url,anon,{auth:{persistSession:false}})
 const rival=createClient(url,anon,{auth:{persistSession:false}})
-/* Bianca in Business Development holds candidates.read but NOT candidates_private.read -- the exact
- * shape the permission flag exists for. */
+/* Bianca in Business Development, once beforeAll has granted her role candidates.read.
+ *
+ * The seeded 'bd' role holds NEITHER candidates.read nor candidates_private.read, and no seeded role
+ * anywhere holds the first without the second -- owner, manager, consultant, sourcer and readonly all
+ * bundle them. So the permission shape this file needs has to be built, exactly as
+ * private-details-permission-split.test.ts builds it for the same reason. Custom roles are a
+ * supported, client-reachable feature (roles.manage), so this is a real configuration rather than a
+ * hypothetical one.
+ *
+ * This mattered: while the role had no candidates.read at all, candidate_quality_summary correctly
+ * returned NOTHING to her, and the assertion that the private issue is absent passed for the wrong
+ * reason -- she could not see any issue, private or public. A test that passes because the subject
+ * can see nothing is not testing the boundary it names. */
 const bd=createClient(url,anon,{auth:{persistSession:false}})
+let bdRoleId=''
 
 const NORTHSTAR='30000000-0000-0000-0000-000000000001'
 const RIVAL='30000000-0000-0000-0000-000000000002'
@@ -48,10 +60,24 @@ beforeAll(async()=>{
     bd.auth.signInWithPassword({email:'bd@northstar.local',password:'LocalTest!123'}),
   ])
   for(const session of sessions)if(session.error)throw session.error
+
+  const role=await owner.from('roles').select('id').eq('organization_id',NORTHSTAR).eq('role_key','bd').single()
+  expect(role.error).toBeNull()
+  bdRoleId=role.data?.id||''
+  if(!bdRoleId)throw new Error('Seeded bd role is required')
+  /* candidates.read only. Granting candidates_private.read as well would defeat the entire point of
+   * the file: the whole question is what a member sees when they may read candidates and may not read
+   * the columns missing_contact_method is about. Revoked again in afterAll -- vitest.rls.config.ts
+   * sets fileParallelism:false, so no other file observes the role mid-grant. */
+  const grant=await owner.from('role_permissions').insert([{role_id:bdRoleId,permission_key:'candidates.read'}])
+  expect(grant.error).toBeNull()
 })
 
 afterAll(async()=>{
   for(const id of created)await owner.from('candidates').delete().eq('id',id)
+  // The seeded role is shared by every later file in the run; leaving it widened would silently
+  // change what they are asserting.
+  if(bdRoleId)await owner.from('role_permissions').delete().eq('role_id',bdRoleId).eq('permission_key','candidates.read')
 })
 
 describe('the issue rules',()=>{
@@ -123,7 +149,13 @@ describe('the enrichment queue and its filter',()=>{
      * written by the CV pipeline and cannot be forged from a client -- so it is asserted below only
      * for the rules it can actually satisfy. */
     complete=await addCandidate({full_name:'ZZ Quality Complete',current_position:'Finance Manager',location:'Denpasar'})
-    const skill=await owner.from('skills').insert({organization_id:NORTHSTAR,name:'ZZ Quality Skill'}).select('id').single()
+    /* normalized_name is `not null` with no default and no trigger -- every writer in the schema
+     * computes it as lower(regexp_replace(trim(name),'\s+',' ','g')) and passes it explicitly (see
+     * accept_candidate_cv_parse). Omitting it made this insert fail with 23502, which took the whole
+     * describe's beforeAll down and skipped its seven tests. */
+    const skill=await owner.from('skills').insert({
+      organization_id:NORTHSTAR,name:'ZZ Quality Skill',normalized_name:'zz quality skill',
+    }).select('id').single()
     expect(skill.error).toBeNull()
     const link=await owner.from('candidate_skills').insert({
       organization_id:NORTHSTAR,candidate_id:complete,skill_id:skill.data?.id,
