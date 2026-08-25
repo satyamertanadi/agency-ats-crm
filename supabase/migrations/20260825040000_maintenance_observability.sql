@@ -164,6 +164,13 @@ begin;
 -- Health, now reporting which LAYER is unhealthy rather than only that something is.
 -- is_stale keeps exactly its previous definition (no successful run, or none inside the window) so
 -- the Admin warning cannot be cleared by this change -- only by a genuine successful run.
+--
+-- Dropped first, not `create or replace`. Postgres refuses to replace a function whose return type
+-- changes, and adding columns to a RETURNS TABLE is a return-type change -- it fails with
+-- "cannot change return type of existing function" (42P13). Inside this transaction the drop and
+-- recreate are atomic, so no session ever observes the function missing, and the revoke/grant pair
+-- below restores the ACL that the drop takes with it.
+drop function if exists public.get_maintenance_health(uuid);
 create or replace function public.get_maintenance_health(p_organization_id uuid)
 returns table(
   job_key text,
