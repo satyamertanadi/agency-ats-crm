@@ -6,6 +6,7 @@ import {Badge,StatusBadge} from '../../shared/ui/Page'
 import {Button} from '../../shared/ui/Button'
 import type {CandidateSearchRow} from '../../shared/types/domain'
 import {followUpSignal,pipelineSignal,statusFacets} from './candidateRowSignals'
+import {NOT_RECORDED} from '../../shared/lib/labels'
 
 /* Who the keyboard is currently on, beside the list rather than after a navigation.
  *
@@ -61,7 +62,7 @@ export function CandidatePreviewPane({candidate,organizationSlug,onAddToJob,canA
       <span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span>
       <div>
         <strong>{candidate.full_name}</strong>
-        <span className="muted">{candidate.current_position||'Role not recorded'}{candidate.current_company?` at ${candidate.current_company}`:''}</span>
+        <span className="muted">{candidate.current_position||NOT_RECORDED}{candidate.current_company?` at ${candidate.current_company}`:''}</span>
       </div>
     </header>
 

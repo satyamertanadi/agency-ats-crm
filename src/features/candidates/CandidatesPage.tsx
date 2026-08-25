@@ -1,6 +1,6 @@
 import {useCallback,useMemo,useRef,useState,type ReactNode} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ChevronLeft,ChevronRight,Merge,Plus,Search,Users} from 'lucide-react'
+import {ChevronLeft,ChevronRight,CopyCheck,Merge,MoreHorizontal,Plus,Rows3,Search,SquareCheck,UserRoundSearch,Users} from 'lucide-react'
 import {Link,useNavigate,useSearchParams} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useAuth} from '../../app/AuthProvider'
@@ -18,7 +18,9 @@ import {Badge,Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {Callout} from '../../shared/ui/Callout'
 import {EmptyState,ErrorState,TableSkeleton} from '../../shared/ui/States'
 import {useToast} from '../../shared/ui/Toast'
-import {SavedViewBar} from '../core/SavedViewBar'
+import {ViewMenu} from '../core/ViewMenu'
+import {FilterPopover} from '../core/FilterPopover'
+import {Menu,type MenuItemSpec} from '../../shared/ui/Menu'
 import {csvFilename,downloadCsv,toCsv} from '../../shared/lib/csv'
 import {Table} from '../../shared/ui/Table'
 import {AddCandidateModal} from './AddCandidateModal'
@@ -35,20 +37,22 @@ import {CandidateQueueTabs} from './CandidateQueueTabs'
 import {DENSITY_OPTIONS,readDensity,readPaneOpen,writeDensity,writePaneOpen,type CandidateDensity} from './candidateDensity'
 import {resolveColumnTier,visibleCandidateColumns,type CandidateColumnId} from './candidateColumns'
 import {useContainerTier} from '../../shared/lib/useContainerTier'
-import {SegmentedControl} from '../../shared/ui/SegmentedControl'
 import type {CandidateSearchRow} from '../../shared/types/domain'
+import {NOT_RECORDED} from '../../shared/lib/labels'
 
 type SelectionMode='none'|'bulk'|'merge'
 /* "Unassigned" as a deliberate choice, distinct from '' meaning "nothing picked yet". */
 const UNASSIGN='__unassign__'
 
-/* A fact the record is missing, drawn as something to fill rather than left blank.
+/* A fact the record is missing.
  *
- * "Unassigned" and "No skills tagged" used to render as ordinary muted text, which reads as "this
- * column is empty" and gets scanned past. A dashed outline reads as a slot, so a page of them looks
- * like a queue of work instead of an unfinished database. It is deliberately NOT a button: three
- * inline actions per row would add controls to a screen whose problem is already too many controls.
- * The action lives where it always did -- the Action column, bulk assign, and the queue tabs. */
+ * This used to draw a dashed outline around the value, on the theory that a slot reads as work to do
+ * where plain text reads as an empty column. At one or two per screen that holds. At fifty rows x
+ * three columns it does not: "Unassigned", "Not in a pipeline" and "No follow-up set" are the NORMAL
+ * state of most of a talent database, so the dashes drew a page of dotted boxes around the absence of
+ * news -- and, being the only outlined thing in the row, they pulled the eye away from the candidate
+ * names. It is now quiet text in the muted colour, which is what "nothing here" should look like.
+ * Real risk still gets a badge; see DueChip and StatusCell. */
 const Gap=({children}:{children:ReactNode})=><span className="cell-gap">{children}</span>
 
 /* Badge weight carries urgency, following the rule TodayPage established: a solid fill for overdue
@@ -68,7 +72,7 @@ function PipelineCell({row,now}:{row:CandidateSearchRow;now:Date}){
       <strong className="cell-strong">{signal.jobTitle}</strong>
       {signal.moreLabel&&<Badge tone="neutral">{signal.moreLabel}</Badge>}
     </div>
-    <span>{signal.stageLabel||'Stage not recorded'}</span>
+    <span>{signal.stageLabel||NOT_RECORDED}</span>
   </>
 }
 
@@ -96,7 +100,7 @@ function StatusCell({row}:{row:CandidateSearchRow}){
     {facets.lifecycle
       ?<StatusBadge map={candidateStatus} value={facets.lifecycle}/>
       :<span className="cell-quiet">{facets.posture||'—'}</span>}
-    <span>{facets.availabilityLabel||'Availability not set'}</span>
+    <span>{facets.availabilityLabel||NOT_RECORDED}</span>
   </>
 }
 
@@ -235,6 +239,25 @@ export function CandidatesPage(){
   const ownerNames=useMemo(()=>Object.fromEntries((team.data||[]).map((member)=>[member.id,member.profiles?.full_name||member.profiles?.email||'Selected member'])),[team.data])
   const chips=useMemo(()=>candidateFilterChips(params,{ownerNames}),[params,ownerNames])
   const clearAllFilters=()=>{const next=new URLSearchParams(params);for(const key of candidateFilterKeys)next.delete(key);next.delete('page');setParams(next,{replace:true});setSelected([])}
+  /* Search and status have their own controls in the rail, so the Filters trigger counts only what is
+   * hidden inside it. A "(3)" that included the search box the user is looking at would be counting
+   * something they can already see, and would never read zero. */
+  const railFilterKeys=['q','status']
+  const secondaryFilterKeys=candidateFilterKeys.filter((key)=>!railFilterKeys.includes(key))
+  const secondaryFilterCount=chips.filter((chip)=>!railFilterKeys.includes(chip.key)).length
+  const clearSecondaryFilters=()=>{const next=new URLSearchParams(params);for(const key of secondaryFilterKeys)next.delete(key);next.delete('page');setParams(next,{replace:true});setSelected([])}
+  /* Row density is a rendering preference, not a filter, so it belongs behind the overflow rather
+   * than beside the controls that change which records are shown -- it was a three-segment control
+   * sitting permanently in the rail for a setting most users touch once. A check mark rather than a
+   * radiogroup because a menu item cannot be a radio without lying about its role. */
+  const listOptions:MenuItemSpec[]=DENSITY_OPTIONS.map((option)=>({
+    id:`density-${option.id}`,
+    label:`${option.label} rows`,
+    text:option.label,
+    icon:<Rows3 size={15}/>,
+    onSelect:()=>chooseDensity(option.id),
+    disabled:density===option.id,
+  }))
   // Straight off the loaded page, so the pane costs no request and j/k stays instant.
   const previewed=rows.find((row)=>row.id===active)||null
   const pages=Math.max(1,Math.ceil((query.data?.count||0)/pageSize));const showPagination=(query.data?.count||0)>pageSize
@@ -251,7 +274,7 @@ export function CandidatesPage(){
       case 'candidate':{
         // title is a desktop convenience for a truncated name, never the accessible route -- the
         // preview pane and the full record are that.
-        const role=candidate.current_position?`${candidate.current_position}${candidate.current_company?` at ${candidate.current_company}`:''}`:'Role not recorded'
+        const role=candidate.current_position?`${candidate.current_position}${candidate.current_company?` at ${candidate.current_company}`:''}`:NOT_RECORDED
         return <div className="candidate-row-identity">
           <span className="avatar-sm" aria-hidden="true">{initials(candidate.full_name)}</span>
           <div className="candidate-row-identity-text">
@@ -264,12 +287,44 @@ export function CandidatesPage(){
       case 'followUp':return <FollowUpCell row={candidate} now={now}/>
       case 'owner':return candidate.owner_name||<Gap>Unassigned</Gap>
       case 'status':return <StatusCell row={candidate}/>
-      case 'action':return capabilities.data?.canMovePipeline
-        ?<Button size="sm" variant="secondary" disabled={candidate.status==='do_not_contact'||candidate.status==='archived'} onClick={()=>openPlacement([candidate])}>Add to job</Button>
-        :null
+      case 'menu':{
+        /* Add to job stays gated exactly as the button was: the two lifecycle statuses that forbid it
+         * disable the item rather than hiding it, so a consultant learns the rule instead of
+         * wondering where the action went. */
+        const blocked=candidate.status==='do_not_contact'||candidate.status==='archived'
+        const items:MenuItemSpec[]=[
+          {id:'open',label:'Open candidate',icon:<UserRoundSearch size={15}/>,href:`/app/${organization?.slug}/candidates/${candidate.id}`},
+          ...(capabilities.data?.canMovePipeline?[{id:'add',label:'Add to job',icon:<Users size={15}/>,disabled:blocked,
+            text:blocked?'Add to job (not available for this candidate)':'Add to job',
+            onSelect:()=>openPlacement([candidate])}]:[]),
+        ]
+        return <Menu align="end" label={`Actions for ${candidate.full_name}`} items={items} trigger={(props)=>
+          <button {...props} type="button" className="icon-button icon-button-sm row-menu-trigger" aria-label={`Actions for ${candidate.full_name}`}>
+            <MoreHorizontal size={16}/>
+          </button>}/>
+      }
     }
   }
-  return <Page title="Candidates" eyebrow="Talent database" description="Find the right people, check readiness, and place them into a job without exposing private data in the list." actions={<>{selectionMode==='bulk'&&selected.length>0&&<Button variant="secondary" leadingIcon={<Users size={15}/>} onClick={()=>openPlacement()}>Add {selected.length} to job</Button>}{selectionMode==='merge'&&selected.length===2&&<Button variant="secondary" leadingIcon={<Merge size={15}/>} onClick={openMerge}>Merge selected</Button>}{capabilities.data?.canMovePipeline&&<Button variant="secondary" onClick={()=>{setSelectionMode((mode)=>mode==='bulk'?'none':'bulk');setSelected([])}}>{selectionMode==='bulk'?'Done selecting':'Select candidates'}</Button>}{capabilities.data?.canWriteCandidates&&<><Button variant="quiet" onClick={()=>{setSelectionMode((mode)=>mode==='merge'?'none':'merge');setSelected([])}}>{selectionMode==='merge'?'Done':'Manage duplicates'}</Button><Button leadingIcon={<Plus size={15}/>} onClick={()=>{setOpen(true)}}>Add candidate</Button></>}</>}>
+  /* The page header held up to five buttons at equal weight -- "Add N to job", "Merge selected",
+   * "Select candidates", "Manage duplicates" and "Add candidate" -- so the one action a consultant
+   * takes constantly had no more presence than the one taken twice a year. It is now one primary
+   * button plus an overflow, with the two selection-mode actions promoted into the header only while
+   * that mode is running, which is the only time they can do anything. */
+  const headerActions:MenuItemSpec[]=[
+    ...(capabilities.data?.canMovePipeline?[{id:'select',label:'Select candidates',icon:<SquareCheck size={15}/>,
+      onSelect:()=>{setSelectionMode('bulk');setSelected([])}}]:[]),
+    ...(capabilities.data?.canWriteCandidates?[{id:'merge',label:'Manage duplicates',icon:<CopyCheck size={15}/>,
+      onSelect:()=>{setSelectionMode('merge');setSelected([])}}]:[]),
+  ]
+  return <Page title="Candidates" eyebrow="Talent database" description="Find the right people, check readiness, and place them into a job." actions={<>
+    {selectionMode==='bulk'&&selected.length>0&&<Button variant="secondary" leadingIcon={<Users size={15}/>} onClick={()=>openPlacement()}>Add {selected.length} to job</Button>}
+    {selectionMode==='merge'&&selected.length===2&&<Button variant="secondary" leadingIcon={<Merge size={15}/>} onClick={openMerge}>Merge selected</Button>}
+    {selectionMode!=='none'
+      ?<Button variant="quiet" onClick={()=>{setSelectionMode('none');setSelected([])}}>Done</Button>
+      :headerActions.length>0&&<Menu label="More candidate actions" items={headerActions} trigger={(props)=>
+        <Button {...props} type="button" variant="secondary" iconOnlyLabel="More candidate actions" leadingIcon={<MoreHorizontal size={16}/>}/>}/>}
+    {capabilities.data?.canWriteCandidates&&<Button leadingIcon={<Plus size={15}/>} onClick={()=>{setOpen(true)}}>Add candidate</Button>}
+  </>}>
     {/* Selecting rows used to be silent -- checkboxes ticked and the header buttons enabled, with
       * nothing else on the page saying what was selected or what to do next. Merge specifically
       * needs exactly two, which a bare button count does not communicate. */}
@@ -290,19 +345,42 @@ export function CandidatesPage(){
       </div>
     </Callout>}
     {selectionMode==='merge'&&<Callout tone="info">{selected.length===0?'Select two candidates to merge.':selected.length===1?'Select one more candidate to merge.':'Two candidates selected — choose which record to keep.'}</Callout>}
-    <Panel><SavedViewBar resource="candidates" paramKeys={viewParamKeys} params={params} onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/><div className="toolbar"><div className="search-box"><Search size={15}/><Input ref={searchRef} aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div><Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select><span className="muted">{query.data?.count??0} candidates</span><SegmentedControl className="density-control" label="Row density" options={DENSITY_OPTIONS} value={density} onChange={chooseDensity}/>{/* Hidden below 1440px by CSS, where the pane is unavailable anyway -- a control that cannot
-        * change anything is worse than no control. Toggling never fires on a resize, so narrowing
-        * the window hides the pane without overwriting what the user chose. */}
-      <button type="button" className="pane-toggle" aria-pressed={paneOpen} title={paneOpen?'Hide the preview pane':'Show the preview pane'} onClick={()=>choosePane(!paneOpen)}>{paneOpen?'Hide preview':'Show preview'}</button></div>
+    <Panel>
+      {/* One rail, in reading order: which view, then narrowing it, then how many are left, then the
+        * options that are not about this search at all.
+        *
+        * There used to be four horizontal layers here before a single candidate appeared -- a saved-
+        * views band, this toolbar, the queue tabs, the filter chips -- plus a collapsed "Filters and
+        * sorting" disclosure under them. The saved-views band folded into the View menu, the eight
+        * secondary filters folded into the Filters popover, and row density moved to the overflow, so
+        * the rail now states the whole filter state in one line and the first row sits roughly a
+        * hundred pixels higher. The queue tabs and the active-filter chips stay as their own rows:
+        * one is the workflow question the page exists to answer, and the other only appears when
+        * something is actually narrowing the list. */}
+      <div className="toolbar">
+        <ViewMenu resource="candidates" baseLabel="All candidates" paramKeys={viewParamKeys} params={params}
+          onApply={(next)=>setParams(next,{replace:true})} onExport={()=>exportView.mutate()} exporting={exportView.isPending}/>
+        <div className="search-box"><Search size={15}/><Input ref={searchRef} aria-label="Search candidates" placeholder="Name, company, or position" value={filters.query} onChange={(event)=>setFilter('q',event.target.value)}/></div>
+        <Select aria-label="Candidate status" value={filters.status} onChange={(event)=>setFilter('status',event.target.value)}><option value="">All statuses</option><option value="active">Active</option><option value="passive">Passive</option><option value="placed">Placed</option><option value="do_not_contact">Do not contact</option><option value="archived">Archived</option></Select>
+        <FilterPopover count={secondaryFilterCount} onClearAll={clearSecondaryFilters}>
+          <Field label="Location"><Input value={filters.location} onChange={(event)=>setFilter('location',event.target.value)}/></Field>{/* Was a free-text box against an `ilike` predicate, so "Linkedin" found nothing when the column
+        said "LinkedIn". Both sides are curated values now, and the filter offers the same list the
+        candidate form writes. */}
+      <Field label="Source"><Select value={filters.source} onChange={(event)=>setFilter('source',event.target.value)}><option value="">Any source</option>{candidateSource.all.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</Select></Field><Field label="Owner"><Select value={filters.ownerMemberId} onChange={(event)=>setFilter('owner',event.target.value)}><option value="">Anyone</option>{team.data?.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><Field label="Tag"><Input value={filters.tag} onChange={(event)=>setFilter('tag',event.target.value)}/></Field><Field label="Skill"><Input value={filters.skill} onChange={(event)=>setFilter('skill',event.target.value)}/></Field><Field label="Availability"><Select value={filters.availability} onChange={(event)=>setFilter('availability',event.target.value)}><option value="">Any availability</option>{candidateAvailability.all.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</Select></Field><Field label="Sort"><Select value={`${filters.sort}:${filters.direction}`} onChange={(event)=>{const [sort='updated',dir='desc']=event.target.value.split(':');const next=new URLSearchParams(params);next.set('sort',sort);next.set('dir',dir);next.delete('page');setParams(next,{replace:true})}}><option value="updated:desc">Recently updated</option><option value="created:desc">Newest added</option><option value="name:asc">Name A–Z</option><option value="location:asc">Location A–Z</option></Select></Field>
+        </FilterPopover>
+        <span className="toolbar-count">{query.data?.count??0} candidates</span>
+        <Menu className="toolbar-overflow" label="List options" items={listOptions} trigger={(props)=>
+          <Button {...props} type="button" size="sm" variant="quiet" iconOnlyLabel="List options" leadingIcon={<MoreHorizontal size={16}/>}/>}/>
+        {/* Hidden below 1440px by CSS, where the pane is unavailable anyway -- a control that cannot
+          * change anything is worse than no control. Toggling never fires on a resize, so narrowing
+          * the window hides the pane without overwriting what the user chose. */}
+        <button type="button" className="pane-toggle" aria-pressed={paneOpen} title={paneOpen?'Hide the preview pane':'Show the preview pane'} onClick={()=>choosePane(!paneOpen)}>{paneOpen?'Hide preview':'Show preview'}</button>
+      </div>
     <CandidateQueueTabs queue={queue} mine={Boolean(currentMemberId)&&filters.ownerMemberId===currentMemberId}
       mineAvailable={Boolean(currentMemberId)}
       onQueue={(next)=>setFilter('queue',next||'')}
       onMine={(next)=>setFilter('owner',next?currentMemberId||'':'')}/>
     <ActiveFilterChips filters={chips} onClear={(key)=>setFilter(key,'')} onClearAll={clearAllFilters}/>
-      <details className="filter-panel"><summary>Filters and sorting</summary><div className="filter-grid"><Field label="Location"><Input value={filters.location} onChange={(event)=>setFilter('location',event.target.value)}/></Field>{/* Was a free-text box against an `ilike` predicate, so "Linkedin" found nothing when the column
-        said "LinkedIn". Both sides are curated values now, and the filter offers the same list the
-        candidate form writes. */}
-      <Field label="Source"><Select value={filters.source} onChange={(event)=>setFilter('source',event.target.value)}><option value="">Any source</option>{candidateSource.all.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</Select></Field><Field label="Owner"><Select value={filters.ownerMemberId} onChange={(event)=>setFilter('owner',event.target.value)}><option value="">Anyone</option>{team.data?.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><Field label="Tag"><Input value={filters.tag} onChange={(event)=>setFilter('tag',event.target.value)}/></Field><Field label="Skill"><Input value={filters.skill} onChange={(event)=>setFilter('skill',event.target.value)}/></Field><Field label="Availability"><Select value={filters.availability} onChange={(event)=>setFilter('availability',event.target.value)}><option value="">Any availability</option>{candidateAvailability.all.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</Select></Field><Field label="Sort"><Select value={`${filters.sort}:${filters.direction}`} onChange={(event)=>{const [sort='updated',dir='desc']=event.target.value.split(':');const next=new URLSearchParams(params);next.set('sort',sort);next.set('dir',dir);next.delete('page');setParams(next,{replace:true})}}><option value="updated:desc">Recently updated</option><option value="created:desc">Newest added</option><option value="name:asc">Name A–Z</option><option value="location:asc">Location A–Z</option></Select></Field></div></details>
       <div className={`candidate-split${paneOpen?'':' candidate-split-solo'}`}>
       {/* The measured region. Deliberately the grid track the table occupies -- AFTER the sidebar and
         * the pane have taken their share -- so the column ladder responds to space the table can
