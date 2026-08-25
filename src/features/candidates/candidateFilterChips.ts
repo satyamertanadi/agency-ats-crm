@@ -1,6 +1,8 @@
 import type {ActiveFilter} from '../core/ActiveFilterChips'
 import {candidateAvailability,candidateSource} from '../../shared/lib/optionSets'
 import {candidateStatus,lookup} from '../../shared/lib/status'
+import {issueLabel,parseIssue} from './candidateQuality'
+import {parseQueue} from './candidateQueues'
 
 export interface FilterChipContext {
   /** Member id -> display name, so an owner chip reads "Owner: Satya" rather than a uuid. */
@@ -34,8 +36,21 @@ export function candidateFilterChips(params:URLSearchParams,{ownerNames}:FilterC
   push('tag','Tag',raw('tag'))
   push('skill','Skill',raw('skill'))
   const availability=raw('availability');push('availability','Availability',availability?candidateAvailability.label(availability)||availability:'')
+  /* The data-quality issue IS a chip, unlike `queue`, and the difference is where each one is
+   * visible. The queue tabs state the active queue permanently, so a chip for it would say the same
+   * thing twice and offer a second way to clear it. The issue is chosen from a small select that
+   * only exists while the enrichment queue is active -- so once the reader scrolls, or shares the
+   * URL, the chip is the only thing still saying the list is narrowed to one gap.
+   *
+   * Resolved through parseIssue, so a hand-edited `?issue=nonsense` -- which the SQL matches nothing
+   * for -- produces no chip either, rather than a chip claiming a filter that is not applying. */
+  /* Only inside the queue it belongs to. An `?issue=` that arrives without `?queue=needs_enrichment`
+   * is never sent to the server -- the page narrows it away -- so a chip for it would be claiming a
+   * filter that is not applying, which is worse than no chip at all. */
+  const issue=parseQueue(raw('queue'))==='needs_enrichment'?parseIssue(raw('issue')):null
+  push('issue','Issue',issue?issueLabel(issue)||issue:'')
   return chips
 }
 
 /** The param keys `candidateFilterChips` can produce, for a "clear all" that cannot drift from it. */
-export const candidateFilterKeys=['q','status','location','source','owner','tag','skill','availability'] as const
+export const candidateFilterKeys=['q','status','location','source','owner','tag','skill','availability','issue'] as const

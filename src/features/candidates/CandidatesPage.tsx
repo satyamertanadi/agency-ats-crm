@@ -42,6 +42,8 @@ import {useContainerTier} from '../../shared/lib/useContainerTier'
 import type {CandidateSearchRow} from '../../shared/types/domain'
 import {NOT_RECORDED} from '../../shared/lib/labels'
 import {isRowInteractive} from './candidateRowInteraction'
+import {parseIssue} from './candidateQuality'
+import {CandidateQualityStrip} from './CandidateQualityStrip'
 import {recordWorkflowEvent} from '../../shared/lib/productAnalytics'
 
 type SelectionMode='none'|'bulk'|'merge'
@@ -135,7 +137,12 @@ export function CandidatesPage(){
    * where an unknown value matches nothing. Without this a typo'd URL would render an active-looking
    * tab that is not one of ours and an empty list with no explanation. */
   const queue=parseQueue(params.get('queue'))
-  const page=Math.max(0,Number(params.get('page')||0));const filters:CandidateListFilters={query:params.get('q')||'',status:params.get('status')||'',location:params.get('location')||'',source:params.get('source')||'',ownerMemberId:params.get('owner')||'',tag:params.get('tag')||'',skill:params.get('skill')||'',availability:params.get('availability')||'',queue:queue||undefined,sort:(params.get('sort') as CandidateListFilters['sort'])||'updated',direction:(params.get('dir') as CandidateListFilters['direction'])||'desc'}
+  /* The issue filter only means anything inside the enrichment queue -- every other queue's
+   * population is defined by something else entirely, and a count of missing CVs beside "Stale"
+   * would be answering a question nobody asked. Narrowed to null outside it rather than merely
+   * hidden, so a stale `?issue=` left over from a queue change cannot keep filtering invisibly. */
+  const issue=queue==='needs_enrichment'?parseIssue(params.get('issue')):null
+  const page=Math.max(0,Number(params.get('page')||0));const filters:CandidateListFilters={query:params.get('q')||'',status:params.get('status')||'',location:params.get('location')||'',source:params.get('source')||'',ownerMemberId:params.get('owner')||'',tag:params.get('tag')||'',skill:params.get('skill')||'',availability:params.get('availability')||'',queue:queue||undefined,issue:issue||undefined,sort:(params.get('sort') as CandidateListFilters['sort'])||'updated',direction:(params.get('dir') as CandidateListFilters['direction'])||'desc'}
   /* Every filter change also closes Quick View. A drawer left open across a filter change would be
    * describing a candidate the list no longer contains, and its pager would page through a set that
    * is no longer on screen. */
@@ -144,7 +151,10 @@ export function CandidatesPage(){
    * that silently dropped the queue would be a lie. It is NOT in candidateFilterKeys, so it gets no
    * dismissible chip: the tab row already shows its state, and two ways to clear one thing is how
    * they end up disagreeing. */
-  const viewParamKeys=['q','status','location','source','owner','tag','skill','availability','queue','sort','dir']
+  /* `issue` travels with a saved view for the same reason `queue` does: a view called "Missing CVs"
+   * that silently dropped the issue would be a lie. Unlike `queue` it DOES also get a dismissible
+   * chip -- see candidateFilterChips for why the two differ. */
+  const viewParamKeys=['q','status','location','source','owner','tag','skill','availability','queue','issue','sort','dir']
   /* Export refetches the whole filtered set rather than writing the page on screen -- "export this
    * view" meaning "export the 50 rows you happen to be looking at" is the kind of quiet wrongness
    * that gets discovered in a client meeting. The cap is explicit and reported rather than silently
@@ -153,7 +163,10 @@ export function CandidatesPage(){
   const exportView=useMutation({
     mutationFn:()=>listCandidatesPage(organization!.id,filters,0,EXPORT_LIMIT),
     onSuccess:(result)=>{
-      const rows=result.rows.map((row)=>({name:row.full_name,current_position:row.current_position||'',current_company:row.current_company||'',location:row.location||'',status:row.status,source:row.source||'',owner:row.owner_name||'',skills:row.skill_names.join('; '),tags:row.tag_names.join('; '),updated_at:row.updated_at}))
+      /* `data_issues` is here so an exported Needs enrichment view is a work list rather than a list
+        * of names -- the whole reason the queue gained reasons. It is the CODES, never the values:
+        * missing_contact_method says a way to reach them is absent and nothing more. */
+      const rows=result.rows.map((row)=>({name:row.full_name,current_position:row.current_position||'',current_company:row.current_company||'',location:row.location||'',status:row.status,source:row.source||'',owner:row.owner_name||'',skills:row.skill_names.join('; '),tags:row.tag_names.join('; '),data_issues:row.quality_issue_codes.join('; '),updated_at:row.updated_at}))
       downloadCsv(csvFilename('candidates'),toCsv(rows))
       toast.success(`Exported ${rows.length} ${rows.length===1?'candidate':'candidates'}.`,result.count>rows.length?`This view has ${result.count} candidates; the first ${rows.length} were exported.`:undefined)
     },
@@ -284,7 +297,7 @@ export function CandidatesPage(){
   /* Search and status have their own controls in the rail, so the Filters trigger counts only what is
    * hidden inside it. A "(3)" that included the search box the user is looking at would be counting
    * something they can already see, and would never read zero. */
-  const railFilterKeys=['q','status']
+  const railFilterKeys=['q','status','issue']
   const secondaryFilterKeys=candidateFilterKeys.filter((key)=>!railFilterKeys.includes(key))
   const secondaryFilterCount=chips.filter((chip)=>!railFilterKeys.includes(chip.key)).length
   const clearSecondaryFilters=()=>{const next=new URLSearchParams(params);for(const key of secondaryFilterKeys)next.delete(key);next.delete('page');setParams(next,{replace:true});setSelected([]);setQuickViewId(null)}
@@ -415,8 +428,23 @@ export function CandidatesPage(){
       </div>
     <CandidateQueueTabs queue={queue} mine={Boolean(currentMemberId)&&filters.ownerMemberId===currentMemberId}
       mineAvailable={Boolean(currentMemberId)}
-      onQueue={(next)=>setFilter('queue',next||'')}
+      onQueue={(next)=>{
+        /* Leaving the queue takes its issue with it. An orphaned `?issue=` is already inert -- the
+          * `issue` binding above narrows it to null outside this queue -- but leaving it in the URL
+          * means it silently reapplies the moment somebody returns to Needs enrichment, which is a
+          * filter nobody remembers setting. */
+        const nextParams=new URLSearchParams(params)
+        if(next)nextParams.set('queue',next);else nextParams.delete('queue')
+        if(next!=='needs_enrichment')nextParams.delete('issue')
+        nextParams.delete('page')
+        setParams(nextParams,{replace:true});setSelected([]);setQuickViewId(null)
+      }}
       onMine={(next)=>setFilter('owner',next?currentMemberId||'':'')}/>
+    {/* Mounted only inside the enrichment queue, so its count request cannot exist anywhere else.
+      * Sits above the chips rather than below, because it is a refinement of the queue tab it belongs
+      * to -- the chips describe whatever narrowing is currently applied, including this one. */}
+    {queue==='needs_enrichment'&&organization&&<CandidateQualityStrip organizationId={organization.id}
+      filters={filters} issue={issue} onIssue={(next)=>setFilter('issue',next||'')}/>}
     <ActiveFilterChips filters={chips} onClear={(key)=>setFilter(key,'')} onClearAll={clearAllFilters}/>
       {/* The measured region. Deliberately the track the table occupies -- AFTER the sidebar has taken
         * its share -- so the column ladder responds to space the table can actually use. Measuring the

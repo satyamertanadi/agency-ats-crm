@@ -12,10 +12,10 @@ import type {CandidateSearchRow} from '../../shared/types/domain'
  * a click aimed at a control still reaches that control, and that Escape puts the keyboard back where
  * it was rather than at the top of the document. */
 
-const {listCandidatesPage,listTeamMembers,recordWorkflowEvent,capabilities}=vi.hoisted(()=>({
-  listCandidatesPage:vi.fn(),listTeamMembers:vi.fn(),recordWorkflowEvent:vi.fn(),capabilities:vi.fn(),
+const {listCandidatesPage,candidateQualitySummary,listTeamMembers,recordWorkflowEvent,capabilities}=vi.hoisted(()=>({
+  listCandidatesPage:vi.fn(),candidateQualitySummary:vi.fn(),listTeamMembers:vi.fn(),recordWorkflowEvent:vi.fn(),capabilities:vi.fn(),
 }))
-vi.mock('../core/repository',()=>({listCandidatesPage}))
+vi.mock('../core/repository',()=>({listCandidatesPage,candidateQualitySummary}))
 vi.mock('../core/commercialRepository',()=>({listTeamMembers,mergeCandidates:vi.fn(),updateCandidateProfile:vi.fn(),
   listSavedViews:vi.fn().mockResolvedValue([]),saveView:vi.fn(),deleteSavedView:vi.fn(),
   getCandidateDetail:vi.fn(),getCompanyDetail:vi.fn(),listCandidateDocuments:vi.fn().mockResolvedValue([])}))
@@ -46,7 +46,7 @@ afterAll(()=>{globalThis.ResizeObserver=realResizeObserver})
 const candidate=(overrides:Partial<CandidateSearchRow>={})=>({
   id:'cand-1',full_name:'Ni Putu Widya',current_position:'Junior Taxation Consultant',
   current_company:'IBS Consulting',location:'Denpasar',status:'active',source:'referral',
-  owner_name:'Satya Mertanadi',skill_names:['Accounting'],tag_names:[],
+  owner_name:'Satya Mertanadi',skill_names:['Accounting'],tag_names:[],quality_issue_codes:[],
   open_job_count:0,total_count:2,updated_at:'2026-07-01T00:00:00Z',...overrides,
 } as unknown as CandidateSearchRow)
 
@@ -57,9 +57,9 @@ function ShowLocation(){
   return <><span data-testid="location">{location.pathname}</span><span data-testid="search">{location.search}</span></>
 }
 
-function renderPage(){
+function renderPage(entry='/app/acme/candidates'){
   const client=new QueryClient({defaultOptions:{queries:{retry:false}}})
-  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/app/acme/candidates']}>
+  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[entry]}>
     <ShowLocation/>
     <Routes>
       <Route path="/app/acme/candidates" element={<CandidatesPage/>}/>
@@ -68,6 +68,7 @@ function renderPage(){
   </MemoryRouter></QueryClientProvider>)
 }
 
+const lastFilters=()=>listCandidatesPage.mock.calls.at(-1)?.[1]
 const rowFor=(name:string)=>screen.getByText(name).closest('tr') as HTMLTableRowElement
 const findRow=async(name:string)=>(await screen.findByText(name)).closest('tr') as HTMLTableRowElement
 const quickView=()=>screen.queryByRole('dialog')
@@ -77,6 +78,7 @@ describe('CandidatesPage Quick View',()=>{
     vi.clearAllMocks()
     capabilities.mockReturnValue({canMovePipeline:true,canWriteCandidates:true})
     listCandidatesPage.mockResolvedValue({rows,count:2})
+    candidateQualitySummary.mockResolvedValue([{issue_code:'missing_cv',candidate_count:12}])
     listTeamMembers.mockResolvedValue([{id:'m1',user_id:'user-1',status:'active',profiles:{full_name:'Satya Mertanadi'}}])
   })
 
@@ -241,5 +243,142 @@ describe('CandidatesPage Quick View',()=>{
     fireEvent.click(checkbox)
     expect(quickView()).not.toBeInTheDocument()
     expect(await screen.findByText('1 candidate selected.')).toBeInTheDocument()
+  })
+})
+
+/* Needs enrichment stopped being a queue and became a set of reasons. What matters at the page level
+ * is that the reasons, the counts and the list can never disagree about which candidates they are
+ * describing -- and that the count request exists only where the counts mean something. */
+describe('CandidatesPage data quality',()=>{
+  beforeEach(()=>{
+    vi.clearAllMocks()
+    capabilities.mockReturnValue({canMovePipeline:true,canWriteCandidates:true})
+    listCandidatesPage.mockResolvedValue({rows,count:2})
+    candidateQualitySummary.mockResolvedValue([
+      {issue_code:'missing_cv',candidate_count:12},
+      {issue_code:'missing_skills',candidate_count:30},
+    ])
+    listTeamMembers.mockResolvedValue([{id:'m1',user_id:'user-1',status:'active',profiles:{full_name:'Satya Mertanadi'}}])
+  })
+
+  /* The counts are meaningless beside any other queue -- "Stale" is defined by activity, not by
+   * gaps -- so the request must not exist there. It is also the most expensive query on the page. */
+  it('asks for no quality counts outside the enrichment queue',async()=>{
+    renderPage()
+    await findRow('Ni Putu Widya')
+    expect(candidateQualitySummary).not.toHaveBeenCalled()
+
+    renderPage('/app/acme/candidates?queue=stale')
+    await waitFor(()=>expect(listCandidatesPage).toHaveBeenCalledTimes(2))
+    expect(candidateQualitySummary).not.toHaveBeenCalled()
+  })
+
+  it('counts the issues once the enrichment queue is active',async()=>{
+    renderPage('/app/acme/candidates?queue=needs_enrichment')
+    // The list first: the strip renders nothing until its own count lands, and asserting on it
+    // before the page has settled races the two queries against each other.
+    await findRow('Ni Putu Widya')
+    expect(await screen.findByRole('button',{name:/No CV/})).toHaveTextContent('12')
+    expect(screen.getByRole('button',{name:/No skills tagged/})).toHaveTextContent('30')
+  })
+
+  it('narrows the list to one issue, and says so in the URL and the chips',async()=>{
+    renderPage('/app/acme/candidates?queue=needs_enrichment')
+    await findRow('Ni Putu Widya')
+    fireEvent.click(await screen.findByRole('button',{name:/No CV/}))
+    await waitFor(()=>expect(lastFilters()).toMatchObject({queue:'needs_enrichment',issue:'missing_cv'}))
+    expect(screen.getByTestId('search')).toHaveTextContent('issue=missing_cv')
+    /* The chip is the only thing still saying the list is narrowed once the reader scrolls past the
+      * strip. Matched by its accessible name rather than its text, because the strip button beside it
+      * carries the same words plus a count. */
+    expect(await screen.findByRole('button',{name:'Remove Issue filter: No CV'})).toBeInTheDocument()
+  })
+
+  /* The counts must be taken over the population WITHOUT the chosen issue, or "No CV (12)" would
+   * read as 12 the moment you pressed it whatever the real number was. */
+  it('leaves the counts alone when an issue is chosen',async()=>{
+    renderPage('/app/acme/candidates?queue=needs_enrichment')
+    await findRow('Ni Putu Widya')
+    await screen.findByRole('button',{name:/No CV/})
+    expect(candidateQualitySummary).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button',{name:/No CV/}))
+    await waitFor(()=>expect(lastFilters()).toMatchObject({issue:'missing_cv'}))
+    expect(candidateQualitySummary).toHaveBeenCalledTimes(1)
+    expect(candidateQualitySummary.mock.calls[0]?.[1]).not.toHaveProperty('issue')
+  })
+
+  /* Leaving the queue takes its issue with it. An orphan is already inert -- the page narrows it to
+   * null outside this queue -- but leaving it in the URL means it silently reapplies the next time
+   * somebody returns, which is a filter nobody remembers setting. */
+  it('drops the issue when the queue is cleared',async()=>{
+    renderPage('/app/acme/candidates?queue=needs_enrichment&issue=missing_cv')
+    await findRow('Ni Putu Widya')
+    await waitFor(()=>expect(lastFilters()).toMatchObject({issue:'missing_cv'}))
+    fireEvent.click(screen.getByRole('radio',{name:'All'}))
+    await waitFor(()=>expect(screen.getByTestId('search')).not.toHaveTextContent('issue='))
+    expect(lastFilters()?.issue).toBeUndefined()
+    expect(screen.queryByRole('button',{name:/No CV/})).not.toBeInTheDocument()
+  })
+
+  it('drops the issue when a different queue is chosen',async()=>{
+    renderPage('/app/acme/candidates?queue=needs_enrichment&issue=missing_cv')
+    await findRow('Ni Putu Widya')
+    await waitFor(()=>expect(lastFilters()).toMatchObject({issue:'missing_cv'}))
+    fireEvent.click(screen.getByRole('radio',{name:'Stale'}))
+    await waitFor(()=>expect(lastFilters()).toMatchObject({queue:'stale'}))
+    expect(lastFilters()?.issue).toBeUndefined()
+  })
+
+  /* An `?issue=` that arrives without the queue is never sent to the server, so a shared URL cannot
+   * apply a filter the screen is not showing a control for. */
+  it('ignores an issue that arrives without its queue',async()=>{
+    renderPage('/app/acme/candidates?issue=missing_cv')
+    await findRow('Ni Putu Widya')
+    expect(lastFilters()?.issue).toBeUndefined()
+    expect(screen.queryByRole('button',{name:/Remove Issue filter/})).not.toBeInTheDocument()
+  })
+
+  // Fails closed exactly as the SQL does, rather than rendering a chip for a filter that is not applying.
+  it('ignores an issue code it does not serve',async()=>{
+    renderPage('/app/acme/candidates?queue=needs_enrichment&issue=missing_visa')
+    await findRow('Ni Putu Widya')
+    expect(lastFilters()?.issue).toBeUndefined()
+  })
+
+  /* The reasons live in Quick View, which is where a consultant decides whether a record is a
+   * two-second edit or a CV upload. Each one links to the part of the record that closes it. */
+  it('names each gap in Quick View and links to where it is fixed',async()=>{
+    listCandidatesPage.mockResolvedValue({rows:[candidate({quality_issue_codes:['missing_cv','missing_skills'],total_count:1})],count:1})
+    renderPage('/app/acme/candidates?queue=needs_enrichment')
+    const row=await findRow('Ni Putu Widya')
+    fireEvent.click(row.querySelector('td:nth-child(2)') as HTMLElement)
+    const drawer=await screen.findByRole('dialog')
+    expect(drawer).toHaveTextContent('No CV')
+    expect(drawer).toHaveTextContent('No skills tagged')
+    expect(screen.getByRole('link',{name:'Upload a CV'})).toHaveAttribute('href','/app/acme/candidates/cand-1?tab=documents')
+    expect(screen.getByRole('link',{name:'Tag their skills'})).toHaveAttribute('href','/app/acme/candidates/cand-1?tab=profile')
+  })
+
+  /* missing_contact_method is the rule, never the value. The search row carries no email or phone at
+   * all, and the server does not produce this code for a member without candidates_private.read --
+   * so the drawer states that a way to reach them is absent and nothing more. */
+  it('states a missing contact method without ever rendering contact data',async()=>{
+    listCandidatesPage.mockResolvedValue({rows:[candidate({quality_issue_codes:['missing_contact_method']})],count:1})
+    renderPage('/app/acme/candidates?queue=needs_enrichment')
+    const row=await findRow('Ni Putu Widya')
+    fireEvent.click(row.querySelector('td:nth-child(2)') as HTMLElement)
+    const drawer=await screen.findByRole('dialog')
+    expect(drawer).toHaveTextContent('No way to reach them')
+    expect(drawer.textContent).not.toMatch(/@/)
+    expect(drawer.textContent).not.toMatch(/\+\d/)
+  })
+
+  it('says nothing about enrichment for a record with no gaps',async()=>{
+    listCandidatesPage.mockResolvedValue({rows:[candidate({quality_issue_codes:[]})],count:1})
+    renderPage()
+    const row=await findRow('Ni Putu Widya')
+    fireEvent.click(row.querySelector('td:nth-child(2)') as HTMLElement)
+    const drawer=await screen.findByRole('dialog')
+    expect(drawer).not.toHaveTextContent('Needs enrichment')
   })
 })
