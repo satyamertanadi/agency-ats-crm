@@ -15,7 +15,10 @@ import type {CandidateQueue} from '../core/repository'
 export interface QueueDefinition{
   id:CandidateQueue
   label:string
-  /** The predicate in plain words. Must match the SQL in 20260818000000_candidate_workflow_signals. */
+  /** The predicate in plain words. Must match the SQL: four queues in
+   *  20260818000000_candidate_workflow_signals, and needs_enrichment in
+   *  20260827000000_candidate_quality_issues, whose rule is now exactly "candidate_quality_issues
+   *  returned at least one code" -- see candidateQuality.ts for what each one means. */
   rule:string
 }
 
@@ -26,7 +29,7 @@ export const candidateQueues:readonly QueueDefinition[]=[
   {id:'needs_follow_up',label:'Needs follow-up',rule:'Has an open task due today or earlier.'},
   {id:'stale',label:'Stale',rule:`In an open pipeline, nothing scheduled, and no activity for ${STALE_DAYS} days.`},
   {id:'unassigned',label:'Unassigned',rule:'No owner set.'},
-  {id:'needs_enrichment',label:'Needs enrichment',rule:'Missing a current role, skills, or a CV.'},
+  {id:'needs_enrichment',label:'Needs enrichment',rule:'Missing a role, a location, skills, a CV, or any way to reach them.'},
 ]
 
 const byId=new Map(candidateQueues.map((queue)=>[queue.id as string,queue]))

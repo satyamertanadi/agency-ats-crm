@@ -88,7 +88,15 @@ export interface CandidateWorkflowSignals {
   primary_stage_entered_at:string|null
   has_cv:boolean
 }
-export type CandidateSearchRow=Candidate&CandidateWorkflowSignals&{owner_name:string|null;tag_names:string[];skill_names:string[];total_count:number}
+/* The data-quality gaps on one record, as public.candidate_quality_issues derived them on this read.
+ *
+ * Never stored, and never a score: a persisted number drifts from the record the moment anyone edits
+ * it, and it says a record is worse without saying what is wrong. `missing_contact_method` is absent
+ * entirely for a member without candidates_private.read -- an absence you are not allowed to see is
+ * not an absence you can report -- so an empty array does NOT mean the record is complete for
+ * everybody, only for this reader. */
+export type CandidateQualityIssues={quality_issue_codes:string[]}
+export type CandidateSearchRow=Candidate&CandidateWorkflowSignals&CandidateQualityIssues&{owner_name:string|null;tag_names:string[];skill_names:string[];total_count:number}
 export type CandidatePrivate = { email: string | null; phone: string | null; current_salary: number | null; expected_salary: number | null; salary_currency: string | null; work_authorization?:string|null;legal_hold?:boolean }
 export type Company = { id: string; organization_id: string; name: string; industry: string | null; location: string | null; website: string | null; account_status: AccountStatus; business_development_stage: string; updated_at: string }
 /* One company as the BD board sees it. Mirrors list_company_pipeline exactly -- the aggregation is

@@ -26,7 +26,7 @@ const row=(overrides:Partial<CandidateSearchRow>={})=>({
   id:'cand-1',full_name:'Ni Putu Widya',current_position:'Junior Taxation Consultant',
   current_company:'IBS Consulting',location:'Denpasar',status:'active',source:'referral',
   owner_name:'Satya Mertanadi',skill_names:['Accounting','Audit','Excel'],tag_names:['VIP'],
-  total_count:1,...overrides,
+  quality_issue_codes:[],total_count:1,...overrides,
 } as unknown as CandidateSearchRow)
 
 const pdf={id:'d1',file_name:'cv.pdf',original_filename:'widya-cv.pdf',mime_type:'application/pdf',

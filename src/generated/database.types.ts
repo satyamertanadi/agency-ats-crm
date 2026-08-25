@@ -4070,6 +4070,35 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: number
       }
+      candidate_quality_issues: {
+        Args: {
+          p_can_read_private: boolean
+          p_current_position: string
+          p_email: string
+          p_has_cv: boolean
+          p_has_skills: boolean
+          p_location: string
+          p_phone: string
+        }
+        Returns: string[]
+      }
+      candidate_quality_summary: {
+        Args: {
+          p_availability?: string
+          p_location?: string
+          p_organization_id: string
+          p_owner_member_id?: string
+          p_query?: string
+          p_skill?: string
+          p_source?: string
+          p_status?: string
+          p_tag?: string
+        }
+        Returns: {
+          candidate_count: number
+          issue_code: string
+        }[]
+      }
       candidate_retention_storage_paths: {
         Args: { p_candidate_id: string }
         Returns: string[]
@@ -4550,6 +4579,7 @@ export type Database = {
           p_availability?: string
           p_consent_status?: string
           p_direction?: string
+          p_issue?: string
           p_limit?: number
           p_location?: string
           p_offset?: number
@@ -4586,6 +4616,7 @@ export type Database = {
           primary_phase_key: string
           primary_stage_entered_at: string
           primary_stage_name: string
+          quality_issue_codes: string[]
           skill_names: string[]
           source: string
           status: string

@@ -50,8 +50,25 @@ describe('candidateFilterChips',()=>{
 
   // Clear-all must cover exactly what the chips can produce, or a chip survives its own removal.
   it('declares every key it can emit',()=>{
-    const emitted=chips('q=a&status=active&location=b&source=referral&owner=m1&tag=t&skill=s&availability=immediately')
+    const emitted=chips('q=a&status=active&location=b&source=referral&owner=m1&tag=t&skill=s&availability=immediately&queue=needs_enrichment&issue=missing_cv')
       .map((chip)=>chip.key)
     expect([...emitted].sort()).toEqual([...candidateFilterKeys].sort())
+  })
+
+  /* The data-quality issue reads as its label, not its code. It is also the one chip resolved through
+   * a parser: the SQL matches nothing for an unrecognised code, so a chip claiming a filter that is
+   * not applying would be worse than no chip at all. */
+  it('names the data-quality issue in words, and ignores one it does not serve',()=>{
+    expect(chips('queue=needs_enrichment&issue=missing_contact_method'))
+      .toEqual([{key:'issue',label:'Issue',value:'No way to reach them'}])
+    expect(chips('queue=needs_enrichment&issue=missing_visa')).toEqual([])
+  })
+
+  /* The issue only applies inside the queue it belongs to, and the chip has to agree: an `?issue=`
+   * that arrives without `?queue=needs_enrichment` is never sent to the server, so a chip for it
+   * would claim a filter that is not applying. */
+  it('does not chip an issue outside the enrichment queue',()=>{
+    expect(chips('issue=missing_cv')).toEqual([])
+    expect(chips('queue=stale&issue=missing_cv').map((chip)=>chip.key)).toEqual([])
   })
 })
