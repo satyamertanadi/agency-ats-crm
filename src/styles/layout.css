@@ -14,7 +14,7 @@
   height: 100vh;
   background: linear-gradient(180deg, var(--color-sidebar) 0%, var(--color-sidebar-deep) 100%);
   color: var(--color-sidebar-text);
-  padding: 20px 14px 16px;
+  padding: 14px 10px 12px;
   display: flex;
   flex-direction: column;
   z-index: 30;
@@ -23,22 +23,26 @@
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: 0 8px 20px;
-  min-height: 48px;
+  gap: var(--space-2);
+  padding: 0 6px 14px;
+  min-height: 40px;
 }
+/* The initials tile, dialled back from a 38px gradient chip with an inner highlight and a drop
+   shadow to a flat 30px square. That treatment is what every SaaS starter template ships, and it
+   read as placeholder branding rather than as this agency's mark -- the more it was styled, the
+   more generic it looked. Flat, small, and quiet lets the agency NAME beside it carry the identity,
+   and lets a real uploaded logo (the img below) be the thing that stands out when one exists. */
 .brand-mark {
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-md);
-  background: linear-gradient(145deg, var(--color-mist), var(--color-steel));
-  color: var(--color-slate);
+  border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-sidebar-text);
   font-weight: var(--weight-semibold);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.45),
-    0 6px 18px rgba(0, 0, 0, 0.18);
+  font-size: var(--text-xs);
+  letter-spacing: 0.02em;
   overflow: hidden;
   flex: 0 0 auto;
 }
@@ -54,8 +58,12 @@
   flex-direction: column;
 }
 .brand strong {
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .brand small,
 .user-chip small {
@@ -74,7 +82,7 @@
 }
 .sidebar nav {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-4);
   margin-top: 2px;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -95,31 +103,45 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: 9px 10px;
+  padding: 8px 10px;
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   cursor: pointer;
   transition:
     background var(--motion-fast),
-    color var(--motion-fast),
-    transform var(--motion-fast);
+    color var(--motion-fast);
 }
 .sidebar nav a:hover,
 .sidebar-action:hover {
   background: rgba(255, 255, 255, 0.065);
   color: var(--color-on-dark);
 }
-/* A solid pill rather than the previous gradient wash plus inset left bar. The wash faded to almost
-   nothing at the right edge, so which item was active read differently depending on label length; a
-   flat fill states it the same way for every row. See --color-sidebar-active for why the fill is a
-   single value in both themes. */
+/* Selection, stated three quiet ways instead of one loud one: a faint lift off the rail, full-
+   strength text, and a 3px accent marker at the leading edge.
+   The previous treatment filled the row with --color-sidebar-active, a saturated blue slab. On a
+   dark rail that is the highest-contrast object in the entire viewport -- brighter than the primary
+   button, brighter than any status badge -- so the first thing the eye landed on, on every screen,
+   was a reminder of which page you were already looking at. Marking the current item does not need
+   to out-shout the work. The token is retained for the marker so both themes still resolve it
+   correctly (see --color-sidebar-active in tokens.css). */
 .sidebar nav a.active {
-  background: var(--color-sidebar-active);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--color-on-dark);
   font-weight: var(--weight-semibold);
 }
+.sidebar nav a.active::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-on-dark);
+}
 .sidebar nav a.active:hover {
-  background: var(--color-sidebar-active);
+  background: rgba(255, 255, 255, 0.11);
   color: var(--color-on-dark);
 }
 .sidebar nav a svg,
@@ -151,20 +173,23 @@
   border-bottom: 1px solid var(--color-line-soft);
   display: flex;
   align-items: center;
-  padding: 0 28px;
-  gap: var(--space-4);
+  padding: 0 20px;
+  gap: var(--space-3);
   position: sticky;
   top: 0;
   z-index: 20;
 }
 /* The workspace name is stated once per viewport. On desktop the sidebar brand carries it, so the
-   topbar repeating it was one of four places the same words appeared on a single screen; below
-   1100px the sidebar is off-canvas and the topbar becomes the only identity, so it comes back. */
+   topbar repeating it was one of four places the same words appeared on a single screen; once the
+   sidebar is off-canvas the topbar becomes the only identity, so it comes back.
+   The breakpoint was 1100px, but the sidebar does not actually leave until 840px (responsive.css) --
+   so between those two widths BOTH were on screen and the duplication the rule exists to prevent was
+   happening anyway. Matched to the breakpoint it was always describing. */
 .topbar-identity {
   display: none;
   flex-direction: column;
 }
-@media (max-width: 1100px) {
+@media (max-width: 840px) {
   .topbar-identity {
     display: flex;
   }
@@ -237,30 +262,34 @@
   align-items: center;
   gap: var(--space-2);
 }
-/* Search is the topbar's centre of gravity, not one more right-hand control: it now sits as its own
-   flex child between the status dot and the action cluster, so it centres in the space they leave
-   instead of being crowded against the avatar. Capped so it does not stretch to absurd widths on an
-   ultrawide monitor. */
+/* Still the topbar's centre of gravity, but no longer competing with the page beneath it. It was a
+   520px white pill with a shadow, sitting above a workspace whose own controls are square and flat
+   -- the one rounded floating object on screen, permanently, for a feature used a few times an
+   hour. Now: canvas-coloured rather than surface-coloured (so it reads as a recess in the bar, not
+   a card on it), square corners like every other control, no shadow, and capped narrower. It gets
+   louder on hover and focus, which is when it is actually being used. */
 .global-search {
   border: 1px solid var(--color-line);
-  background: var(--color-surface);
+  background: var(--color-canvas);
   color: var(--color-muted);
-  border-radius: var(--radius-pill);
-  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
   display: flex;
   align-items: center;
   gap: var(--space-2);
   font-size: var(--text-sm);
   flex: 1 1 auto;
-  min-width: 230px;
-  max-width: 520px;
+  min-width: 200px;
+  max-width: 380px;
   margin-inline: auto;
-  box-shadow: var(--shadow-xs);
   cursor: pointer;
+  transition:
+    background var(--motion-fast),
+    border-color var(--motion-fast);
 }
 .global-search:hover {
   border-color: var(--color-line-strong);
-  box-shadow: var(--shadow-sm);
+  background: var(--color-surface);
 }
 .global-search kbd {
   margin-left: auto;
@@ -269,7 +298,7 @@
   border: 1px solid var(--color-line);
   padding: 2px 6px;
   border-radius: var(--radius-xs);
-  color: var(--color-muted);
+  color: var(--color-faint);
 }
 .page {
   /* Horizontal clamp eased back up from clamp(16px,2.5vw,32px): combined with .record-summary now
@@ -277,7 +306,7 @@
      thin Panel border between it and the browser edge. 36px has no exact rung on the --space scale,
      so it's a literal here rather than a token -- a deliberate middle value between the pre-bolder-
      pass 40px max and the 32px this was tightened to, not a token that happens to round wrong. */
-  padding: var(--space-5) clamp(var(--space-5), 2.75vw, 36px) var(--space-10);
+  padding: var(--space-4) clamp(var(--space-4), 2.2vw, 28px) var(--space-10);
   max-width: 1680px;
   margin: 0 auto;
 }
@@ -286,21 +315,23 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--space-5);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
 }
 .page-heading {
   min-width: 0;
 }
 .page-header h1 {
-  font-family: var(--font-editorial);
   /* Bumped from medium to semibold: at --weight-semibold-heavy UI (79% of the app's font-weight
      declarations already sit there), a medium-weight h1 read as LIGHTER than its own surroundings
-     despite being the largest text on the page. */
+     despite being the largest text on the page.
+     Tracking eased from -0.035em to -0.02em along with the family change: -0.035em was compensating
+     for Newsreader's wider natural fit, and applied to Manrope -- which is already fairly tight --
+     it closed the counters at 28px and made the heading read as one dark mass. */
   font-weight: var(--weight-semibold);
-  margin: 3px 0 5px;
+  margin: 2px 0 4px;
   font-size: var(--text-3xl);
-  line-height: 1.05;
-  letter-spacing: -0.035em;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 .eyebrow {
   text-transform: uppercase;
@@ -341,7 +372,7 @@
 }
 .page-tabs {
   border-bottom: 1px solid var(--color-line-soft);
-  margin-bottom: 18px;
+  margin-bottom: var(--space-3);
 }
 .page-tabs a,
 .page-tabs button {
@@ -380,11 +411,12 @@
 .sidebar-collapsed .sidebar nav a:hover::after {
   content: attr(data-label);
   position: absolute;
-  left: 52px;
+  left: 46px;
   top: 50%;
   transform: translateY(-50%);
   white-space: nowrap;
   background: var(--color-sidebar-deep);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--color-on-dark);
   padding: 6px 9px;
   border-radius: var(--radius-sm);

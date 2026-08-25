@@ -10,9 +10,15 @@ import type { ReactNode } from 'react'
  * space and the identity column wraps. Supplying widths switches on table-layout:fixed, so a column
  * gets what it was given rather than what its longest cell asks for. Leave ONE column without a
  * width and it absorbs the remainder -- that should be the column you want to grow on a wide screen.
+ *
+ * `hideLabel` keeps the heading for assistive technology and takes it off the screen, for the columns
+ * whose contents are self-describing by sight -- a checkbox column, a row-menu column. The
+ * alternative authors reach for is an empty string, which produces a <th> with no accessible name:
+ * the column then goes unannounced in a screen reader's table navigation, and every cell under it
+ * loses the header association that makes a data table navigable at all.
  */
-export type TableHeader=string|{label:string;align?:'right';width?:string}
-const headerParts=(header:TableHeader)=>typeof header==='string'?{label:header,align:undefined,width:undefined}:header
+export type TableHeader=string|{label:string;align?:'right';width?:string;hideLabel?:boolean}
+const headerParts=(header:TableHeader)=>typeof header==='string'?{label:header,align:undefined,width:undefined,hideLabel:undefined}:header
 
 export interface TableProps {headers:TableHeader[];children:ReactNode;caption?:string;className?:string;sticky?:boolean}
 export function Table({ headers, children, caption, className='', sticky=true }: TableProps) {
@@ -24,7 +30,7 @@ export function Table({ headers, children, caption, className='', sticky=true }:
     <table className={allocated?'table-allocated':undefined}>
       {caption&&<caption>{caption}</caption>}
       {allocated&&<colgroup>{parts.map((part)=><col key={part.label} style={part.width?{width:part.width}:undefined}/>)}</colgroup>}
-      <thead><tr>{parts.map(({label,align})=><th scope="col" key={label} className={align==='right'?'money':undefined}>{label}</th>)}</tr></thead>
+      <thead><tr>{parts.map(({label,align,hideLabel})=><th scope="col" key={label} className={align==='right'?'money':undefined}>{hideLabel?<span className="sr-only">{label}</span>:label}</th>)}</tr></thead>
       <tbody>{children}</tbody>
     </table>
   </div>

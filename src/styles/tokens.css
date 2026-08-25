@@ -28,23 +28,31 @@
    * 13.9, 15.6, which round to the same integers anyway. Below ~16px type must land on integer
    * pixels or it hints inconsistently; above it, ratio is what creates hierarchy.
    * Replaces 36 ad-hoc values, 19 of which sat between 9.6px and 13.6px.
-   * --font-editorial is display-only: --text-lg and above. Never at --text-md or below.
    *
-   * Which rung for which role, so screens stop inventing new pairings: --text-2xs/-xs = badges,
-   * table headers, uppercase micro-labels. --text-sm/-base = body copy, the size almost
-   * everything should default to. --text-md = the ONE size for a page/section description,
+   * --font-editorial is no longer part of the authenticated product at any rung. It is reserved for
+   * auth, the client-facing review page, and generated documents -- surfaces a client reads, not
+   * surfaces a consultant works in. Inside the app a serif heading over a dense operational table
+   * reads as a brochure dropped into a workbench; see .editorial in base.css for the opt-in.
+   *
+   * Which rung for which role, so screens stop inventing new pairings: --text-xs = badges,
+   * table headers, uppercase micro-labels. --text-2xs is now the exception rung, not a normal
+   * choice -- 11px is below what an operator can scan comfortably for eight hours, so it is kept
+   * only for chart axes and keycaps, where the glyph is decoration around a value read elsewhere.
+   * --text-sm = supporting metadata (sub-lines, timestamps, owner names). --text-base = body and
+   * table text, the size almost everything should default to. --text-md = the ONE size for a
+   * page/section description,
    * regardless of how long the sentence is -- length changes how much of it survives editing
    * (see Page.tsx), never its type size. --text-lg and up = editorial headings only.
    */
-  --text-2xs: 0.6875rem; /* 11px - badges, kbd, chart axis labels */
-  --text-xs: 0.75rem; /*    12px - eyebrow, th, sub-lines, field labels */
-  --text-sm: 0.8125rem; /*  13px - table body, meta, buttons, nav */
-  --text-base: 0.875rem; /* 14px - body default */
+  --text-2xs: 0.6875rem; /* 11px - kbd, chart axis labels. Exceptional, non-essential metadata only */
+  --text-xs: 0.75rem; /*    12px - eyebrow, th, badges, field labels */
+  --text-sm: 0.8125rem; /*  13px - supporting metadata, buttons, nav */
+  --text-base: 0.875rem; /* 14px - body and table default */
   --text-md: 0.9375rem; /*  15px - page description, lead paragraphs */
-  --text-lg: 1.0625rem; /*  17px - panel title (serif) */
-  --text-xl: 1.25rem; /*    20px - modal/section heading, review-card h2 (serif) */
-  --text-2xl: 1.5rem; /*    24px - KPI number, empty-state h3 (serif) */
-  --text-3xl: clamp(1.75rem, 2.2vw, 2.125rem); /* 28-34px - page h1, hero (serif) */
+  --text-lg: 1.0625rem; /*  17px - panel/section title */
+  --text-xl: 1.25rem; /*    20px - modal heading, review-card h2 (serif) */
+  --text-2xl: 1.5rem; /*    24px - KPI number, empty-state h3 */
+  --text-3xl: clamp(1.625rem, 1.8vw, 1.75rem); /* 26-28px - page h1 */
   --text-4xl: clamp(2rem, 3.5vw, 2.5rem); /*      32-40px - review hero h1 (serif) */
   --text-5xl: clamp(2.75rem, 5vw, 4.25rem); /*    44-68px - auth product title (serif) */
 
@@ -186,11 +194,19 @@
    * typed by hand 21 times, and --radius-xl:22px was never used at all. --radius-circle is
    * named because `50%` was retyped 6 times and is semantically distinct from a length.
    *
+   * --radius-lg dropped 16px -> 10px. A 16px corner is a consumer-app radius: it reads as a
+   * rounded tile, and once a screen holds nine of them the workspace looks like a dashboard of
+   * widgets rather than one surface with sections. 10px still separates a panel from the canvas
+   * without any single panel asking to be looked at. The overlay tier keeps the larger corner,
+   * because an overlay is SUPPOSED to read as a separate object floating above the page -- which
+   * is why modals moved off --radius-lg onto --radius-md rather than shrinking with it.
+   *
    * Which token for which job -- the rule the four were missing:
-   *   --radius-lg  outer containers with their own identity: Panel, Modal, KpiTile. A surface
-   *                 a user reads as "a card" gets this and only this.
+   *   --radius-md  overlays that float above the page: Modal, Drawer, popover, command palette.
+   *                 Also media/inline chrome (avatars-as-squares, thumbnails).
+   *   --radius-lg  in-page containers with their own identity: Panel, KpiTile. A surface a user
+   *                 reads as "a section of this page" gets this and only this.
    *   --radius-sm  interactive controls: Button, Input, Select, chips -- things you click or type into.
-   *   --radius-md  media/inline chrome only (avatars-as-squares, thumbnails) -- never a container.
    *   --radius-xs  the smallest inline chrome: kbd, tiny icon buttons, and Callout (deliberately
    *                 one step under --radius-lg, so a Callout that must stay boxed still reads as
    *                 nested inside a Panel rather than as a sibling card).
@@ -198,7 +214,7 @@
   --radius-xs: 6px;
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 16px;
+  --radius-lg: 10px;
   --radius-pill: 999px;
   --radius-circle: 50%;
 
@@ -226,20 +242,35 @@
   --space-10: 40px;
   --space-14: 56px;
 
-  /* ---- elevation, motion, layout ---------------------------------------------------------- */
+  /* ---- elevation, motion, layout ----------------------------------------------------------
+   * Three levels, matching the three surfaces the product actually has: canvas, workspace
+   * surface, overlay. Only the third gets a shadow.
+   *
+   * Panels used to carry --shadow-xs and cards --shadow-sm, which meant elevation was being spent
+   * to say "this is a box" -- a job the 1px border already does. Once every box floats, nothing
+   * reads as floating, and the popover that genuinely IS above the page has no way to say so. So
+   * --shadow-xs and --shadow-sm are now for the *transient* raised states only (a dragged card, a
+   * hovered menu row), and the two overlay tiers were pulled in from
+   * (18px/46px/0.12) and (30px/90px/0.22): those spreads were tuned to be visible under a
+   * 16px radius and read as a soft glow at 10-12px. Tighter and slightly darker carries the same
+   * separation with less haze.
+   */
   --shadow-xs: 0 1px 2px rgba(18, 26, 38, 0.05);
-  --shadow-sm: 0 5px 18px rgba(22, 30, 42, 0.06);
-  --shadow-md: 0 18px 46px rgba(15, 22, 33, 0.12);
-  --shadow-lg: 0 30px 90px rgba(8, 14, 24, 0.22);
+  --shadow-sm: 0 2px 6px rgba(22, 30, 42, 0.07);
+  --shadow-md: 0 10px 28px rgba(15, 22, 33, 0.13);
+  --shadow-lg: 0 18px 52px rgba(8, 14, 24, 0.2);
   --focus: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
 
   --motion-fast: 120ms;
   --motion-base: 180ms;
   --motion-slow: 240ms;
 
-  --sidebar-width: 268px;
-  --sidebar-collapsed-width: 76px;
-  --topbar-height: 70px;
+  /* Both trimmed to give the workspace back roughly 30px of width and 12px of height. At 1366 --
+     the width this product is actually used at -- the old 268px rail was 20% of the viewport
+     spent on five links that never change. */
+  --sidebar-width: 236px;
+  --sidebar-collapsed-width: 68px;
+  --topbar-height: 58px;
 }
 
 /* ---- dark theme -------------------------------------------------------------------------------
@@ -331,8 +362,8 @@
      subtle dark halos so elevated surfaces still separate without the milky haze that light-theme
      shadow alphas produce over dark backgrounds. */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-sm: 0 5px 18px rgba(0, 0, 0, 0.45);
-  --shadow-md: 0 18px 46px rgba(0, 0, 0, 0.55);
-  --shadow-lg: 0 30px 90px rgba(0, 0, 0, 0.65);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 18px 52px rgba(0, 0, 0, 0.65);
   --focus: 0 0 0 3px color-mix(in srgb, var(--color-accent) 38%, transparent);
 }

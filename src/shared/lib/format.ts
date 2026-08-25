@@ -55,6 +55,26 @@ export function formatMoneyCompact(value:number|null|undefined,currency?:string|
   return {short,full:formatMoney(value,resolved)}
 }
 
+/* A salary BAND, short enough for a table sub-line, with the exact figures kept for the title.
+ *
+ * "IDR 40,000,000 / month - IDR 60,000,000 / month" is 52 characters. In the ~150px column where a
+ * salary range is secondary to the fee, it wrapped to three lines and made the row twice as tall as
+ * its neighbours -- the "awkward multi-line block" this exists to stop. Compact notation plus ONE
+ * period suffix (both ends of a band share it) gets the same fact to "IDR 40M-60M / month".
+ *
+ * Returns {short,full} for the same reason formatMoneyCompact does: the cell shows `short` and puts
+ * `full` in a title, so nothing is actually hidden from anyone who needs the exact number. */
+export function formatSalaryRangeCompact(min:number|null|undefined,max:number|null|undefined,currency?:string|null,period?:SalaryPeriod|null){
+  if(min==null&&max==null)return null
+  const suffix=(period||config.salaryPeriod)==='monthly'?'month':'year'
+  const compact=(value:number|null|undefined)=>value==null?null:formatMoneyCompact(value,currency)
+  const low=compact(min);const high=compact(max)
+  // An open-ended band states which end it has rather than printing a dangling dash.
+  if(low&&high)return {short:`${low.short}–${high.short} / ${suffix}`,full:`${low.full} – ${high.full} per ${suffix}`}
+  if(low)return {short:`From ${low.short} / ${suffix}`,full:`From ${low.full} per ${suffix}`}
+  return {short:`Up to ${high!.short} / ${suffix}`,full:`Up to ${high!.full} per ${suffix}`}
+}
+
 export function formatDate(value:string|null|undefined){
   if(!value)return '—'
   return new Intl.DateTimeFormat(config.locale,{dateStyle:'medium',timeZone:config.timeZone}).format(new Date(value))

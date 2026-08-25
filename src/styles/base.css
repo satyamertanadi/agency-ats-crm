@@ -77,17 +77,19 @@ p {
    shrink by the same 14/16 factor. They also close a real gap -- previously h1/h2/h3 got only
    overflow-wrap here, and every heading size was defined ad-hoc per component, which is why
    <h3>Suitability</h3> on the client review page rendered at the browser's 18.72px/bold. */
+/* Sans by default, serif by request. The families were the other way round, which meant a serif
+   heading was what you got for writing <h2> anywhere -- including above a table of 40 candidates.
+   The authenticated product is an operational tool and reads as one in a single voice; .editorial
+   below is how the three surfaces that are genuinely editorial ask for the other one. */
 h1 {
   margin: 0;
-  font-family: var(--font-editorial);
   font-size: var(--text-3xl);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
   line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-display);
+  letter-spacing: -0.02em;
 }
 h2 {
   margin: 0;
-  font-family: var(--font-editorial);
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
   line-height: var(--leading-snug);
@@ -95,10 +97,29 @@ h2 {
 }
 h3 {
   margin: 0;
-  font-family: var(--font-editorial);
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
   line-height: var(--leading-snug);
+}
+/* The opt-in -- and the one list of every surface that still gets the serif. Auth, the client
+   review page, and anything generated for a client to read; nowhere a consultant works. Keeping the
+   inventory here rather than scattering `font-family: var(--font-editorial)` through features.css
+   is what makes the rule checkable: `grep -c font-editorial src/styles/features.css` should stay at
+   zero, and this list is where a new editorial surface gets added deliberately.
+   Each selector below still sets its own size, weight and tracking next to its layout. */
+.editorial,
+.auth-product-title,
+.auth-card h1,
+.review-header h1,
+.review-card h2 {
+  font-family: var(--font-editorial);
+}
+/* Lining, fixed-width digits. Any figure a reader compares against the figure above it -- money,
+   fees, counts, percentages, KPI values -- needs its columns to line up, and proportional digits
+   in Manrope do not. Applied via this class rather than globally: tabular digits are slightly
+   wider and looser, which is right in a column and wrong inside a sentence. */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 h4 {
   margin: 0;

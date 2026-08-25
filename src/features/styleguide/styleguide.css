@@ -12,8 +12,9 @@
   border-bottom: 1px solid var(--color-line);
   margin-bottom: 8px;
 }
+/* The specimen page follows the rule it documents: sans for its own chrome, with the serif shown
+   only inside the .sg-type-serif sample below, where it is the subject rather than the voice. */
 .sg-masthead h1 {
-  font-family: var(--font-editorial);
   margin: 4px 0;
 }
 .sg-masthead > p:last-child {
@@ -29,7 +30,6 @@
   margin-bottom: 20px;
 }
 .sg-section-header h2 {
-  font-family: var(--font-editorial);
   margin: 0;
 }
 .sg-section-header p {
