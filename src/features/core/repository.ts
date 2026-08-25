@@ -1,7 +1,7 @@
 import { supabase } from '../../shared/lib/supabase'
 import { AppError, DUPLICATE_CANDIDATE, humanizeRpcError } from '../../shared/lib/errors'
 import { row, rows } from '../../shared/lib/rows'
-import { activitySchema, candidatePipelineAssignmentSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
+import { activitySchema, candidatePipelineAssignmentSchema, candidateQualityCountSchema, candidateSearchRowSchema, companySchema, contactSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
 import type { Activity, CandidateStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReview, Task } from '../../shared/types/domain'
 import type {Json} from '../../generated/database.types'
 
@@ -30,9 +30,13 @@ const CONSTRAINT_CODES=new Set(['23505','23503','23514','23502'])
  * are deliberately non-overlapping in intent: needsFollowUp is "something is owed", stale is
  * "nothing is owed and nothing is happening". An unrecognised value matches nothing, not everything. */
 export type CandidateQueue='in_process'|'needs_follow_up'|'stale'|'unassigned'|'needs_enrichment'
-export interface CandidateListFilters {query?:string;status?:string;location?:string;source?:string;ownerMemberId?:string;tag?:string;skill?:string;availability?:string;queue?:CandidateQueue;sort?:'updated'|'created'|'name'|'location';direction?:'asc'|'desc'}
+/* `issue` narrows the needs_enrichment queue to ONE data-quality gap. It is a separate axis from
+ * `queue` rather than a sixth queue because it composes with it: "needs enrichment, missing a CV" is
+ * the useful view, and a queue can only ever be one thing. An unrecognised code matches nothing, the
+ * same way an unrecognised queue does. */
+export interface CandidateListFilters {query?:string;status?:string;location?:string;source?:string;ownerMemberId?:string;tag?:string;skill?:string;availability?:string;queue?:CandidateQueue;issue?:string;sort?:'updated'|'created'|'name'|'location';direction?:'asc'|'desc'}
 export async function listCandidatesPage(organizationId:string,filters:CandidateListFilters={},page=0,pageSize=50){
-  const {data,error}=await supabase.rpc('search_candidates_page',{p_organization_id:organizationId,p_query:filters.query||undefined,p_status:filters.status||undefined,p_location:filters.location||undefined,p_source:filters.source||undefined,p_owner_member_id:filters.ownerMemberId||undefined,p_tag:filters.tag||undefined,p_skill:filters.skill||undefined,p_availability:filters.availability||undefined,p_queue:filters.queue||undefined,p_sort:filters.sort||'updated',p_direction:filters.direction||'desc',p_limit:pageSize,p_offset:page*pageSize})
+  const {data,error}=await supabase.rpc('search_candidates_page',{p_organization_id:organizationId,p_query:filters.query||undefined,p_status:filters.status||undefined,p_location:filters.location||undefined,p_source:filters.source||undefined,p_owner_member_id:filters.ownerMemberId||undefined,p_tag:filters.tag||undefined,p_skill:filters.skill||undefined,p_availability:filters.availability||undefined,p_queue:filters.queue||undefined,p_issue:filters.issue||undefined,p_sort:filters.sort||'updated',p_direction:filters.direction||'desc',p_limit:pageSize,p_offset:page*pageSize})
   if(error)fail(error,'Could not load candidates');const resultRows=rows(data,candidateSearchRowSchema,'Candidate search rows did not match the expected shape') as CandidateSearchRow[];return {rows:resultRows,count:Number(resultRows[0]?.total_count||0)}
 }
 
@@ -367,3 +371,25 @@ export async function listMembers(organizationId:string){const {data,error}=awai
 export async function listRoles(organizationId:string){const {data,error}=await supabase.from('roles').select('id,name,role_key,is_system,role_permissions(permission_key)').eq('organization_id',organizationId).order('name');if(error)fail(error,'Could not load roles');return data??[]}
 export async function createInvitation(organizationId:string,email:string,roleId:string){const {data,error}=await supabase.rpc('create_organization_invitation',{p_organization_id:organizationId,p_email:email,p_role_id:roleId,p_expiry_days:7});if(error)fail(error,'Could not create invitation');return data as {invitation_id:string;token:string;expires_at:string}}
 export async function acceptInvitation(token:string){const {data,error}=await supabase.rpc('accept_organization_invitation',{p_token:token});if(error)fail(error,error.message.includes('email_mismatch')?'Sign in with the email address that was invited.':'Could not accept invitation');if(!data)throw new AppError('This invitation is invalid, expired, or revoked.','invitation_unavailable');return data as {organization_id:string;organization_slug:string;member_id:string}}
+
+/* Counts by data-quality issue, over the same filtered population the list is showing.
+ *
+ * Its own request rather than a column on the list, and deliberately so: these are counts over the
+ * WHOLE filtered set, not the page, and folding a whole-set aggregate into a paginated query means
+ * either computing it fifty times or returning it fifty times.
+ *
+ * It takes every list filter EXCEPT the issue itself. That is what makes the strip honest -- choosing
+ * "No CV (12)" has to return twelve rows, and it would not if the count had been taken after the
+ * choice was already applied. Callers must only run this while the enrichment queue is active; the
+ * counts are meaningless beside any other queue.
+ */
+export async function candidateQualitySummary(organizationId:string,filters:CandidateListFilters={}){
+  const {data,error}=await supabase.rpc('candidate_quality_summary',{
+    p_organization_id:organizationId,p_query:filters.query||undefined,p_status:filters.status||undefined,
+    p_location:filters.location||undefined,p_source:filters.source||undefined,
+    p_owner_member_id:filters.ownerMemberId||undefined,p_tag:filters.tag||undefined,
+    p_skill:filters.skill||undefined,p_availability:filters.availability||undefined,
+  })
+  if(error)fail(error,'Could not count data-quality issues')
+  return rows(data,candidateQualityCountSchema,'Quality summary rows did not match the expected shape')
+}

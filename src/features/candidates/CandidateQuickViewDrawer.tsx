@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {useQuery} from '@tanstack/react-query'
-import {ChevronLeft,ChevronRight,FileText,MapPin} from 'lucide-react'
+import {ChevronLeft,ChevronRight,FileText,MapPin,TriangleAlert} from 'lucide-react'
 import {Link} from 'react-router'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {candidateStatus} from '../../shared/lib/status'
@@ -16,6 +16,7 @@ import {ActivityFeed} from '../activities/ActivityFeed'
 import type {CandidateSearchRow} from '../../shared/types/domain'
 import {followUpSignal,pipelineSignal,statusFacets} from './candidateRowSignals'
 import {NOT_RECORDED} from '../../shared/lib/labels'
+import {issueFixHref,qualityIssueDefinition} from './candidateQuality'
 
 /* Reviewing a candidate without leaving the list.
  *
@@ -84,7 +85,7 @@ export function CandidateQuickViewDrawer({candidate,siblingIds,onNavigate,onClos
       {id:'activity' as const,label:'Activity'},
     ]}/>
     <TabPanel tabsId={tabsId} id={tab} className="quick-view-panel">
-      {tab==='summary'&&<SummaryTab candidate={candidate}/>}
+      {tab==='summary'&&<SummaryTab candidate={candidate} organizationSlug={organizationSlug}/>}
       {tab==='cv'&&<CvTab candidateId={candidate.id}/>}
       {/* readOnly, so the composer stays on the full record. A second place to write activity is a
         * second place for the two to disagree about what was logged. */}
@@ -94,7 +95,7 @@ export function CandidateQuickViewDrawer({candidate,siblingIds,onNavigate,onClos
   </Drawer>
 }
 
-function SummaryTab({candidate}:{candidate:CandidateSearchRow}){
+function SummaryTab({candidate,organizationSlug}:{candidate:CandidateSearchRow;organizationSlug:string}){
   // One clock per render, for the same reason the table keeps one: two facts about the same candidate
   // must not disagree about what "today" is.
   const now=new Date()
@@ -147,6 +148,29 @@ function SummaryTab({candidate}:{candidate:CandidateSearchRow}){
     {candidate.tag_names.length>0&&<section className="quick-view-section">
       <h3>Tags</h3>
       <div className="chip-row">{candidate.tag_names.map((tag)=><Badge key={tag} tone="info">{tag}</Badge>)}</div>
+    </section>}
+
+    {/* What is missing, and where it is fixed.
+      *
+      * This is the whole point of the Needs enrichment queue having reasons rather than a count: the
+      * consultant sees the exact gap and a link straight to the part of the record that closes it,
+      * instead of opening the full record and hunting for what the queue objected to.
+      *
+      * Each row is the RULE, not the value. `missing_contact_method` says a way to reach them is
+      * absent -- it never renders an email or a phone, which are not in the search row at all, and it
+      * is not produced by the server for a member without candidates_private.read. */}
+    {candidate.quality_issue_codes.length>0&&<section className="quick-view-section quick-view-issues">
+      <h3>Needs enrichment</h3>
+      <ul>
+        {candidate.quality_issue_codes.map((code)=>{
+          const definition=qualityIssueDefinition(code)
+          return <li key={code}>
+            <span className="quick-view-issue-label"><TriangleAlert size={13}/>{definition.label}</span>
+            <span className="cell-quiet">{definition.reason}</span>
+            <Link className="record-link" to={issueFixHref(organizationSlug,candidate.id,code)}>{definition.action}</Link>
+          </li>
+        })}
+      </ul>
     </section>}
 
     {/* Stated rather than left as an absence, so nobody reads a quick view with no salary as a

@@ -46,6 +46,11 @@ export const candidateSearchRowSchema=candidateSchema.omit({candidate_private_de
   primary_stage_name:z.string().nullable(),primary_phase_key:phaseKey.nullable(),
   primary_stage_entered_at:z.string().nullable(),
   has_cv:z.boolean(),
+  /* z.string() rather than an enum: the rules live in SQL, and a server that gains one before the
+   * client learns about it should render an unfamiliar chip, not fail the whole list. Defaulted
+   * because this column postdates the schema -- a client deployed ahead of the migration reads an
+   * empty issue set rather than throwing. */
+  quality_issue_codes:z.array(z.string()).default([]),
 })
 
 const companyPick=z.object({id:z.string(),name:z.string()}).nullable().optional()
@@ -246,3 +251,11 @@ export const submissionFeedbackSchema=z.object({
  * it. */
 export type StageHistoryEntry=z.infer<typeof stageHistoryEntrySchema>
 export type SubmissionFeedback=z.infer<typeof submissionFeedbackSchema>
+
+/* One row of candidate_quality_summary. `candidate_count` is a bigint from count(*), coerced for the
+ * reason stated at the top of this file. The code is a bare string, not an enum, so a rule the server
+ * gains before the client does renders as itself rather than failing the strip. */
+export const candidateQualityCountSchema=z.object({
+  issue_code:z.string(),candidate_count:z.coerce.number(),
+})
+export type CandidateQualityCount=z.infer<typeof candidateQualityCountSchema>

@@ -1922,3 +1922,30 @@ tbody tr:focus-within .row-menu-trigger,
     gap: 0;
   }
 }
+
+/* The data-quality strip above the Needs enrichment queue.
+ *
+ * Built from the same .queue-tab pills as the queue strip itself, because it is the same kind of
+ * control -- one active choice, narrowing a list -- and a second visual language for that would make
+ * two adjacent rows of buttons look like two unrelated features. */
+.quality-strip{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:var(--space-2) var(--space-4);
+  border-bottom:1px solid var(--color-line-soft);background:var(--color-surface);
+}
+/* Tabular so a count changing from 9 to 10 does not shift the button beside it. */
+.quality-strip-count{font-variant-numeric:tabular-nums;opacity:0.75}
+/* A zero is shown rather than hidden -- "No CV (0)" is a useful thing to learn about a talent
+   database -- but it cannot be pressed, because pressing it would produce an empty list that looks
+   like a broken filter. */
+.quality-strip .queue-tab:disabled{opacity:0.45;cursor:default}
+.quality-strip .queue-tab:disabled:hover{border-color:var(--color-line-strong);color:var(--color-muted)}
+
+/* What is missing on this candidate, in Quick View. One row per issue: the gap, why it matters, and
+   the link to where it is fixed. */
+.quick-view-issues ul{display:flex;flex-direction:column;gap:var(--space-2);margin:0;padding:0;list-style:none}
+.quick-view-issues li{display:flex;flex-direction:column;gap:2px}
+.quick-view-issue-label{display:flex;align-items:center;gap:6px;font-size:var(--text-sm);font-weight:var(--weight-semibold)}
+.quick-view-issue-label svg{color:var(--color-warning);flex-shrink:0}
+/* The reason wraps: it is a sentence, not a table cell, and .cell-quiet's nowrap would clip it. */
+.quick-view-issues .cell-quiet{white-space:normal;font-size:var(--text-xs)}
