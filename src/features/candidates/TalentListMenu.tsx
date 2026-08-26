@@ -70,7 +70,7 @@ export function TalentListMenu({activeListId,onSelect}:{
   return <>
     <Menu label="Talent lists" align="start" className="view-menu" items={items} trigger={(props)=>
       <Button {...props} type="button" size="sm" variant="secondary" trailingIcon={<ChevronDown size={14}/>}>
-        <span className="view-menu-label">List:</span> {active?.name||(unknownList?'Unavailable list':'All candidates')}
+        <span className="view-menu-label">Talent list:</span> {active?.name||(unknownList?'Unavailable list':'All candidates')}
       </Button>}/>
 
     <TalentListFormModal open={createOpen} onClose={()=>setCreateOpen(false)}

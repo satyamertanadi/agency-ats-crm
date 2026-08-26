@@ -11,6 +11,7 @@ import {Panel} from '../../shared/ui/Page'
 import {EmptyState,ErrorState,LoadingState} from '../../shared/ui/States'
 import {useToast} from '../../shared/ui/Toast'
 import {formatDate,formatDateTime} from '../../shared/lib/format'
+import {dateTimeHint} from '../../shared/lib/datetimeField'
 import type {ActivityType} from '../../shared/types/domain'
 import {presentActivity} from './activityPresentation'
 
@@ -114,7 +115,7 @@ export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, an
     {open&&!readOnly&&<form className="form-grid activity-form" onSubmit={submit}>
       <Field label="Type"><Select value={type} onChange={(event)=>setType(event.target.value)}>{manualTypes.map((item)=><option key={item.value} value={item.value}>{item.label}</option>)}</Select></Field>
       <Field label="Direction"><Select value={direction} onChange={(event)=>setDirection(event.target.value)}><option value="outbound">Outbound</option><option value="inbound">Inbound</option><option value="internal">Internal</option></Select></Field>
-      <Field label="When"><Input type="datetime-local" max={localNow()} value={occurredAt} onChange={(event)=>setOccurredAt(event.target.value)}/></Field>
+      <Field label="When" hint={dateTimeHint(occurredAt,organization?.timezone)}><Input type="datetime-local" max={localNow()} value={occurredAt} onChange={(event)=>setOccurredAt(event.target.value)}/></Field>
       <Field label="Subject (optional)"><Input value={subject} maxLength={120} placeholder="Intro call" onChange={(event)=>setSubject(event.target.value)}/></Field>
       <div className="full"><Field label="What happened"><Textarea rows={3} value={summary} required placeholder="She is interested but needs three months' notice." onChange={(event)=>setSummary(event.target.value)}/></Field></div>
       {canFollowUp&&<div className="full activity-follow-up">
@@ -132,7 +133,7 @@ export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, an
               onClick={()=>setTaskDueAt(dueValue(days))}>{label}</Button>)}
           </div>
           <div className="form-grid">
-            <Field label="Due"><Input type="datetime-local" value={taskDueAt} onChange={(event)=>setTaskDueAt(event.target.value)}/></Field>
+            <Field label="Due" hint={dateTimeHint(taskDueAt,organization?.timezone)}><Input type="datetime-local" value={taskDueAt} onChange={(event)=>setTaskDueAt(event.target.value)}/></Field>
             <Field label="Owner"><Select value={taskOwnerId||membership?.id||''} onChange={(event)=>setTaskOwnerId(event.target.value)}>
               <option value="">Unassigned</option>
               {team.data?.filter((member)=>member.status==='active').map((member)=>

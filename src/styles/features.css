@@ -400,6 +400,23 @@
 .table-allocated .record-link strong{
   display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
+/* A chip row is a CONTAINER OF BADGES, not a text sub-line, and the truncation treatment above is
+   wrong for it in both halves: `white-space:nowrap` stops the badges wrapping, and `overflow:hidden`
+   then clips the ones that did not fit -- silently, with nothing to say they exist.
+
+   That is the Clients table's "Agreement / status" column at 1366px. Measured in its real 180px
+   allocation: "Agreement expired" (127px) rendered, "Active client" (91px) was laid out to its right
+   ending 54px past the cell's edge, and was cut off. Both badges gate commercial work, so losing
+   either is losing the reason the column is there.
+
+   The selector above wins on specificity ((0,1,2) against .chip-row's (0,1,0)), which is why
+   .chip-row's own `display:flex; flex-wrap:wrap` had no effect -- flex-wrap computed as `wrap` while
+   display computed as `block`. This restores the row's declared behaviour inside allocated tables,
+   so a second badge wraps to a second line instead of disappearing. The td keeps its own
+   overflow:hidden, so nothing escapes the cell either. */
+.table-allocated td > .chip-row{
+  display:flex;white-space:normal;overflow:visible;text-overflow:clip;
+}
 .candidate-row-identity-text{min-width:0;flex:1}
 .table-allocated .record-link{display:block;min-width:0;overflow:hidden}
 
@@ -717,6 +734,29 @@ tbody tr:focus-within .row-menu-trigger,
   overflow: auto;
   padding: 16px;
   scroll-snap-type: x proximity;
+  /* Containing block for absolutely positioned descendants, and the whole fix for the Business
+     Development board dragging the entire application sideways at 1366px.
+     
+     The board's own scrolling was never broken: overflow:auto was applied, .bd-board measured 1048px
+     of viewport against 1994px of content, and every ancestor fitted. What escaped was the .sr-only
+     spans inside the cards -- `position: absolute !important` with no positioned ancestor, so their
+     containing block was the initial one. An absolutely positioned box is NOT clipped by an
+     ancestor's overflow unless that ancestor is its containing block, so each one was laid out at its
+     static position out in the board's scroll overflow (x ~2000) and reported straight to the
+     document. documentElement.scrollWidth read 2011 against a clientWidth of 1366 while
+     body.scrollWidth was a well-behaved 1366 -- which is why this looked unattributable.
+     
+     Measured, not guessed: with the board's own `overflow` forced to hidden the document still
+     overflowed; `position: relative` alone took it from 2011 to 1366 with the columns still 270px
+     and the seventh still reachable by scrolling the board. `width:100%` / `max-width:100%` /
+     `min-width:0` were each measured here and changed nothing -- the grid item could already shrink
+     -- so they are deliberately not added; no-op CSS is a future reader's wild goose chase.
+     
+     On .kanban rather than .bd-board because the Job Pipeline renders .sr-only inside its cards too
+     (JobWorkspacePage's owner initials) and has exactly the same latent escape; it simply had no test
+     covering it. One rule fixes both boards. Safe for menus: .ui-menu is already position:relative,
+     so .ui-menu-panel is contained by its own wrapper and is unaffected. */
+  position: relative;
 }
 .kanban-column {
   background: var(--color-canvas-deep);

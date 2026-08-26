@@ -260,3 +260,155 @@ describe('today work items · client feedback',()=>{
     expect(items.map((item)=>item.id)).toEqual(['feedback-mine'])
   })
 })
+
+/* Today's two trust defects: an interview that has already happened advertised as forthcoming, and
+ * "My work" that was really "not somebody else's work".
+ *
+ * Both were reported from production. A completed July interview was sitting under "Later" in
+ * August, and every consultant's personal queue carried the same unassigned tasks and ownerless
+ * jobs as every other consultant's.
+ */
+describe('today work items · completed and ownership semantics',()=>{
+  const NOW=new Date('2026-08-16T10:00:00Z')
+  const empty={base:'/app/northstar',now:NOW,jobs:[],tasks:[],offers:[],interviews:[]}
+  const interviewFixture=(overrides:Partial<Interview> ={}):Interview=>({
+    id:'i1',job_candidate_id:'jc1',interview_type:null,stage_label:null,
+    starts_at:'2026-07-10T10:00:00Z',ends_at:'2026-07-10T11:00:00Z',timezone:'UTC',
+    location:null,meeting_url:null,status:'completed',organizer_member_id:'m1',attendee_emails:[],
+    create_google_meet:false,calendar_event_id:null,calendar_event_url:null,
+    calendar_sync_status:'synced',calendar_last_error:null,calendar_last_synced_at:null,
+    calendar_retry_count:0,calendar_sync_version:1,calendar_synced_version:1,
+    job_candidates:{candidate_id:'c1',candidates:{id:'c1',full_name:'Ni Putu Widya'},jobs:{id:'j1',title:'Finance Manager',owner_member_id:'m1'}},
+    ...overrides,
+  })
+  const interviewItems=(items:ReturnType<typeof buildTodayWorkItems>)=>items.filter((item)=>item.id.startsWith('interview-'))
+
+  /* THE reported defect. A July interview, completed, read in August. */
+  it('never shows a completed past interview',()=>{
+    expect(interviewItems(buildTodayWorkItems({...empty,interviews:[interviewFixture()]}))).toHaveLength(0)
+  })
+
+  /* The same rule stated where the old date ladder would have got it right by accident: the bug was
+   * never about the date, it was about the status. */
+  it('never shows a completed interview dated in the future',()=>{
+    const future=interviewFixture({starts_at:'2026-09-01T10:00:00Z',ends_at:'2026-09-01T11:00:00Z'})
+    expect(interviewItems(buildTodayWorkItems({...empty,interviews:[future]}))).toHaveLength(0)
+  })
+
+  it('shows a scheduled future interview',()=>{
+    const soon=interviewFixture({status:'scheduled',starts_at:'2026-08-20T10:00:00Z',ends_at:'2026-08-20T11:00:00Z'})
+    const items=interviewItems(buildTodayWorkItems({...empty,interviews:[soon]}))
+    expect(items).toHaveLength(1)
+    expect(items[0]?.kind).toBe('upcoming')
+  })
+
+  it('turns a scheduled interview whose time has passed into an outcome to record',()=>{
+    const [item]=interviewItems(buildTodayWorkItems({...empty,interviews:[interviewFixture({status:'scheduled'})]}))
+    expect(item?.kind).toBe('overdue')
+    expect(item?.cta).toBe('Record outcome')
+  })
+
+  it('never shows a cancelled interview whose cancellation was delivered',()=>{
+    expect(interviewItems(buildTodayWorkItems({...empty,interviews:[interviewFixture({status:'cancelled'})]}))).toHaveLength(0)
+  })
+
+  /* A cancellation the client never received is unfinished business whatever the interview's own
+   * status says, so this one survives the exclusion above -- as blocked, not as upcoming. */
+  it('still shows a failed cancellation as blocked',()=>{
+    const failed=interviewFixture({status:'cancelled',calendar_sync_status:'failed',calendar_last_error:'Calendar rejected the update'})
+    const [item]=interviewItems(buildTodayWorkItems({...empty,interviews:[failed]}))
+    expect(item?.kind).toBe('blocked')
+    expect(item?.title).toBe('Retry interview cancellation')
+  })
+
+  it('still shows a failed calendar sync on a live interview as blocked',()=>{
+    const failed=interviewFixture({status:'scheduled',calendar_sync_status:'failed',calendar_last_error:'Reconnect Calendar'})
+    expect(interviewItems(buildTodayWorkItems({...empty,interviews:[failed]}))[0]?.kind).toBe('blocked')
+  })
+
+  /* A completed interview used to render as an upcoming interview AND drive the offer loop's
+   * "Record offer" for the same candidate -- two rows, one candidate, one action. */
+  it('produces no duplicate row for a candidate whose interview is done and offer is due',()=>{
+    const offer:Offer={id:'o1',job_candidate_id:'jc1',salary:0,currency:'IDR',offered_at:'2026-08-14T10:00:00Z',start_date:null,status:'presented',notes:null,
+      job_candidates:{candidates:{id:'c1',full_name:'Ni Putu Widya'},jobs:{id:'j1',title:'Finance Manager',owner_member_id:'m1'}}}
+    const items=buildTodayWorkItems({...empty,currentMemberId:'m1',interviews:[interviewFixture()],offers:[offer]})
+    expect(interviewItems(items)).toHaveLength(0)
+    expect(items.filter((item)=>item.id.startsWith('offer-'))).toHaveLength(1)
+  })
+
+  const owned=(overrides:Partial<Task> ={}):Task=>({id:'t1',title:'Call the client',description:null,status:'open',priority:'normal',due_at:'2026-08-15T10:00:00Z',owner_member_id:'m1',created_at:'2026-08-14T10:00:00Z',task_links:[],...overrides})
+  const taskItems=(items:ReturnType<typeof buildTodayWorkItems>)=>items.filter((item)=>item.id.startsWith('task-'))
+
+  it('includes a task assigned to the current member',()=>{
+    expect(taskItems(buildTodayWorkItems({...empty,currentMemberId:'m1',tasks:[owned()]}))).toHaveLength(1)
+  })
+
+  it('excludes a task assigned to another member',()=>{
+    expect(taskItems(buildTodayWorkItems({...empty,currentMemberId:'m1',tasks:[owned({id:'t2',owner_member_id:'m2'})]}))).toHaveLength(0)
+  })
+
+  /* The core of the defect: unassigned is not mine. The old filter only excluded work belonging to
+   * someone else, so a null owner passed for every member of the workspace at once. */
+  it('excludes an unassigned task from My work',()=>{
+    expect(taskItems(buildTodayWorkItems({...empty,currentMemberId:'m1',tasks:[owned({id:'t3',owner_member_id:null})]}))).toHaveLength(0)
+  })
+
+  it('still shows an unassigned task on the organisation-wide queue',()=>{
+    expect(taskItems(buildTodayWorkItems({...empty,tasks:[owned({id:'t3b',owner_member_id:null})]}))).toHaveLength(1)
+  })
+
+  it('excludes an unassigned job from My work and labels it truthfully for everyone else',()=>{
+    const job:Job={id:'j9',organization_id:'o1',company_id:'c1',pipeline_id:null,title:'Ownerless role',location:null,priority:'normal',status:'open',currency:null,placement_fee_percentage:null,owner_member_id:null,opened_at:null,updated_at:'2026-08-14T10:00:00Z'}
+    const mine=buildTodayWorkItems({...empty,currentMemberId:'m1',jobs:[job]})
+    expect(mine.filter((item)=>item.id.startsWith('job-owner'))).toHaveLength(0)
+    const team=buildTodayWorkItems({...empty,jobs:[job]})
+    const [item]=team.filter((entry)=>entry.id.startsWith('job-owner'))
+    expect(item?.kind).toBe('blocked')
+    expect(`${item?.title} ${item?.reason}`.toLowerCase()).toContain('owner')
+  })
+
+  it('excludes an interview owned by neither the organiser nor the job owner',()=>{
+    const theirs=interviewFixture({status:'scheduled',starts_at:'2026-08-20T10:00:00Z',ends_at:'2026-08-20T11:00:00Z',organizer_member_id:'m2',
+      job_candidates:{candidate_id:'c1',candidates:{id:'c1',full_name:'Ni Putu Widya'},jobs:{id:'j1',title:'Finance Manager',owner_member_id:'m2'}}})
+    expect(interviewItems(buildTodayWorkItems({...empty,currentMemberId:'m1',interviews:[theirs]}))).toHaveLength(0)
+  })
+
+  /* An interview organised by someone else on a job I own is still mine to care about -- the
+   * ownership model here is genuinely two-sided, and narrowing it to the organiser alone would drop
+   * work rather than merely reattributing it. */
+  it('includes an interview on a job the current member owns',()=>{
+    const theirs=interviewFixture({status:'scheduled',starts_at:'2026-08-20T10:00:00Z',ends_at:'2026-08-20T11:00:00Z',organizer_member_id:'m2'})
+    expect(interviewItems(buildTodayWorkItems({...empty,currentMemberId:'m1',interviews:[theirs]}))).toHaveLength(1)
+  })
+
+  it('excludes an unassigned interview from My work',()=>{
+    const orphan=interviewFixture({status:'scheduled',starts_at:'2026-08-20T10:00:00Z',ends_at:'2026-08-20T11:00:00Z',organizer_member_id:null,
+      job_candidates:{candidate_id:'c1',candidates:{id:'c1',full_name:'Ni Putu Widya'},jobs:{id:'j1',title:'Finance Manager',owner_member_id:null}}})
+    expect(interviewItems(buildTodayWorkItems({...empty,currentMemberId:'m1',interviews:[orphan]}))).toHaveLength(0)
+  })
+
+  it('excludes an offer on a job owned by nobody from My work',()=>{
+    const offer:Offer={id:'o2',job_candidate_id:'jc2',salary:0,currency:'IDR',offered_at:'2026-08-14T10:00:00Z',start_date:null,status:'accepted',notes:null,
+      job_candidates:{candidates:{id:'c2',full_name:'Kadek Ari'},jobs:{id:'j2',title:'Plant Manager',owner_member_id:null}}}
+    expect(buildTodayWorkItems({...empty,currentMemberId:'m1',offers:[offer]}).filter((item)=>item.id.startsWith('offer-'))).toHaveLength(0)
+    expect(buildTodayWorkItems({...empty,offers:[offer]}).filter((item)=>item.id.startsWith('offer-'))).toHaveLength(1)
+  })
+
+  /* Copy. Nothing unassigned may be described as owned -- on the organisation-wide queue that is the
+   * difference between a pile somebody has to pick up and a pile that looks handled. */
+  it('never calls an unassigned task an owned follow-up',()=>{
+    const [item]=taskItems(buildTodayWorkItems({...empty,tasks:[owned({id:'t4',owner_member_id:null,description:null,task_links:[]})]}))
+    expect(item?.reason).toBe('Unassigned follow-up')
+    expect(item?.reason).not.toContain('Owned')
+  })
+
+  it('uses the task description when there is one',()=>{
+    const [item]=taskItems(buildTodayWorkItems({...empty,tasks:[owned({id:'t5',owner_member_id:null,description:'Chase the signed agreement.'})]}))
+    expect(item?.reason).toBe('Chase the signed agreement.')
+  })
+
+  it('describes an assigned task with no description neutrally',()=>{
+    const [item]=taskItems(buildTodayWorkItems({...empty,tasks:[owned({id:'t6',owner_member_id:'m1',description:null})]}))
+    expect(item?.reason).toBe('Follow-up task')
+  })
+})

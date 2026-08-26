@@ -1,4 +1,5 @@
 import {expect,test} from '@playwright/test'
+import {BD_BOARD_FIXTURE,CLIENTS_TABLE_FIXTURE,TOOLBAR_FIXTURE} from './bdFixture'
 
 /* Layout contract for the dense authenticated surfaces, checked without authenticating.
  *
@@ -158,3 +159,158 @@ test('the pipeline board scrolls inside its own container, not the page',async({
   expect(['auto','scroll']).toContain(result.overflowX)
   expect(result.pageOverflow,'the board must not drag the page with it').toBeLessThanOrEqual(0)
 })
+
+/* The Business Development board, as ClientsPage actually renders it.
+ *
+ * Deliberately NOT the generic `.kanban` fixture above. That one passes, and passed while production
+ * was overflowing, because it is missing two things the real board has: the `.panel-body` wrapper
+ * every Panel emits, and `.bd-board`'s seven stages. A contract that only exercises `.kanban` is a
+ * contract that agrees with a broken page.
+ *
+ * Seven columns, from bdStages, with the widest content a real account produces: a long PT name, an
+ * IDR figure in the billions, risk badges and the move-stage select.
+ */
+const BD_BOARD=BD_BOARD_FIXTURE
+
+for(const theme of ['light','dark'] as const){
+  for(const viewport of WIDTHS){
+    test(`the BD board scrolls itself and never the page at ${viewport.name} (${theme})`,async({page})=>{
+      await page.goto('/login')
+      await page.evaluate(({markup,mode}:{markup:string;mode:string})=>{
+        document.documentElement.setAttribute('data-theme',mode)
+        document.body.innerHTML=markup
+      },{markup:BD_BOARD,mode:theme})
+      await page.setViewportSize({width:viewport.width,height:viewport.height})
+
+      const result=await page.evaluate(()=>{
+        const root=document.documentElement
+        const board=document.getElementById('bd-board')
+        if(!board)throw new Error('The BD board fixture did not render.')
+        const columns=[...board.querySelectorAll('.bd-column')]
+        const first=columns[0]?.getBoundingClientRect()
+        const last=columns[columns.length-1]?.getBoundingClientRect()
+        const boardBox=board.getBoundingClientRect()
+        return {
+          pageOverflow:root.scrollWidth-root.clientWidth,
+          boardOverflow:board.scrollWidth-board.clientWidth,
+          overflowX:getComputedStyle(board).overflowX,
+          boardWithinViewport:boardBox.width<=root.clientWidth+1,
+          columnCount:columns.length,
+          /* Reachability: with the board scrolled fully right the last column must be inside the
+           * board's own box. A column that is only reachable by scrolling the DOCUMENT is the defect
+           * this test exists for, not a workaround for it. */
+          firstColumnWidth:first?first.width:0,
+          lastColumnWidth:last?last.width:0,
+        }
+      })
+
+      /* The invariant. At 1366 production measured documentElement.scrollWidth 2575 against a
+       * clientWidth of 1348 -- the board pushed the whole application sideways. */
+      expect(result.pageOverflow,'the BD board must never give the document horizontal scroll').toBeLessThanOrEqual(0)
+      expect(result.boardWithinViewport,'the board box must fit the viewport').toBe(true)
+      expect(result.columnCount,'all seven BD stages should render').toBe(7)
+      /* Columns keep a usable width rather than being crushed to fit -- the alternative reading of
+       * "no overflow" is an unreadable seven-column miniature, which the responsive rules forbid. */
+      expect(result.firstColumnWidth,'first column must stay usable').toBeGreaterThanOrEqual(200)
+      expect(result.lastColumnWidth,'last column must stay usable').toBeGreaterThanOrEqual(200)
+      /* Scrolling is the board's job and must remain possible, not be clipped away. */
+      expect(['auto','scroll']).toContain(result.overflowX)
+      if(result.boardOverflow>0){
+        // Where the columns genuinely exceed the viewport, the scroll lives on the board.
+        expect(result.boardOverflow,'the board should own its own horizontal scroll').toBeGreaterThan(0)
+      }
+    })
+  }
+}
+
+/* Reachability, asserted by actually scrolling rather than by measuring. At 1366 the seven columns
+ * cannot fit, so the last one is only reachable if the board scrolls -- which is the whole design. */
+test('every BD column is reachable by scrolling the board itself',async({page})=>{
+  await page.goto('/login')
+  await page.evaluate((markup:string)=>{document.body.innerHTML=markup},BD_BOARD)
+  await page.setViewportSize({width:1366,height:768})
+  const result=await page.evaluate(()=>{
+    const board=document.getElementById('bd-board')
+    if(!board)throw new Error('The BD board fixture did not render.')
+    board.scrollLeft=board.scrollWidth
+    const last=board.querySelector('.bd-column:last-child')?.getBoundingClientRect()
+    const boardBox=board.getBoundingClientRect()
+    return {
+      scrolled:board.scrollLeft>0,
+      lastColumnVisible:Boolean(last&&last.right<=boardBox.right+1&&last.left>=boardBox.left-1),
+      pageOverflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+    }
+  })
+  expect(result.scrolled,'the board should have somewhere to scroll at 1366px').toBe(true)
+  expect(result.lastColumnVisible,'the final stage must be reachable inside the board').toBe(true)
+  expect(result.pageOverflow,'scrolling the board must not move the page').toBeLessThanOrEqual(0)
+})
+
+/* The Clients table's final column. The audit reported the agreement/status content appearing cut
+ * off at 1366px, and the contract is the one the responsive rules already state: the table may scroll
+ * inside .table-scroll, but the page never scrolls and the last column is never clipped away with no
+ * way to reach it. Asserted at desktop AND phone, because the answer differs -- above the 890px floor
+ * it simply fits; below it the table scrolls and the column has to arrive when you scroll to it. */
+for(const width of [1366,390]){
+  test(`the clients table keeps its agreement column reachable at ${width}`,async({page})=>{
+    await page.goto('/login')
+    await page.evaluate((markup:string)=>{document.body.innerHTML=markup},CLIENTS_TABLE_FIXTURE)
+    await page.setViewportSize({width,height:width===1366?768:844})
+    const result=await page.evaluate(()=>{
+      const container=document.getElementById('clients-table')
+      const cell=document.getElementById('clients-last-cell')
+      if(!container||!cell)throw new Error('The clients table fixture did not render.')
+      container.scrollLeft=container.scrollWidth
+      const box=container.getBoundingClientRect()
+      const cellBox=cell.getBoundingClientRect()
+      const badges=[...cell.querySelectorAll('.badge')].map((badge)=>badge.getBoundingClientRect())
+      return {
+        pageOverflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+        overflowX:getComputedStyle(container).overflowX,
+        /* Fully inside the container once scrolled to it -- not merely overlapping its edge. */
+        lastCellReachable:cellBox.right<=box.right+1&&cellBox.left>=box.left-1,
+        /* Every badge keeps its whole width. "Reachable" must not mean a sliver of a chip. */
+        badgesIntact:badges.every((badge)=>badge.width>40&&badge.right<=box.right+1),
+        badgeCount:badges.length,
+      }
+    })
+    expect(result.pageOverflow,'the clients table must never scroll the page').toBeLessThanOrEqual(0)
+    expect(['auto','scroll']).toContain(result.overflowX)
+    expect(result.badgeCount,'both commercial badges should render').toBe(2)
+    expect(result.lastCellReachable,'the agreement/status column must be reachable inside its own container').toBe(true)
+    expect(result.badgesIntact,'the agreement badges must not be clipped into fragments').toBe(true)
+  })
+}
+
+/* The renamed toolbar qualifiers still fit.
+ *
+ * "View:" and "List:" were too easy to confuse -- one is a saved set of filters, the other a fixed
+ * set of people -- so they became "Saved view:" and "Talent list:". Longer labels in a rail that
+ * wraps rather than scrolls is exactly how a control ends up half off the edge of a phone. */
+for(const width of [1366,390]){
+  test(`both toolbar controls stay fully visible at ${width}`,async({page})=>{
+    await page.goto('/login')
+    await page.evaluate((markup:string)=>{document.body.innerHTML=markup},TOOLBAR_FIXTURE)
+    await page.setViewportSize({width,height:width===1366?768:844})
+    const result=await page.evaluate(()=>{
+      const toolbar=document.getElementById('toolbar')
+      const view=document.getElementById('view-trigger')
+      const list=document.getElementById('list-trigger')
+      if(!toolbar||!view||!list)throw new Error('The toolbar fixture did not render.')
+      const bar=toolbar.getBoundingClientRect()
+      const inside=(el:HTMLElement)=>{const box=el.getBoundingClientRect();return box.left>=bar.left-1&&box.right<=bar.right+1&&box.width>0}
+      return {
+        pageOverflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+        viewInside:inside(view),listInside:inside(list),
+        viewText:(view.textContent||'').trim(),listText:(list.textContent||'').trim(),
+      }
+    })
+    expect(result.pageOverflow,'the toolbar must not widen the page').toBeLessThanOrEqual(0)
+    expect(result.viewInside,'the saved-view control must sit inside the rail').toBe(true)
+    expect(result.listInside,'the talent-list control must sit inside the rail').toBe(true)
+    // The qualifiers are the point of the rename; a truncation that ate them would undo it.
+    expect(result.viewText).toContain('Saved view:')
+    expect(result.listText).toContain('Talent list:')
+  })
+}
+

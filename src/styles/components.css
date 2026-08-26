@@ -1500,7 +1500,21 @@ td span:not([class]) {
   min-width: 0;
 }
 .truncate-reveal[data-truncated]::after {
+  /* The tooltip is DECORATION. Its text already exists twice on the page -- once as the element's own
+     text node and once in `title` -- so letting the accessibility tree read the generated content as
+     well makes a screen reader announce the same name twice in a row. Measured before this change:
+     the aria snapshot for one truncated cell read
+     "Bambang Sutrisno Wijayakusuma Bambang Sutrisno Wijayakusuma".
+
+     `/ ""` is CSS alt text for generated content: the string still renders, and the accessibility
+     tree is given an empty alternative instead of it. The unprefixed declaration above stays as a
+     fallback for any engine that does not parse the alt-text form -- without it, such an engine would
+     drop the whole declaration and lose the tooltip rather than merely announcing it twice.
+
+     The full value remains available to assistive technology and to touch users through `title`,
+     which is set only when the text is actually clipped. */
   content: attr(data-full);
+  content: attr(data-full) / "";
   position: absolute;
   inset-inline-start: 0;
   top: calc(100% - 2px);

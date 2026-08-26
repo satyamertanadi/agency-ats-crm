@@ -457,7 +457,7 @@ describe('CandidatesPage talent lists',()=>{
   it('returns to the first page when the scope changes',async()=>{
     renderPage('/app/acme/candidates?page=3')
     await findRow('Ni Putu Widya')
-    fireEvent.click(screen.getByRole('button',{name:/^List:/}))
+    fireEvent.click(screen.getByRole('button',{name:/^Talent list:/}))
     fireEvent.click(await screen.findByRole('menuitem',{name:/Acme CFO shortlist/}))
     await waitFor(()=>expect(screen.getByTestId('search').textContent).toContain('list=list-1'))
     expect(screen.getByTestId('search').textContent).not.toContain('page=3')

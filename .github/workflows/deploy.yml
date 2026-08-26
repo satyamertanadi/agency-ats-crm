@@ -79,6 +79,24 @@ jobs:
         run: npm run test:functions
         env:
           SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+      - name: Maintenance authentication preflight
+        shell: bash
+        # The same proof as production, one gate earlier. Staging mirrors production's Function
+        # secrets (docs/production-setup.md), so a contract that fails here would have failed there --
+        # and failing here costs nothing, while failing there means retention has already stopped.
+        run: |
+          status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --header "x-worker-secret: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}" \
+            --header "authorization: Bearer ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}" \
+            --data '{"mode":"preflight"}' \
+            "${{ secrets.STAGING_SUPABASE_URL }}/functions/v1/scheduled-maintenance")"
+          echo "staging scheduled-maintenance preflight -> HTTP $status"
+          case "$status" in
+            2*) ;;
+            *) echo "::error::Staging maintenance preflight returned HTTP $status; the authentication contract is broken."; exit 1 ;;
+          esac
       - name: Real-provider parse, evidence, persistence, and finalization contract
         run: npm run test:staging
         env:
@@ -105,6 +123,29 @@ jobs:
       - run: supabase link --project-ref "${{ secrets.PRODUCTION_PROJECT_REF }}"
       - run: supabase db push
       - run: supabase functions deploy --project-ref "${{ secrets.PRODUCTION_PROJECT_REF }}"
+      - name: Configure the maintenance worker credential
+        shell: bash
+        # THE fix for the silent 401. schedule_maintenance_cron registers a pg_cron job that sends
+        # one value in both `x-worker-secret` and `authorization: Bearer`; the function accepts it
+        # only if that value equals its own WORKER_SECRET or SUPABASE_SERVICE_ROLE_KEY. Those two
+        # ends were configured in two different places by two different hands -- GitHub secrets here,
+        # `supabase secrets set` by whoever ran it -- and nothing compared them. They drifted, cron
+        # kept firing, pg_cron kept reporting success, and every run came back 401 with retention and
+        # anonymization quietly not running.
+        #
+        # Setting the function's WORKER_SECRET from the SAME value used to register the cron below
+        # makes the two agree by construction rather than by discipline.
+        #
+        # Only when a dedicated secret is configured. Without one the documented service-role
+        # fallback applies, and pushing the service role key into a second variable would spread the
+        # most privileged credential in the project for no gain.
+        run: |
+          if [ -n "${{ secrets.CV_PARSE_WORKER_SECRET }}" ]; then
+            supabase secrets set WORKER_SECRET="${{ secrets.CV_PARSE_WORKER_SECRET }}" --project-ref "${{ secrets.PRODUCTION_PROJECT_REF }}"
+            echo "Maintenance worker credential configured from CV_PARSE_WORKER_SECRET."
+          else
+            echo "No CV_PARSE_WORKER_SECRET configured; the maintenance cron will authenticate with the service role key."
+          fi
       - name: Production edge smoke
         run: npm run test:functions
         env:
@@ -143,6 +184,35 @@ jobs:
           case "$response" in
             *scheduled*) ;;
             *) echo "::error::Maintenance cron was not scheduled: $response"; exit 1 ;;
+          esac
+      - name: Prove the scheduled credential authenticates
+        shell: bash
+        # Sends EXACTLY the request schedule_maintenance_cron just registered -- same two headers,
+        # same single value, no apikey (pg_net does not send one) -- but with `mode: preflight`, so
+        # the function authenticates, reads its heartbeat row and returns without deleting a CV,
+        # anonymizing a candidate or touching the heartbeat.
+        #
+        # This is the check whose absence let the 401 run for weeks: `test:functions` above only
+        # sends an OPTIONS request, which every function answers 200 regardless of credential, so it
+        # proved the function was deployed and nothing whatsoever about whether it would accept the
+        # scheduled caller. A non-2xx here fails the deployment.
+        run: |
+          worker_secret="${{ secrets.CV_PARSE_WORKER_SECRET || secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}"
+          status="$(curl --silent --output /tmp/preflight.json --write-out '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --header "x-worker-secret: $worker_secret" \
+            --header "authorization: Bearer $worker_secret" \
+            --data '{"mode":"preflight"}' \
+            "${{ secrets.PRODUCTION_SUPABASE_URL }}/functions/v1/scheduled-maintenance")"
+          # The body carries the job key and its last status -- no credential, no candidate data.
+          echo "scheduled-maintenance preflight -> HTTP $status"
+          cat /tmp/preflight.json || true
+          echo
+          case "$status" in
+            2*) ;;
+            401) echo "::error::The maintenance credential registered with pg_cron is not accepted by the deployed function. Set CV_PARSE_WORKER_SECRET to the same value as the Function WORKER_SECRET, or clear it to use the service role key."; exit 1 ;;
+            *) echo "::error::Maintenance preflight returned HTTP $status; retention and anonymization would not run."; exit 1 ;;
           esac
 
   build-vercel-candidate:

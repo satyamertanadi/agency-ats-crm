@@ -131,3 +131,54 @@ describe('Today: Actions and Delivery',()=>{
     expect(screen.getByRole('radiogroup',{name:'Today view'})).toBeInTheDocument()
   })
 })
+
+/* "My active jobs" has to mean jobs this member owns.
+ *
+ * The panel filtered with `scope==='team' || !job.owner_member_id || job.owner_member_id===mine`,
+ * and that middle arm put every ownerless job into every consultant's personal panel at once --
+ * the same defect the work queue had, one layer up. Production showed four unassigned jobs under
+ * a heading reading "My active jobs".
+ */
+describe('Today: My active jobs ownership',()=>{
+  const job=(id:string,title:string,owner:string|null)=>({
+    id,organization_id:'org-1',company_id:'c1',pipeline_id:null,title,location:null,priority:'normal',
+    status:'open',currency:null,placement_fee_percentage:null,owner_member_id:owner,opened_at:null,
+    updated_at:'2026-08-14T10:00:00Z',
+  })
+
+  beforeEach(()=>{
+    vi.clearAllMocks()
+    capabilities.mockReturnValue({canViewTeamReports:true,canWriteCandidates:true,canSubmit:true})
+    repository.listTasks.mockResolvedValue([])
+    repository.listInterviews.mockResolvedValue([])
+    repository.listOffers.mockResolvedValue([])
+    repository.listPlacedJobCandidates.mockResolvedValue([])
+    repository.listJobs.mockResolvedValue([job('j1','Mine to run','m-1'),job('j2','Nobody owns this',null),job('j3','Theirs to run','m-2')])
+    repository.dashboardSummary.mockResolvedValue({companies:2,contacts:2,activeJobs:3,candidates:5,pipelineEntries:3,members:2})
+    repository.listEmailDeliveryIssues.mockResolvedValue([])
+    repository.listSubmissionPackages.mockResolvedValue([])
+    repository.listJobHealth.mockResolvedValue([])
+    repository.listRecentSubmissionFeedback.mockResolvedValue([])
+    repository.listDeliveryWorkbench.mockResolvedValue({rows:[],count:0})
+    listTeamMembers.mockResolvedValue([{id:'m-1',user_id:'u-1',status:'active',profiles:{full_name:'Satya Mertanadi'}}])
+  })
+
+  it('shows only the jobs the current member owns',async()=>{
+    renderToday()
+    expect(await screen.findByRole('heading',{name:'My active jobs'})).toBeInTheDocument()
+    expect(await screen.findByText('Mine to run')).toBeInTheDocument()
+    expect(screen.queryByText('Nobody owns this')).toBeNull()
+    expect(screen.queryByText('Theirs to run')).toBeNull()
+  })
+
+  /* Team view still surfaces the unassigned job -- it is real work someone has to pick up -- under a
+   * heading that does not claim it belongs to the reader. */
+  it('shows unassigned and colleagues jobs in team view, under a heading that does not claim them',async()=>{
+    renderToday()
+    await screen.findByRole('heading',{name:'My active jobs'})
+    fireEvent.click(screen.getByRole('radio',{name:'Team view'}))
+    expect(await screen.findByRole('heading',{name:'Active jobs'})).toBeInTheDocument()
+    expect(await screen.findByText('Nobody owns this')).toBeInTheDocument()
+    expect(screen.getByText('Theirs to run')).toBeInTheDocument()
+  })
+})
