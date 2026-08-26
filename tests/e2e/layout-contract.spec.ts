@@ -1,5 +1,5 @@
 import {expect,test} from '@playwright/test'
-import {BD_BOARD_FIXTURE,CLIENTS_TABLE_FIXTURE} from './bdFixture'
+import {BD_BOARD_FIXTURE,CLIENTS_TABLE_FIXTURE,TOOLBAR_FIXTURE} from './bdFixture'
 
 /* Layout contract for the dense authenticated surfaces, checked without authenticating.
  *
@@ -279,6 +279,38 @@ for(const width of [1366,390]){
     expect(result.badgeCount,'both commercial badges should render').toBe(2)
     expect(result.lastCellReachable,'the agreement/status column must be reachable inside its own container').toBe(true)
     expect(result.badgesIntact,'the agreement badges must not be clipped into fragments').toBe(true)
+  })
+}
+
+/* The renamed toolbar qualifiers still fit.
+ *
+ * "View:" and "List:" were too easy to confuse -- one is a saved set of filters, the other a fixed
+ * set of people -- so they became "Saved view:" and "Talent list:". Longer labels in a rail that
+ * wraps rather than scrolls is exactly how a control ends up half off the edge of a phone. */
+for(const width of [1366,390]){
+  test(`both toolbar controls stay fully visible at ${width}`,async({page})=>{
+    await page.goto('/login')
+    await page.evaluate((markup:string)=>{document.body.innerHTML=markup},TOOLBAR_FIXTURE)
+    await page.setViewportSize({width,height:width===1366?768:844})
+    const result=await page.evaluate(()=>{
+      const toolbar=document.getElementById('toolbar')
+      const view=document.getElementById('view-trigger')
+      const list=document.getElementById('list-trigger')
+      if(!toolbar||!view||!list)throw new Error('The toolbar fixture did not render.')
+      const bar=toolbar.getBoundingClientRect()
+      const inside=(el:HTMLElement)=>{const box=el.getBoundingClientRect();return box.left>=bar.left-1&&box.right<=bar.right+1&&box.width>0}
+      return {
+        pageOverflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+        viewInside:inside(view),listInside:inside(list),
+        viewText:(view.textContent||'').trim(),listText:(list.textContent||'').trim(),
+      }
+    })
+    expect(result.pageOverflow,'the toolbar must not widen the page').toBeLessThanOrEqual(0)
+    expect(result.viewInside,'the saved-view control must sit inside the rail').toBe(true)
+    expect(result.listInside,'the talent-list control must sit inside the rail').toBe(true)
+    // The qualifiers are the point of the rename; a truncation that ate them would undo it.
+    expect(result.viewText).toContain('Saved view:')
+    expect(result.listText).toContain('Talent list:')
   })
 }
 

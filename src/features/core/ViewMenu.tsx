@@ -116,7 +116,7 @@ export function ViewMenu({resource,paramKeys,params,onApply,onExport,exporting,b
   return <>
     <Menu label={`Views for ${resource}`} align="start" className="view-menu" items={items} trigger={(props)=>
       <Button {...props} type="button" size="sm" variant="secondary" trailingIcon={<ChevronDown size={14}/>}>
-        <span className="view-menu-label">View:</span> {activeView?.name||baseLabel}
+        <span className="view-menu-label">Saved view:</span> {activeView?.name||baseLabel}
       </Button>}/>
 
     <Modal title="Save this view" open={saveOpen} onClose={()=>setSaveOpen(false)}>
