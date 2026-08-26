@@ -190,7 +190,11 @@ export function TodayPage(){
   const overdue=items.filter((item)=>item.kind==='overdue')
   const todayItems=items.filter((item)=>item.kind==='today')
   const later=items.filter((item)=>item.kind==='upcoming'||item.kind==='recommended')
-  const activeJobs=query.data.jobs.filter((job)=>job.status==='open'&&(scope==='team'||!job.owner_member_id||job.owner_member_id===currentMember?.id))
+  /* "My active jobs" means jobs this member owns. The `!job.owner_member_id||` arm used to put every
+   * ownerless job in every consultant's personal panel at once -- the same defect the work queue had,
+   * one layer up: unassigned is not mine. Team view still shows them, under a heading that does not
+   * claim them. */
+  const activeJobs=query.data.jobs.filter((job)=>job.status==='open'&&(scope==='team'||job.owner_member_id===currentMember?.id))
   const healthByJob=new Map(query.data.jobHealth.map((health)=>[health.id,health]))
   return <Page {...shell}>
     {showSetup&&<SetupChecklist steps={steps} onDismiss={dismissSetup}/>}

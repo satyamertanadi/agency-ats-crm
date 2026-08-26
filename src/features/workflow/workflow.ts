@@ -155,6 +155,24 @@ export const recommendedCandidateAction=(input:{stage:PipelineStage;hasSubmissio
 
 const dayKey=(value:Date)=>`${value.getFullYear()}-${value.getMonth()}-${value.getDate()}`
 
+/* Does this work belong to the person asking?
+ *
+ * "My work" used to mean "not somebody else's work", which is not the same thing and is why the
+ * queue filled up with unassigned tasks and ownerless jobs. The old shape was
+ * `currentMemberId && owner && owner !== currentMemberId` -- the truthy `owner` guard let every
+ * null owner straight through, so an unassigned task passed the filter for every member of the
+ * workspace at once.
+ *
+ * Unassigned work is real work and still needs a home; that home is the organisation-wide view,
+ * where it is labelled as unassigned rather than quietly attributed to whoever is looking. So:
+ * without a member id (the team/admin scope) everything is in scope, and with one, only an exact
+ * ownership match is.
+ *
+ * Takes the owners a record can legitimately be owned through -- an interview answers to its
+ * organiser OR the job's owner -- and matches if ANY of them is the current member. */
+const ownedByViewer=(currentMemberId:string|undefined,...owners:Array<string|null|undefined>)=>
+  !currentMemberId||owners.some((owner)=>owner===currentMemberId)
+
 export function buildTodayWorkItems(input:{
   base:string;now:Date;currentMemberId?:string;tasks:Task[];interviews:Interview[];offers:Offer[];jobs:Job[]
   placements?:Array<{job_candidate_id:string;status?:string}>
@@ -167,7 +185,7 @@ export function buildTodayWorkItems(input:{
   const taskEntries:Array<{task:Task;kind:TodayWorkKind;href:string;who?:string;item:TodayWorkItem}>=[]
   for(const task of input.tasks){
     if(task.status==='completed'||task.status==='cancelled')continue
-    if(currentMemberId&&task.owner_member_id&&task.owner_member_id!==currentMemberId)continue
+    if(!ownedByViewer(currentMemberId,task.owner_member_id))continue
     const link=task.task_links?.[0]
     const href=link?.job_id?`${base}/jobs/${link.job_id}`:link?.candidate_id?`${base}/candidates/${link.candidate_id}`:link?.company_id?`${base}/clients/${link.company_id}`:`${base}/today`
     const due=task.due_at?new Date(task.due_at):null
@@ -178,7 +196,13 @@ export function buildTodayWorkItems(input:{
     // differentiator, so it leads; the task's own title becomes the supporting line. Untethered
     // tasks have no name to lead with, so they fall back to the task's own title as before.
     const who=link?.jobs?.title||link?.candidates?.full_name||link?.companies?.name
-    taskEntries.push({task,kind,href,who,item:{id:`task-${task.id}`,kind,title:who||task.title,reason:who?task.title:(task.description||'Owned follow-up'),href,cta:'Open',dueAt:task.due_at,taskId:task.id}})
+    /* The fallback used to read "Owned follow-up" for a task with no description -- including the
+     * unassigned ones, which is precisely the opposite of true. Nothing about an ownerless task is
+     * owned, and saying so on the organisation-wide queue is how an unassigned pile comes to look
+     * handled. The task's own description leads when there is one; otherwise the copy states the
+     * ownership plainly. */
+    const fallback=task.owner_member_id?'Follow-up task':'Unassigned follow-up'
+    taskEntries.push({task,kind,href,who,item:{id:`task-${task.id}`,kind,title:who||task.title,reason:who?task.title:(task.description||fallback),href,cta:'Open',dueAt:task.due_at,taskId:task.id}})
   }
   /* Repeated tasks collapse the same way repeated unowned jobs already did. A batch of eight
    * "Follow up on candidate availability" tasks is one decision applied eight times, and rendering
@@ -213,9 +237,21 @@ export function buildTodayWorkItems(input:{
   const cancellationActionInterviewIds=new Set<string>()
   for(const interview of input.interviews){
     const job=interview.job_candidates?.jobs
-    if(interview.status==='cancelled'&&interview.calendar_sync_status!=='failed')continue
-    if(currentMemberId&&interview.organizer_member_id&&interview.organizer_member_id!==currentMemberId&&job?.owner_member_id!==currentMemberId)continue
     const failed=interview.calendar_sync_status==='failed'
+    /* An interview is only work if it is still ahead of somebody, or if its calendar delivery broke.
+     *
+     * This used to skip cancelled interviews and nothing else, so a COMPLETED one fell through to
+     * the kind ladder below -- and because that ladder only asks whether the start time is today,
+     * an interview completed in July was filed as 'upcoming' and sat under "Later" in August. It
+     * also produced the duplicate the offer loop then added: "Record offer" for a candidate whose
+     * finished interview was still being advertised as forthcoming.
+     *
+     * Stated as what DOES belong rather than as a list of what does not, so a status added later
+     * (no_show, say) is excluded by default instead of silently reappearing under Later. A failed
+     * calendar sync still surfaces in either direction, because a cancellation the client never
+     * received is unfinished business whatever the interview's own status says. */
+    if(!failed&&interview.status!=='scheduled')continue
+    if(!ownedByViewer(currentMemberId,interview.organizer_member_id,job?.owner_member_id))continue
     if(failed&&interview.status==='cancelled')cancellationActionInterviewIds.add(interview.id)
     const starts=new Date(interview.starts_at)
     const outcomeDue=!failed&&interview.status==='scheduled'&&starts<now
@@ -236,7 +272,7 @@ export function buildTodayWorkItems(input:{
     seenOfferCandidates.add(offer.job_candidate_id)
     if(offer.status==='accepted'&&placedCandidates.has(offer.job_candidate_id))continue
     const job=offer.job_candidates?.jobs
-    if(currentMemberId&&job?.owner_member_id&&job.owner_member_id!==currentMemberId)continue
+    if(!ownedByViewer(currentMemberId,job?.owner_member_id))continue
     const action=recommendedRecruitmentAction({scope:'offer',status:offer.status,hasPlacement:placedCandidates.has(offer.job_candidate_id)})
     if(!action)continue
     items.push({
@@ -249,13 +285,17 @@ export function buildTodayWorkItems(input:{
       cta:action.label,
     })
   }
-  // Unowned jobs used to push one item each, but the reason string is always the same literal
-  // sentence -- six unowned jobs meant six back-to-back rows saying identically "This open job has
-  // no accountable consultant." Collapse 2+ into one row with a job per entry in `group`; a single
-  // unowned job still renders exactly as before (no disclosure UI for a group of one).
-  // (The old scope check `currentMemberId&&job.owner_member_id&&...` was already always false here
-  // -- job.owner_member_id is falsy for every job in this list -- so it's dropped, not weakened.)
-  const unownedJobs=input.jobs.filter((job)=>job.status==='open'&&!job.owner_member_id)
+  /* Unowned jobs used to push one item each, but the reason string is always the same literal
+   * sentence -- six unowned jobs meant six back-to-back rows saying identically "This open job has
+   * no accountable consultant." Collapse 2+ into one row with a job per entry in `group`; a single
+   * unowned job still renders exactly as before (no disclosure UI for a group of one).
+   *
+   * Excluded from "My work" entirely. A job with no owner is by definition not the current member's,
+   * and the previous code said as much -- it noted the scope check was "always false here" and
+   * dropped it, which is true and was exactly the wrong conclusion: the check being always false is
+   * what put every ownerless job in every consultant's personal queue. It belongs to the
+   * organisation-wide view, which labels it "Assign an owner" and is truthful about why. */
+  const unownedJobs=currentMemberId?[]:input.jobs.filter((job)=>job.status==='open'&&!job.owner_member_id)
   if(unownedJobs.length===1){
     const job=unownedJobs[0]!
     const action=recommendedRecruitmentAction({scope:'job',status:job.status,ownerMemberId:job.owner_member_id,candidateCount:0})!
@@ -297,7 +337,7 @@ export function buildTodayWorkItems(input:{
    * a reply now -- but never 'blocked', because nothing is stuck; the next move is simply the
    * consultant's. */
   for(const entry of input.feedback||[]){
-    if(currentMemberId&&entry.jobOwnerMemberId&&entry.jobOwnerMemberId!==currentMemberId)continue
+    if(!ownedByViewer(currentMemberId,entry.jobOwnerMemberId))continue
     items.push({
       id:`feedback-${entry.id}`,kind:'today',
       title:`${entry.candidateName||'Candidate'} · ${entry.jobTitle||'Job'}`,
