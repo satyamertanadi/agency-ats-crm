@@ -4652,6 +4652,25 @@ export type Database = {
         }
         Returns: string
       }
+      log_activity_with_follow_up: {
+        Args: {
+          p_direction?: string
+          p_links?: Json
+          p_occurred_at?: string
+          p_organization_id: string
+          p_subject?: string
+          p_summary: string
+          p_task_due_at?: string
+          p_task_owner_member_id?: string
+          p_task_priority?: string
+          p_task_title?: string
+          p_type: string
+        }
+        Returns: {
+          activity_id: string
+          task_id: string
+        }[]
+      }
       log_manual_activity: {
         Args: {
           p_direction?: string

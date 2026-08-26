@@ -2,7 +2,9 @@ import {useState,type FormEvent,type ReactNode} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ArrowDownLeft,ArrowUpRight,CircleDot,Handshake,Mail,MessageSquare,Phone,Send,StickyNote,Users} from 'lucide-react'
 import {useOrganization} from '../../app/OrganizationProvider'
-import {createActivity,listActivities,type ActivityLink} from '../core/repository'
+import {createActivityWithFollowUp,listActivities,type ActivityLink} from '../core/repository'
+import {listTeamMembers} from '../core/commercialRepository'
+import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {Button} from '../../shared/ui/Button'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Panel} from '../../shared/ui/Page'
@@ -17,6 +19,12 @@ const icons:Record<ActivityType,typeof Phone>={call:Phone,email:Mail,whatsapp:Me
 
 // datetime-local wants `YYYY-MM-DDTHH:mm` in local time; toISOString would shift it by the offset.
 const localNow=()=>{const now=new Date();now.setMinutes(now.getMinutes()-now.getTimezoneOffset());return now.toISOString().slice(0,16)}
+/* Copied deliberately from QuickTaskModal rather than imported through it: the two must agree, and
+ * the alternative -- ActivityFeed importing a modal to borrow a date -- would couple a panel to a
+ * dialog it has nothing else to do with. Same shortcuts, same 17:00-today / 09:00-later convention,
+ * so a follow-up booked from here lands where one booked from the task button lands. */
+const dueValue=(days:number)=>{const date=new Date();date.setDate(date.getDate()+days);date.setHours(days===0?17:9,0,0,0);const local=new Date(date.getTime()-date.getTimezoneOffset()*60_000);return local.toISOString().slice(0,16)}
+const DUE_SHORTCUTS=[['Today',0],['Tomorrow',1],['In 3 days',3],['Next week',7]] as const
 const relative=(iso:string)=>{const diff=Date.now()-new Date(iso).getTime();const mins=Math.round(diff/60000)
   if(mins<1)return 'just now';if(mins<60)return `${mins}m ago`
   const hours=Math.round(mins/60);if(hours<24)return `${hours}h ago`
@@ -41,7 +49,7 @@ export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, an
    * last one are the same moment of work, so they belong in the same header. */
   headerAction?:ReactNode
 }){
-  const {organization}=useOrganization();const cache=useQueryClient();const toast=useToast()
+  const {organization,membership}=useOrganization();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const toast=useToast()
   const primary=links[0]
   const [open,setOpen]=useState(false)
   const [type,setType]=useState<string>('call')
@@ -49,18 +57,57 @@ export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, an
   const [subject,setSubject]=useState('')
   const [summary,setSummary]=useState('')
   const [occurredAt,setOccurredAt]=useState(localNow)
+  /* The follow-up half. Closed by default and opened by a checkbox rather than always shown: most
+   * entries in this journal are a note about something finished, and a form that demanded a next
+   * action every time would teach people to type something into it. */
+  const [followUp,setFollowUp]=useState(false)
+  const [taskTitle,setTaskTitle]=useState('')
+  const [taskDueAt,setTaskDueAt]=useState(()=>dueValue(0))
+  const [taskPriority,setTaskPriority]=useState('normal')
+  const [taskOwnerId,setTaskOwnerId]=useState('')
+  /* A follow-up needs somewhere to point, and task_links only reaches these four. An activity filed
+   * only against a submission or a placement has no valid target -- the RPC refuses it -- so the
+   * section is not offered rather than offered and then refused. */
+  const canFollowUp=Boolean(links.some((link)=>link.candidate_id||link.company_id||link.contact_id||link.job_id))
+    &&!capabilities.data?.readOnly
+  // Only fetched once the section is actually open. A closed panel must not cost a team request.
+  const team=useQuery({queryKey:['team',organization?.id],enabled:followUp&&Boolean(organization),
+    queryFn:()=>listTeamMembers(organization!.id)})
 
   const query=useQuery({queryKey:['activities',organization?.id,primary],enabled:Boolean(organization&&primary),queryFn:()=>listActivities(organization!.id,primary!)})
-  const reset=()=>{setSubject('');setSummary('');setType('call');setDirection('outbound');setOccurredAt(localNow())}
+  const reset=()=>{setSubject('');setSummary('');setType('call');setDirection('outbound');setOccurredAt(localNow())
+    setFollowUp(false);setTaskTitle('');setTaskDueAt(dueValue(0));setTaskPriority('normal');setTaskOwnerId('')}
   const log=useMutation({
-    mutationFn:()=>createActivity(organization!.id,{activity_type:type,direction,subject:subject.trim()||undefined,summary:summary.trim(),occurred_at:new Date(occurredAt).toISOString()},links),
-    onSuccess:async()=>{reset();setOpen(false)
+    /* One call, one transaction. Never createActivity followed by createTask: those can half-succeed,
+     * and the half that survives is the note claiming a follow-up was booked. */
+    mutationFn:()=>createActivityWithFollowUp(organization!.id,
+      {activity_type:type,direction,subject:subject.trim()||undefined,summary:summary.trim(),occurred_at:new Date(occurredAt).toISOString()},
+      links,
+      followUp&&taskTitle.trim()
+        ?{title:taskTitle.trim(),dueAt:taskDueAt?new Date(taskDueAt).toISOString():undefined,
+          ownerMemberId:taskOwnerId||membership?.id,priority:taskPriority}
+        :undefined),
+    onSuccess:async(result)=>{const scheduled=Boolean(result.task_id);reset();setOpen(false)
       await cache.invalidateQueries({queryKey:['activities',organization?.id]})
-      // The dashboard reads the same journal, so its feed would otherwise lag behind this one.
-      await Promise.all([cache.invalidateQueries({queryKey:['dashboard',organization?.id]}),cache.invalidateQueries({queryKey:['today',organization?.id]})])},
-    onError:(error)=>toast.error(error,'The activity was not logged.'),
+      /* The dashboard reads the same journal, so its feed would otherwise lag behind this one.
+       * `tasks` joins them because a follow-up written here belongs to the same list the task button
+       * writes to, and Today is where it will actually be read. One invalidation pass, not one per
+       * write -- the two writes were one statement and the refresh is one act. */
+      await Promise.all([
+        cache.invalidateQueries({queryKey:['dashboard',organization?.id]}),
+        cache.invalidateQueries({queryKey:['today',organization?.id]}),
+        cache.invalidateQueries({queryKey:['tasks',organization?.id]}),
+      ])
+      if(scheduled)toast.success('Activity logged and follow-up scheduled.','It appears in Today as soon as it is due.')},
+    /* One message for both halves, because one is what happened: the transaction either wrote both or
+     * wrote neither, and a message naming only the activity would leave the user guessing about the
+     * task. */
+    onError:(error)=>toast.error(error,followUp?'Nothing was saved — the activity and the follow-up are recorded together.':'The activity was not logged.'),
   })
-  const submit=(event:FormEvent)=>{event.preventDefault();if(summary.trim())log.mutate()}
+  // A follow-up that was asked for and left unnamed blocks submission, rather than being dropped
+  // silently on the way to the server.
+  const ready=Boolean(summary.trim())&&(!followUp||Boolean(taskTitle.trim()))
+  const submit=(event:FormEvent)=>{event.preventDefault();if(ready)log.mutate()}
 
   return <Panel title={title} subtitle={subtitle} elevation="raised"
     action={<span className="panel-header-actions">{headerAction}{!readOnly&&<Button variant={open?'quiet':'secondary'} onClick={()=>{setOpen(!open);log.reset()}} aria-expanded={open}>{open?'Cancel':'Log activity'}</Button>}</span>}>
@@ -70,8 +117,38 @@ export function ActivityFeed({links,title='Activity',subtitle='Calls, emails, an
       <Field label="When"><Input type="datetime-local" max={localNow()} value={occurredAt} onChange={(event)=>setOccurredAt(event.target.value)}/></Field>
       <Field label="Subject (optional)"><Input value={subject} maxLength={120} placeholder="Intro call" onChange={(event)=>setSubject(event.target.value)}/></Field>
       <div className="full"><Field label="What happened"><Textarea rows={3} value={summary} required placeholder="She is interested but needs three months' notice." onChange={(event)=>setSummary(event.target.value)}/></Field></div>
+      {canFollowUp&&<div className="full activity-follow-up">
+        <label className="checkbox-row">
+          <input type="checkbox" checked={followUp} onChange={(event)=>setFollowUp(event.target.checked)}/>
+          <span>Schedule a follow-up <small>Saved with this activity. If the follow-up cannot be created, neither is saved.</small></span>
+        </label>
+        {followUp&&<div className="stack activity-follow-up-fields">
+          <Field label="What needs to happen next?">
+            <Input autoFocus value={taskTitle} maxLength={200} placeholder="Call back about the counter-offer"
+              onChange={(event)=>setTaskTitle(event.target.value)}/>
+          </Field>
+          <div className="task-date-shortcuts" aria-label="Due date shortcuts">
+            {DUE_SHORTCUTS.map(([label,days])=><Button type="button" size="sm" variant="quiet" key={label}
+              onClick={()=>setTaskDueAt(dueValue(days))}>{label}</Button>)}
+          </div>
+          <div className="form-grid">
+            <Field label="Due"><Input type="datetime-local" value={taskDueAt} onChange={(event)=>setTaskDueAt(event.target.value)}/></Field>
+            <Field label="Owner"><Select value={taskOwnerId||membership?.id||''} onChange={(event)=>setTaskOwnerId(event.target.value)}>
+              <option value="">Unassigned</option>
+              {team.data?.filter((member)=>member.status==='active').map((member)=>
+                <option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}
+            </Select></Field>
+            <Field label="Priority"><Select value={taskPriority} onChange={(event)=>setTaskPriority(event.target.value)}>
+              <option value="normal">Normal</option><option value="high">High</option>
+              <option value="urgent">Urgent</option><option value="low">Low</option>
+            </Select></Field>
+          </div>
+        </div>}
+      </div>}
       {log.error&&<p className="form-error full" role="alert">{log.error.message}</p>}
-      <div className="form-actions full"><Button type="submit" loading={log.isPending} disabled={!summary.trim()}>Save activity</Button></div>
+      <div className="form-actions full"><Button type="submit" loading={log.isPending} disabled={!ready}>
+        {followUp?'Save activity and follow-up':'Save activity'}
+      </Button></div>
     </form>}
     {query.isLoading?<LoadingState label="Loading activity…"/>
       :query.error?<ErrorState error={query.error} retry={()=>void query.refetch()}/>

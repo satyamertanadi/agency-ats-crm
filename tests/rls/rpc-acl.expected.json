@@ -37,6 +37,7 @@
     "list_company_pipeline",
     "list_delivery_workbench",
     "list_job_health",
+    "log_activity_with_follow_up",
     "log_manual_activity",
     "lookup_prospects_by_linkedin",
     "merge_candidates",

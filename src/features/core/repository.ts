@@ -1,7 +1,7 @@
 import { supabase } from '../../shared/lib/supabase'
 import { AppError, DUPLICATE_CANDIDATE, humanizeRpcError } from '../../shared/lib/errors'
 import { row, rows } from '../../shared/lib/rows'
-import { activitySchema, candidateListMembershipSchema, candidateListRecordSchema, candidateListRemoveResultSchema, candidateListSchema, candidateListWriteResultSchema, candidatePipelineAssignmentSchema, candidateQualityCountSchema, candidateSearchRowSchema, companySchema, contactSchema, deliveryWorkbenchRowSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
+import { activitySchema, activityWithFollowUpSchema, candidateListMembershipSchema, candidateListRecordSchema, candidateListRemoveResultSchema, candidateListSchema, candidateListWriteResultSchema, candidatePipelineAssignmentSchema, candidateQualityCountSchema, candidateSearchRowSchema, companySchema, contactSchema, deliveryWorkbenchRowSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
 import type { Activity, CandidateList, CandidateListMembership, CandidateListRemoveResult, CandidateListVisibility, CandidateListWriteResult, CandidateStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, DeliveryWorkbenchRow, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReview, Task } from '../../shared/types/domain'
 import type {Json} from '../../generated/database.types'
 
@@ -180,6 +180,40 @@ export async function createActivity(organizationId:string,input:{activity_type:
   const {data,error}=await supabase.rpc('log_manual_activity',{p_organization_id:organizationId,p_type:input.activity_type,p_summary:input.summary,p_subject:input.subject||undefined,p_direction:input.direction||undefined,p_occurred_at:input.occurred_at||undefined,p_links:payload as Json})
   if(error)fail(error,'Could not log this activity')
   return data as string
+}
+
+/* The composer's write: the activity, and optionally the follow-up that came out of it.
+ *
+ * One RPC rather than createActivity followed by createTask, and the reason is a failure mode rather
+ * than a round trip. Two calls can half-succeed: the note lands, the task is refused, and the journal
+ * now says a call happened and a follow-up was booked while no follow-up exists anywhere. The
+ * consultant believes the next step is scheduled and nothing will ever correct them. One statement is
+ * one transaction, so a refused task takes the activity with it and the form reports the failure.
+ *
+ * `followUp` omitted means activity only -- the same write log_manual_activity always did, reached
+ * through the same function so the composer has one path instead of two. */
+export interface ActivityFollowUpInput {title:string;dueAt?:string;ownerMemberId?:string;priority?:string}
+export async function createActivityWithFollowUp(
+  organizationId:string,
+  input:{activity_type:string;direction?:string;subject?:string;summary:string;occurred_at?:string},
+  links:ActivityLink[],
+  followUp?:ActivityFollowUpInput,
+){
+  const payload=links.map((link)=>{const [column,value]=linkColumn(link);return {[column]:value}})
+  const {data,error}=await supabase.rpc('log_activity_with_follow_up',{
+    p_organization_id:organizationId,p_type:input.activity_type,p_summary:input.summary,
+    p_subject:input.subject||undefined,p_direction:input.direction||undefined,
+    p_occurred_at:input.occurred_at||undefined,p_links:payload as Json,
+    /* A blank title is how the closed follow-up section says it was left closed. Sent as undefined
+     * rather than an empty string so the SQL default applies and the intent is unambiguous. */
+    p_task_title:followUp?.title?.trim()||undefined,
+    p_task_due_at:followUp?.dueAt||undefined,
+    p_task_owner_member_id:followUp?.ownerMemberId||undefined,
+    p_task_priority:followUp?.priority||undefined,
+  })
+  if(error)fail(error,followUp?'Nothing was saved. The activity and the follow-up are recorded together, so neither was written.':'Could not log this activity')
+  const [result]=rows(data,activityWithFollowUpSchema,'The activity result did not match the expected shape')
+  return result??{activity_id:'',task_id:null}
 }
 
 /* `jobId` scopes the four workspace lists below (interviews, offers, placements, submission

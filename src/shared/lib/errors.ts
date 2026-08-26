@@ -27,6 +27,10 @@ const rpcMessages:Record<string,string>={
   // can say "you" -- a colleague's list of the same name is not what was hit.
   duplicate_list_name:'You already have a talent list with that name.',
   invalid_visibility:'A talent list is either private to you or shared with the workspace.',
+  /* Raised by log_activity_with_follow_up when the activity is linked only to records a task cannot
+   * point at. The follow-up is meant to be attached to the record you just wrote about, so an
+   * unattached one is refused rather than created and left linking nowhere. */
+  follow_up_link_required:'A follow-up has to be attached to a candidate, client, contact, or job.',
   authentication_required:'Sign in again to continue.',
   service_role_required:'This action can only run on the server.',
   google_auth_required:'Connect your Google account first.',
