@@ -20,6 +20,7 @@
     "test:watch": "node node_modules/vitest/vitest.mjs",
     "test:e2e": "playwright test",
     "test:rls": "node node_modules/vitest/vitest.mjs run --config vitest.rls.config.ts",
+    "test:edge": "deno test --allow-read=. tests/edge/",
     "test:staging": "node node_modules/vitest/vitest.mjs run --config vitest.staging.config.ts",
     "demo:generate": "node scripts/generate-demo-data.mjs",
     "format:css": "prettier --write \"src/styles/**/*.css\"",

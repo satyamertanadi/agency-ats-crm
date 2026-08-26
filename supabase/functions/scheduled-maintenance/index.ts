@@ -1,5 +1,6 @@
 import {clients,FunctionError} from '../_shared/auth.ts'
 import {corsHeaders,json,log,requestId} from '../_shared/http.ts'
+import {isAuthorized,readMode,type MaintenanceMode} from './authorization.ts'
 
 // Every recurring data-hygiene job the product owes the client runs here: expired CV drafts and the
 // files behind them, GDPR retention/anonymization, expired email payloads, expired import payloads,
@@ -17,8 +18,13 @@ const jobKey='scheduled-maintenance'
 Deno.serve(async(request)=>{
   if(request.method==='OPTIONS')return new Response('ok',{headers:corsHeaders(request)})
   const requestID=requestId(request)
+  /* Declared out here so the catch below can tell a preflight from a real run. A preflight must not
+   * write the heartbeat even when it fails -- see recordFailure's guard. */
+  let mode:MaintenanceMode='run'
   try{
     authorize(request)
+    mode=await readMode(request)
+    if(mode==='preflight')return json(request,{...await preflight(request),requestId:requestID})
     const result=await runMaintenance(request,requestID)
     return json(request,{...result,requestId:requestID})
   }catch(error){
@@ -28,22 +34,56 @@ Deno.serve(async(request)=>{
     // a healthy job failed.
     // A heartbeat write that itself fails must not replace the original error in the response --
     // the caller needs to see why the run failed, not why the bookkeeping did.
-    if(failure.status!==401)await recordFailure(request,failure).catch((heartbeatError)=>log('error','scheduled_maintenance_heartbeat_failed',{requestId:requestID,detail:heartbeatError instanceof Error?heartbeatError.message:String(heartbeatError)}))
-    log('error','scheduled_maintenance_failed',{requestId:requestID,code:failure.code,status:failure.status})
+    /* A preflight is excluded for the same reason a 401 is: it did no work, so marking the job
+     * failed would put a red state on the Admin diagnostics for a run that never happened -- and a
+     * deploy-time check that can dirty production bookkeeping is worse than no check. */
+    if(failure.status!==401&&mode!=='preflight')await recordFailure(request,failure).catch((heartbeatError)=>log('error','scheduled_maintenance_heartbeat_failed',{requestId:requestID,detail:heartbeatError instanceof Error?heartbeatError.message:String(heartbeatError)}))
+    log('error','scheduled_maintenance_failed',{requestId:requestID,mode,code:failure.code,status:failure.status})
     return json(request,{error:{code:failure.code,message:failure.message,requestId:requestID}},failure.status)
   }
 })
 
-// Unchanged from the original cleanup(): either the dedicated worker secret or the service role key
-// authorizes a run. This deletes candidate PII, so a misconfiguration must fail loudly rather than
-// let an unauthenticated caller trigger it.
+/* Either the dedicated worker secret or the service role key authorizes a run, unchanged. The rule
+ * itself now lives in authorization.ts so it can be unit-tested against the whole credential matrix
+ * instead of only being exercised by a real scheduled invocation -- which is how a mismatch survived
+ * in production for as long as it did. This deletes candidate PII, so a misconfiguration must fail
+ * loudly rather than let an unauthenticated caller trigger it. */
 function authorize(request:Request){
-  const secret=Deno.env.get('WORKER_SECRET')
-  const serviceRole=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  const bearer=request.headers.get('authorization')?.replace(/^Bearer\s+/i,'')||null
-  const workerAuthorized=Boolean(secret&&request.headers.get('x-worker-secret')===secret)
-  const serviceAuthorized=Boolean(serviceRole&&bearer===serviceRole)
-  if(!workerAuthorized&&!serviceAuthorized)throw new FunctionError(401,'worker_authentication_required','Worker authentication required.')
+  const authorized=isAuthorized(request.headers,{
+    workerSecret:Deno.env.get('WORKER_SECRET')??null,
+    serviceRoleKey:Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')??null,
+  })
+  if(!authorized)throw new FunctionError(401,'worker_authentication_required','Worker authentication required.')
+}
+
+/* Proves the scheduled credential is accepted, without doing any of the work.
+ *
+ * This exists because the only previous evidence that maintenance could authenticate was a real
+ * run at :17 past the hour -- and when that started returning 401 nothing failed, because pg_cron
+ * only reports whether the REQUEST was made. deploy.yml calls this with exactly the headers
+ * schedule_maintenance_cron registers, so a credential mismatch fails the deployment instead of
+ * silently stopping retention.
+ *
+ * Strictly read-only. It does not claim the heartbeat, delete a CV, anonymize a candidate, or write
+ * anything at all. It does READ the heartbeat row, because a missing row is the other way a real run
+ * dies ('heartbeat_unavailable'), and finding that at deploy time is the entire point.
+ *
+ * The response deliberately carries no secret and no candidate data -- only the job's own public
+ * status, which Admin already displays. */
+async function preflight(request:Request){
+  const {admin}=clients(request)
+  const heartbeat=await admin.from('maintenance_heartbeats')
+    .select('job_key,last_status,last_successful_run_at').eq('job_key',jobKey).maybeSingle()
+  if(heartbeat.error)throw new FunctionError(500,'heartbeat_unavailable',`Could not read the maintenance heartbeat: ${heartbeat.error.message}`)
+  if(!heartbeat.data)throw new FunctionError(500,'heartbeat_unavailable',`No maintenance heartbeat row exists for ${jobKey}.`)
+  log('info','scheduled_maintenance_preflight_ok',{jobKey})
+  return {
+    mode:'preflight' as const,
+    ok:true,
+    jobKey,
+    lastStatus:heartbeat.data.last_status??null,
+    lastSuccessfulRunAt:heartbeat.data.last_successful_run_at??null,
+  }
 }
 
 async function runMaintenance(request:Request,requestID:string){

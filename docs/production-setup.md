@@ -33,6 +33,50 @@ Before enabling the feature for consultants, test one English PDF, Indonesian PD
 
 `generate-candidate-profile` and `parse-candidate-cv` both enforce per-user and per-organization hourly caps (20 and 100 profile generations/hour; 10 CV parse dispatches/hour, counting retries), plus a monthly per-organization token ceiling on profile generation, since `ANTHROPIC_API_KEY` is one key for the whole deployment and an unbounded caller can exhaust it for every tenant. The monthly ceiling defaults to 50,000,000 tokens and is overridable per environment via the `AI_PROFILE_MONTHLY_TOKEN_CEILING` Supabase Function secret. These are deliberately generous starting points, not tuned limits — watch for `profile_rate_limited`, `org_profile_rate_limited`, `org_monthly_ceiling_reached`, and `parse_rate_limited` in the Function logs and tighten once real usage is visible.
 
+## Scheduled maintenance authentication
+
+There is exactly one authentication contract for `scheduled-maintenance`, and both ends of it are
+configured by the deployment rather than by hand.
+
+`schedule_maintenance_cron` registers an hourly pg_cron job (`17 * * * *`) that POSTs **one value in
+two headers**:
+
+```
+x-worker-secret: <secret>
+authorization:   Bearer <secret>
+```
+
+The function accepts the request when that value equals **either** its own `WORKER_SECRET` **or** the
+`SUPABASE_SERVICE_ROLE_KEY` the platform injects. So a deployment is only correct when the value used
+to register the cron is one the deployed function already holds.
+
+This is what broke: the two ends were configured in two different places -- the GitHub secret
+`CV_PARSE_WORKER_SECRET` here, `supabase secrets set WORKER_SECRET` by whoever ran it -- and nothing
+compared them. They drifted. pg_cron kept firing and kept reporting success, because pg_cron only
+reports whether the request was *made*; the function answered 401 every hour, and retention,
+anonymization and expired-CV cleanup silently stopped. `npm run test:functions` did not catch it
+because it only sends `OPTIONS`, which every function answers 200 regardless of credential.
+
+Two changes make that unrepeatable:
+
+- **The credential is set from one source.** When `CV_PARSE_WORKER_SECRET` is configured, the
+  production deploy runs `supabase secrets set WORKER_SECRET=` with that same value before
+  registering the cron, so the two cannot disagree. When it is not configured, both ends use the
+  service role key and nothing extra is stored.
+- **The deployment proves it.** After registering the cron, the pipeline POSTs
+  `{"mode":"preflight"}` with exactly the headers pg_cron sends. Preflight authenticates, reads the
+  heartbeat row and returns -- it deletes nothing, anonymizes nothing and does not write the
+  heartbeat. A non-2xx fails the deploy. Staging runs the same check one gate earlier.
+
+To rotate the secret: change `CV_PARSE_WORKER_SECRET` and redeploy. Do not set `WORKER_SECRET`
+manually in the Supabase dashboard -- the deploy overwrites it, and a hand-set value is exactly the
+drift this section exists to prevent.
+
+Admin Center reports the real state and is not satisfied by cron firing: `get_maintenance_health`
+returns `delivery` when an attempt was recorded but the worker never started, which is what a 401
+looks like from the database's side. Maintenance counts as operational only after a genuine
+scheduled run records a start, a finish and a success.
+
 ## Staging-gated Supabase and Vercel promotion
 
 Migrations, Edge Functions, and the web application deploy through `.github/workflows/deploy.yml`, never by hand. Every `main` commit first passes lint, typecheck, unit tests, and build. Supabase then deploys to staging, where Edge preflights and the real-provider CV/profile contract run. Vercel builds one production candidate and browser-smokes its unaliased URL before production Supabase can change. After the compatible database and Functions deploy, a dedicated synthetic consultant must open Today, Jobs, Candidates, and Clients on that same candidate artifact. Only then is the artifact promoted; a rebuild between browser gate and promotion is forbidden.
