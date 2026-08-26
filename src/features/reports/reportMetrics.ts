@@ -14,6 +14,17 @@ export const metricDefinitions={
    * in this period, how many reached a placement); this one is not. A candidate submitted in December
    * and placed in January counts here and not there. */
   recordedPlacement:'Every non-cancelled placement created during the selected period, whatever period the candidate was submitted in. Larger than the funnel placement figure whenever a placement closed in this period for a candidate submitted before it.',
+  /* The personal scorecard's tiles are built by buildConsultantRows, which -- unlike the team funnel
+   * -- applies NO cohort constraint. A consultant's interview count includes interviews they ran this
+   * month for someone submitted last month, because that is the work they did this month.
+   *
+   * The tiles previously carried `interview` and `offer` above, which are the cohort sentences. The
+   * numbers were right and their stated definitions were not, which is the worst arrangement of the
+   * two: a consultant reconciling their tile against the sentence under their cursor would find a
+   * discrepancy that does not exist and conclude the report is broken. Naming the personal
+   * definitions separately is what lets a drilldown open exactly the records the tile counted. */
+  consultantInterview:'A candidate-and-job record you created a non-cancelled interview for during the selected period, whatever period the candidate was submitted in.',
+  consultantOffer:'A candidate-and-job record you presented or decided an offer on during the selected period, whatever period the candidate was submitted in.',
 } as const
 
 /* Chart labels for a set of people, disambiguated only as far as they need to be.
