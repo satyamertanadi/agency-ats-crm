@@ -8,6 +8,7 @@ import {currencyOptions} from '../../shared/lib/currencies'
 import {candidateAvailability,candidateSource,workAuthorization} from '../../shared/lib/optionSets'
 import type {OptionSet} from '../../shared/lib/optionSet'
 import {Field,Input,Select} from '../../shared/ui/Field'
+import {nameConcernHint} from '../../shared/lib/credibility'
 import {LocationField} from '../../shared/ui/LocationField'
 import {OptionSelect} from '../../shared/ui/OptionSelect'
 
@@ -58,7 +59,12 @@ export type CandidateFormProps={
  * candidate this is. Everything else stays on edit, where the record is being completed
  * deliberately -- and the CV-parse path already fills most of it without anyone typing. */
 export function CandidateForm({form,mode='create',owners=[],salaryPeriod,baseCurrency,lowConfidence,disabled=false}:CandidateFormProps){
-  const {register,control,formState:{errors}}=form
+  const {register,control,watch,formState:{errors}}=form
+  /* A prompt, never a rule. A scraped profile sentence reached production sitting where a
+   * candidate's name should be, and nothing between the paste and the INSERT ever looked at it.
+   * This asks; it does not block saving, because the consultant is the one who knows whether an
+   * unusual-looking name is real -- see shared/lib/credibility for why that matters. */
+  const nameHint=nameConcernHint(watch('full_name'))
   const periodLabel=salaryPeriod==='monthly'?'month':'year'
   /* The status maps are written for badges, where a chip reading just "Granted" out of context is
    * ambiguous -- so they carry the noun ("Consent granted"). Inside a select that already has a
@@ -73,7 +79,7 @@ export function CandidateForm({form,mode='create',owners=[],salaryPeriod,baseCur
   if(mode==='create')return <div className="candidate-form">
     <section className="candidate-form-section">
       <div className="form-grid">
-        <FormField label="Full name" error={errors.full_name?.message} className="full">
+        <FormField label="Full name" error={errors.full_name?.message} hint={nameHint} className="full">
           <Input autoFocus disabled={disabled} {...register('full_name')}/>
         </FormField>
         <FormField label="Email" error={errors.email?.message}><Input type="email" disabled={disabled} {...register('email')}/></FormField>
@@ -95,7 +101,7 @@ export function CandidateForm({form,mode='create',owners=[],salaryPeriod,baseCur
     <section className="candidate-form-section">
       <h3>Who they are</h3>
       <div className="form-grid">
-        <FormField label="Full name" error={errors.full_name?.message} low={lowConfidence?.('full_name')} className="full">
+        <FormField label="Full name" error={errors.full_name?.message} low={lowConfidence?.('full_name')} hint={nameHint} className="full">
           {/* Not autofocused: in CV review the eye belongs on the flagged values, and on the detail
             * page focus has already been placed. The create form above focuses its own first field. */}
           <Input disabled={disabled} {...register('full_name')}/>
@@ -201,7 +207,7 @@ function LocationControlledField({control,low}:{
   </FormField>
 }
 
-function FormField({label,error,low,className,children}:{label:string;error?:string;low?:boolean;className?:string;children:ReactNode}){
-  const field=<Field label={label} error={error}>{children}{low&&<small className="cv-low-confidence"><AlertTriangle size={11}/>Low confidence — check this value</small>}</Field>
+function FormField({label,error,low,hint,className,children}:{label:string;error?:string;low?:boolean;hint?:string|null;className?:string;children:ReactNode}){
+  const field=<Field label={label} error={error} hint={hint||undefined}>{children}{low&&<small className="cv-low-confidence"><AlertTriangle size={11}/>Low confidence — check this value</small>}</Field>
   return className?<div className={className}>{field}</div>:field
 }
