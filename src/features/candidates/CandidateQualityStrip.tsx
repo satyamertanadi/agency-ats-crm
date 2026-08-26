@@ -27,12 +27,19 @@ export function CandidateQualityStrip({organizationId,filters,issue,onIssue}:{
   issue:string|null
   onIssue:(next:string|null)=>void
 }){
-  /* Keyed on the eight shared filters only. Choosing an issue must not refetch the counts -- they do
-   * not change, and a strip that flickered every time you pressed one of its own buttons would read
-   * as the numbers being recalculated against the choice. */
+  /* Keyed on the shared filters only. Choosing an issue must not refetch the counts -- they do not
+   * change, and a strip that flickered every time you pressed one of its own buttons would read as
+   * the numbers being recalculated against the choice.
+   *
+   * `listId` IS one of them, and the reason is the property this whole strip exists to hold: press
+   * "No CV (12)" and get twelve rows. Inside a talent list, counts taken over the whole database
+   * would put a number on the button that pressing it cannot produce. It belongs to the key as well
+   * as to the arguments, so switching lists refetches rather than showing the previous list's totals.
+   *
+   * `queue` and `issue` remain deliberately unread: see the header. */
   const key={query:filters.query||'',status:filters.status||'',location:filters.location||'',
     source:filters.source||'',ownerMemberId:filters.ownerMemberId||'',tag:filters.tag||'',
-    skill:filters.skill||'',availability:filters.availability||''}
+    skill:filters.skill||'',availability:filters.availability||'',listId:filters.listId||''}
   const summary=useQuery({
     queryKey:['candidate-quality-summary',organizationId,key],
     queryFn:()=>candidateQualitySummary(organizationId,key),

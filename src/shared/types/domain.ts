@@ -156,6 +156,29 @@ export type SavedView = {
   filters:Record<string,unknown>;is_shared:boolean;is_default:boolean;updated_at:string
 }
 
+/* A Talent List: the people somebody chose, as opposed to the people a query returned.
+ *
+ * Deliberately shaped nothing like SavedView above, because the two must never be mistaken for each
+ * other. A saved view stores FILTERS and re-answers its question on every load; a list stores
+ * MEMBERSHIP and answers nothing -- it only changes when a person changes it. The day they share a
+ * type is the day somebody "unifies" them and a shortlist starts rewriting itself.
+ *
+ * `member_count` is what the CALLER can see rather than what the list holds, because the count comes
+ * back through the same RLS the membership rows do. */
+export type CandidateListVisibility='private'|'workspace'
+export type CandidateList = {
+  id:string;organization_id:string;owner_member_id:string;owner_name:string|null
+  name:string;description:string|null;visibility:CandidateListVisibility;member_count:number
+  created_at:string;updated_at:string;archived_at:string|null
+}
+/** Which lists one candidate is on, among those the caller may see. */
+export type CandidateListMembership={list_id:string;name:string;visibility:CandidateListVisibility}
+/* What a bulk membership write actually did. Two numbers rather than a boolean, for the reason
+ * runBulk exists: "12 added, 3 already there" is information, and a single "done" covering both is
+ * what makes people re-check by hand. */
+export type CandidateListWriteResult={added:number;skipped:number}
+export type CandidateListRemoveResult={removed:number;skipped:number}
+
 export type Contact = { id: string; organization_id: string; company_id: string; full_name: string; position: string | null; email: string | null; phone: string | null; contact_status: ContactStatus; next_follow_up_at: string | null; companies?: Pick<Company,'id'|'name'> | null }
 export type Job = { id: string; organization_id: string; company_id: string; pipeline_id: string | null; title: string; location: string | null; priority: JobPriority; status: JobStatus; employment_type?: string | null; currency: string | null; salary_min?:number|null;salary_max?:number|null;placement_fee_percentage: number | null;fixed_fee?:number|null;description?:string|null;requirements?:string|null;owner_member_id:string|null; opened_at: string | null; updated_at: string; companies?: Pick<Company,'id'|'name'> | null }
 export type JobHealth={id:string;company_id:string;pipeline_id:string;title:string;company_name:string;location:string|null;priority:JobPriority;status:JobStatus;owner_member_id:string|null;owner_name:string|null;opened_at:string|null;days_open:number;candidate_count:number;waiting_count:number;phase_counts:Record<string,number>;salary_min:number|null;salary_max:number|null;currency:string|null;fee_percentage:number|null;fixed_fee:number|null;expected_fee:number|null;fee_source:string|null;next_action:string|null;last_activity_at:string|null;already_in_job:boolean;updated_at:string}

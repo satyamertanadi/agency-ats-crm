@@ -12,17 +12,22 @@ import type {CandidateSearchRow} from '../../shared/types/domain'
  * a click aimed at a control still reaches that control, and that Escape puts the keyboard back where
  * it was rather than at the top of the document. */
 
-const {listCandidatesPage,candidateQualitySummary,listTeamMembers,recordWorkflowEvent,capabilities}=vi.hoisted(()=>({
+const {listCandidatesPage,candidateQualitySummary,listTeamMembers,recordWorkflowEvent,capabilities,
+  listCandidateLists,addCandidatesToList,removeCandidatesFromList,createCandidateList,
+  updateCandidateList,setCandidateListArchived}=vi.hoisted(()=>({
   listCandidatesPage:vi.fn(),candidateQualitySummary:vi.fn(),listTeamMembers:vi.fn(),recordWorkflowEvent:vi.fn(),capabilities:vi.fn(),
+  listCandidateLists:vi.fn(),addCandidatesToList:vi.fn(),removeCandidatesFromList:vi.fn(),
+  createCandidateList:vi.fn(),updateCandidateList:vi.fn(),setCandidateListArchived:vi.fn(),
 }))
-vi.mock('../core/repository',()=>({listCandidatesPage,candidateQualitySummary}))
+vi.mock('../core/repository',()=>({listCandidatesPage,candidateQualitySummary,listCandidateLists,
+  addCandidatesToList,removeCandidatesFromList,createCandidateList,updateCandidateList,setCandidateListArchived}))
 vi.mock('../core/commercialRepository',()=>({listTeamMembers,mergeCandidates:vi.fn(),updateCandidateProfile:vi.fn(),
   listSavedViews:vi.fn().mockResolvedValue([]),saveView:vi.fn(),deleteSavedView:vi.fn(),
   getCandidateDetail:vi.fn(),getCompanyDetail:vi.fn(),listCandidateDocuments:vi.fn().mockResolvedValue([])}))
 vi.mock('../../shared/lib/productAnalytics',()=>({recordWorkflowEvent}))
 vi.mock('../../app/useWorkspaceCapabilities',()=>({useWorkspaceCapabilities:()=>({data:capabilities()})}))
 vi.mock('../../app/AuthProvider',()=>({useAuth:()=>({user:{id:'user-1'}})}))
-vi.mock('../../app/OrganizationProvider',()=>({useOrganization:()=>({organization:{id:'org-1',slug:'acme',base_currency:'USD'}})}))
+vi.mock('../../app/OrganizationProvider',()=>({useOrganization:()=>({organization:{id:'org-1',slug:'acme',base_currency:'USD'},membership:{id:'member-1'}})}))
 vi.mock('../../shared/ui/Toast',()=>({useToast:()=>({success:vi.fn(),error:vi.fn(),info:vi.fn()})}))
 vi.mock('./AddCandidateModal',()=>({AddCandidateModal:()=>null}))
 vi.mock('./AddCandidateToJobModal',()=>({AddCandidateToJobModal:({open}:{open:boolean})=>open?<div>Add to job modal</div>:null}))
@@ -80,6 +85,7 @@ describe('CandidatesPage Quick View',()=>{
     listCandidatesPage.mockResolvedValue({rows,count:2})
     candidateQualitySummary.mockResolvedValue([{issue_code:'missing_cv',candidate_count:12}])
     listTeamMembers.mockResolvedValue([{id:'m1',user_id:'user-1',status:'active',profiles:{full_name:'Satya Mertanadi'}}])
+    listCandidateLists.mockResolvedValue([])
   })
 
   /* The persistent pane is gone, not hidden. If it comes back, the table pays 320px on exactly the
@@ -259,6 +265,7 @@ describe('CandidatesPage data quality',()=>{
       {issue_code:'missing_skills',candidate_count:30},
     ])
     listTeamMembers.mockResolvedValue([{id:'m1',user_id:'user-1',status:'active',profiles:{full_name:'Satya Mertanadi'}}])
+    listCandidateLists.mockResolvedValue([])
   })
 
   /* The counts are meaningless beside any other queue -- "Stale" is defined by activity, not by
@@ -380,5 +387,119 @@ describe('CandidatesPage data quality',()=>{
     fireEvent.click(row.querySelector('td:nth-child(2)') as HTMLElement)
     const drawer=await screen.findByRole('dialog')
     expect(drawer).not.toHaveTextContent('Needs enrichment')
+  })
+})
+
+/* Talent Lists, from the list's side.
+ *
+ * The behaviour worth pinning is not "a menu renders". It is the boundary between the two controls
+ * that sit next to each other: a saved view must never swallow the list, applying one must not drop
+ * it, and clearing the filters must not clear it either -- a list is a scope, like the queue tabs,
+ * and the three ways that could silently go wrong are all here.
+ */
+describe('CandidatesPage talent lists',()=>{
+  const talentList=(overrides={})=>({
+    id:'list-1',organization_id:'org-1',owner_member_id:'member-1',owner_name:'Satya Mertanadi',
+    name:'Acme CFO shortlist',description:null,visibility:'private',member_count:3,
+    created_at:'2026-08-01T00:00:00Z',updated_at:'2026-08-01T00:00:00Z',archived_at:null,...overrides,
+  })
+
+  beforeEach(()=>{
+    vi.clearAllMocks()
+    capabilities.mockReturnValue({canMovePipeline:true,canWriteCandidates:true})
+    listCandidatesPage.mockResolvedValue({rows,count:2})
+    listTeamMembers.mockResolvedValue([{id:'member-1',user_id:'user-1',status:'active',profiles:{full_name:'Satya Mertanadi'}}])
+    listCandidateLists.mockResolvedValue([talentList()])
+  })
+
+  it('sends the list id to the server rather than filtering in React',async()=>{
+    renderPage('/app/acme/candidates?list=list-1')
+    await findRow('Ni Putu Widya')
+    expect(lastFilters()?.listId).toBe('list-1')
+  })
+
+  it('names the active list on the control',async()=>{
+    renderPage('/app/acme/candidates?list=list-1')
+    expect(await screen.findByRole('button',{name:/Acme CFO shortlist/})).toBeInTheDocument()
+  })
+
+  /* A hand-edited or shared `?list=` naming something this member cannot see. The server already
+   * makes it inert -- RLS matches no membership rows -- so the only job here is to say so rather than
+   * showing a uuid or claiming to be looking at all candidates while the table sits empty. */
+  it('says the list is unavailable rather than showing a uuid',async()=>{
+    renderPage('/app/acme/candidates?list=somebody-elses-list')
+    expect(await screen.findByRole('button',{name:/Unavailable list/})).toBeInTheDocument()
+  })
+
+  /* THE boundary test. ViewMenu builds a fresh URLSearchParams from the keys it owns, and `list` is
+   * deliberately not one of them -- so without the explicit carry-over in onApply, applying any saved
+   * view would silently drop the list the consultant is working inside. */
+  it('keeps the active list when a saved view is applied',async()=>{
+    renderPage('/app/acme/candidates?list=list-1&status=active')
+    await findRow('Ni Putu Widya')
+    fireEvent.click(screen.getByLabelText('Candidate status'),{target:{value:'passive'}})
+    await waitFor(()=>expect(screen.getByTestId('search').textContent).toContain('list=list-1'))
+    expect(lastFilters()?.listId).toBe('list-1')
+  })
+
+  /* A list is a scope, not a filter -- the same reasoning that keeps `queue` out of the chip row.
+   * "Clear all filters" clearing the shortlist somebody spent an afternoon building would be the
+   * kind of data loss that looks like a bug in the filters. */
+  it('does not clear the list when the filters are cleared',async()=>{
+    renderPage('/app/acme/candidates?list=list-1&status=active&location=Denpasar')
+    await findRow('Ni Putu Widya')
+    fireEvent.click(await screen.findByRole('button',{name:/Clear all/i}))
+    await waitFor(()=>expect(screen.getByTestId('search').textContent).not.toContain('status=active'))
+    expect(screen.getByTestId('search').textContent).toContain('list=list-1')
+  })
+
+  /* Page 4 of the whole database is not page 4 of an eleven-person shortlist. */
+  it('returns to the first page when the scope changes',async()=>{
+    renderPage('/app/acme/candidates?page=3')
+    await findRow('Ni Putu Widya')
+    fireEvent.click(screen.getByRole('button',{name:/^List:/}))
+    fireEvent.click(await screen.findByRole('menuitem',{name:/Acme CFO shortlist/}))
+    await waitFor(()=>expect(screen.getByTestId('search').textContent).toContain('list=list-1'))
+    expect(screen.getByTestId('search').textContent).not.toContain('page=3')
+  })
+
+  /* Offered for every candidate, unlike Add to job. Recording that somebody was considered is not
+   * the same act as approaching them, and the records most worth remembering are often exactly the
+   * ones the pipeline rules refuse. */
+  it('offers add-to-list for a do-not-contact candidate that cannot be added to a job',async()=>{
+    listCandidatesPage.mockResolvedValue({rows:[candidate({status:'do_not_contact',total_count:1})],count:1})
+    renderPage()
+    const row=await findRow('Ni Putu Widya')
+    fireEvent.click(row.querySelector('.row-menu-trigger') as HTMLElement)
+    expect(await screen.findByRole('menuitem',{name:'Add to talent list'})).not.toHaveAttribute('aria-disabled','true')
+    expect(screen.getByRole('menuitem',{name:/Add to job/})).toHaveAttribute('aria-disabled','true')
+  })
+
+  /* Removal names one list and needs no picker, which is only true while a list is the active scope.
+   * Outside one, "remove from which list?" has no answer and the item must not be there. */
+  it('offers removal only inside a list',async()=>{
+    renderPage()
+    const row=await findRow('Ni Putu Widya')
+    fireEvent.click(row.querySelector('.row-menu-trigger') as HTMLElement)
+    expect(screen.queryByRole('menuitem',{name:'Remove from this list'})).toBeNull()
+  })
+
+  it('removes through the server and reports what happened',async()=>{
+    removeCandidatesFromList.mockResolvedValue({removed:1,skipped:0})
+    renderPage('/app/acme/candidates?list=list-1')
+    const row=await findRow('Ni Putu Widya')
+    fireEvent.click(row.querySelector('.row-menu-trigger') as HTMLElement)
+    fireEvent.click(await screen.findByRole('menuitem',{name:'Remove from this list'}))
+    await waitFor(()=>expect(removeCandidatesFromList).toHaveBeenCalledWith('list-1',['cand-1']))
+  })
+
+  /* The counts above the enrichment queue have to be counting the population the table is showing.
+   * Inside a list, a count taken over the whole database would put a number on a button that
+   * pressing it cannot produce. */
+  it('scopes the data-quality counts to the active list',async()=>{
+    candidateQualitySummary.mockResolvedValue([{issue_code:'missing_cv',candidate_count:2}])
+    renderPage('/app/acme/candidates?queue=needs_enrichment&list=list-1')
+    await waitFor(()=>expect(candidateQualitySummary).toHaveBeenCalled())
+    expect(candidateQualitySummary.mock.calls.at(-1)?.[1]?.listId).toBe('list-1')
   })
 })

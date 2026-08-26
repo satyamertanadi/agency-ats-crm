@@ -594,6 +594,113 @@ export type Database = {
           },
         ]
       }
+      candidate_list_members: {
+        Row: {
+          added_at: string
+          added_by_member_id: string | null
+          candidate_id: string
+          id: string
+          list_id: string
+          organization_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by_member_id?: string | null
+          candidate_id: string
+          id?: string
+          list_id: string
+          organization_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by_member_id?: string | null
+          candidate_id?: string
+          id?: string
+          list_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_list_members_added_by_member_id_fkey"
+            columns: ["added_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_list_members_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_list_members_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "candidate_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_list_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      candidate_lists: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          owner_member_id: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          owner_member_id: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          owner_member_id?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_lists_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_lists_owner_member_id_fkey"
+            columns: ["owner_member_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidate_merge_history: {
         Row: {
           id: string
@@ -4049,6 +4156,13 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      add_candidates_to_list: {
+        Args: { p_candidate_ids: string[]; p_list_id: string }
+        Returns: {
+          added: number
+          skipped: number
+        }[]
+      }
       anonymize_candidate_for_retention: {
         Args: {
           p_as_of?: string
@@ -4072,6 +4186,34 @@ export type Database = {
         Args: { p_as_of?: string; p_candidate_id: string }
         Returns: boolean
       }
+      candidate_list_for_write: {
+        Args: { p_list_id: string }
+        Returns: {
+          archived_at: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          owner_member_id: string
+          updated_at: string
+          visibility: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "candidate_lists"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      candidate_list_memberships: {
+        Args: { p_candidate_id: string; p_organization_id: string }
+        Returns: {
+          list_id: string
+          name: string
+          visibility: string
+        }[]
+      }
       candidate_profile_token_spend_this_month: {
         Args: { p_organization_id: string }
         Returns: number
@@ -4091,6 +4233,7 @@ export type Database = {
       candidate_quality_summary: {
         Args: {
           p_availability?: string
+          p_list?: string
           p_location?: string
           p_organization_id: string
           p_owner_member_id?: string
@@ -4130,6 +4273,31 @@ export type Database = {
       configure_founding_partner: {
         Args: { p_enabled?: boolean; p_organization_id: string }
         Returns: undefined
+      }
+      create_candidate_list: {
+        Args: {
+          p_description?: string
+          p_name: string
+          p_organization_id: string
+          p_visibility?: string
+        }
+        Returns: {
+          archived_at: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          owner_member_id: string
+          updated_at: string
+          visibility: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "candidate_lists"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_candidate_with_profile: {
         Args: {
@@ -4337,6 +4505,22 @@ export type Database = {
       is_organization_member: {
         Args: { p_organization_id: string }
         Returns: boolean
+      }
+      list_candidate_lists: {
+        Args: { p_include_archived?: boolean; p_organization_id: string }
+        Returns: {
+          archived_at: string
+          created_at: string
+          description: string
+          id: string
+          member_count: number
+          name: string
+          organization_id: string
+          owner_member_id: string
+          owner_name: string
+          updated_at: string
+          visibility: string
+        }[]
       }
       list_candidate_skill_names: {
         Args: { p_organization_id: string }
@@ -4573,6 +4757,13 @@ export type Database = {
         Args: { p_before?: string }
         Returns: number
       }
+      remove_candidates_from_list: {
+        Args: { p_candidate_ids: string[]; p_list_id: string }
+        Returns: {
+          removed: number
+          skipped: number
+        }[]
+      }
       replace_candidate_profile_section: {
         Args: {
           p_candidate_id: string
@@ -4626,6 +4817,7 @@ export type Database = {
           p_direction?: string
           p_issue?: string
           p_limit?: number
+          p_list?: string
           p_location?: string
           p_offset?: number
           p_organization_id: string
@@ -4695,6 +4887,26 @@ export type Database = {
           p_reason: string
         }
         Returns: undefined
+      }
+      set_candidate_list_archived: {
+        Args: { p_archived?: boolean; p_list_id: string }
+        Returns: {
+          archived_at: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          owner_member_id: string
+          updated_at: string
+          visibility: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "candidate_lists"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_company_bd_stage: {
         Args: {
@@ -4797,6 +5009,31 @@ export type Database = {
           p_token: string
         }
         Returns: Json
+      }
+      update_candidate_list: {
+        Args: {
+          p_description?: string
+          p_list_id: string
+          p_name?: string
+          p_visibility?: string
+        }
+        Returns: {
+          archived_at: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          owner_member_id: string
+          updated_at: string
+          visibility: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "candidate_lists"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       update_candidate_profile: {
         Args: {

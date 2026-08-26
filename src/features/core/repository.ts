@@ -1,8 +1,8 @@
 import { supabase } from '../../shared/lib/supabase'
 import { AppError, DUPLICATE_CANDIDATE, humanizeRpcError } from '../../shared/lib/errors'
 import { row, rows } from '../../shared/lib/rows'
-import { activitySchema, candidatePipelineAssignmentSchema, candidateQualityCountSchema, candidateSearchRowSchema, companySchema, contactSchema, deliveryWorkbenchRowSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
-import type { Activity, CandidateStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, DeliveryWorkbenchRow, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReview, Task } from '../../shared/types/domain'
+import { activitySchema, candidateListMembershipSchema, candidateListRecordSchema, candidateListRemoveResultSchema, candidateListSchema, candidateListWriteResultSchema, candidatePipelineAssignmentSchema, candidateQualityCountSchema, candidateSearchRowSchema, companySchema, contactSchema, deliveryWorkbenchRowSchema, interviewSchema, jobCandidateSchema, jobHealthSchema, jobSchema, offerSchema, pipelineStageSchema, placementSchema, publicReviewSchema, stageHistoryEntrySchema, submissionFeedbackSchema, taskSchema, type StageHistoryEntry, type SubmissionFeedback } from './repositorySchemas'
+import type { Activity, CandidateList, CandidateListMembership, CandidateListRemoveResult, CandidateListVisibility, CandidateListWriteResult, CandidateStatus, CandidatePipelineAssignment, CandidateSearchRow, Company, Contact, DeliveryWorkbenchRow, Interview, Job, JobCandidate, JobHealth, Offer, PipelineStage, Placement, PublicReview, Task } from '../../shared/types/domain'
 import type {Json} from '../../generated/database.types'
 
 function fail(error:{message:string;code?:string}|null,fallback:string):never{
@@ -34,9 +34,13 @@ export type CandidateQueue='in_process'|'needs_follow_up'|'stale'|'unassigned'|'
  * `queue` rather than a sixth queue because it composes with it: "needs enrichment, missing a CV" is
  * the useful view, and a queue can only ever be one thing. An unrecognised code matches nothing, the
  * same way an unrecognised queue does. */
-export interface CandidateListFilters {query?:string;status?:string;location?:string;source?:string;ownerMemberId?:string;tag?:string;skill?:string;availability?:string;queue?:CandidateQueue;issue?:string;sort?:'updated'|'created'|'name'|'location';direction?:'asc'|'desc'}
+/* `listId` is a Talent List, and it is a filter here in the same sense `queue` is: a narrowing of the
+ * population the page describes. It is deliberately NOT part of the saved-view key set -- see
+ * viewParamKeys in CandidatesPage -- because a view that quietly captured a list id would turn a
+ * static set of chosen people into something a filter change could rewrite. */
+export interface CandidateListFilters {query?:string;status?:string;location?:string;source?:string;ownerMemberId?:string;tag?:string;skill?:string;availability?:string;queue?:CandidateQueue;issue?:string;listId?:string;sort?:'updated'|'created'|'name'|'location';direction?:'asc'|'desc'}
 export async function listCandidatesPage(organizationId:string,filters:CandidateListFilters={},page=0,pageSize=50){
-  const {data,error}=await supabase.rpc('search_candidates_page',{p_organization_id:organizationId,p_query:filters.query||undefined,p_status:filters.status||undefined,p_location:filters.location||undefined,p_source:filters.source||undefined,p_owner_member_id:filters.ownerMemberId||undefined,p_tag:filters.tag||undefined,p_skill:filters.skill||undefined,p_availability:filters.availability||undefined,p_queue:filters.queue||undefined,p_issue:filters.issue||undefined,p_sort:filters.sort||'updated',p_direction:filters.direction||'desc',p_limit:pageSize,p_offset:page*pageSize})
+  const {data,error}=await supabase.rpc('search_candidates_page',{p_organization_id:organizationId,p_query:filters.query||undefined,p_status:filters.status||undefined,p_location:filters.location||undefined,p_source:filters.source||undefined,p_owner_member_id:filters.ownerMemberId||undefined,p_tag:filters.tag||undefined,p_skill:filters.skill||undefined,p_availability:filters.availability||undefined,p_queue:filters.queue||undefined,p_issue:filters.issue||undefined,p_list:filters.listId||undefined,p_sort:filters.sort||'updated',p_direction:filters.direction||'desc',p_limit:pageSize,p_offset:page*pageSize})
   if(error)fail(error,'Could not load candidates');const resultRows=rows(data,candidateSearchRowSchema,'Candidate search rows did not match the expected shape') as CandidateSearchRow[];return {rows:resultRows,count:Number(resultRows[0]?.total_count||0)}
 }
 
@@ -423,7 +427,71 @@ export async function candidateQualitySummary(organizationId:string,filters:Cand
     p_location:filters.location||undefined,p_source:filters.source||undefined,
     p_owner_member_id:filters.ownerMemberId||undefined,p_tag:filters.tag||undefined,
     p_skill:filters.skill||undefined,p_availability:filters.availability||undefined,
+    /* The Talent List travels with the counts for the same reason the other eight filters do: the
+     * strip has to be counting the population the table is showing. Inside a curated list, a count
+     * taken over the whole database would put a number on the button that pressing it cannot
+     * produce -- which is the one thing this summary exists to guarantee. */
+    p_list:filters.listId||undefined,
   })
   if(error)fail(error,'Could not count data-quality issues')
   return rows(data,candidateQualityCountSchema,'Quality summary rows did not match the expected shape')
+}
+
+/* Talent Lists.
+ *
+ * Reads are plain RPCs over security-invoker functions, so "which lists exist" is answered by the
+ * SELECT policies and not by anything here -- a colleague's private list is absent from the response
+ * rather than filtered out of it in React.
+ *
+ * Every write goes through an audited definer-rights RPC and returns what it did. None of them takes
+ * an organisation id except the create: the others resolve it from the list itself, so a caller
+ * cannot name one organisation while pointing at another one's list. */
+export async function listCandidateLists(organizationId:string,includeArchived=false){
+  const {data,error}=await supabase.rpc('list_candidate_lists',{p_organization_id:organizationId,p_include_archived:includeArchived})
+  if(error)fail(error,'Could not load talent lists')
+  return rows(data,candidateListSchema,'Talent list rows did not match the expected shape') as CandidateList[]
+}
+
+export async function candidateListMemberships(organizationId:string,candidateId:string){
+  const {data,error}=await supabase.rpc('candidate_list_memberships',{p_organization_id:organizationId,p_candidate_id:candidateId})
+  if(error)fail(error,'Could not load this candidate’s talent lists')
+  return rows(data,candidateListMembershipSchema,'Talent list membership rows did not match the expected shape') as CandidateListMembership[]
+}
+
+export async function createCandidateList(organizationId:string,input:{name:string;description?:string;visibility:CandidateListVisibility}){
+  const {data,error}=await supabase.rpc('create_candidate_list',{p_organization_id:organizationId,p_name:input.name,p_description:input.description||undefined,p_visibility:input.visibility})
+  if(error)fail(error,'The talent list was not created.')
+  return row(data,candidateListRecordSchema,'The created talent list did not match the expected shape')
+}
+
+/* Undefined means "leave this alone", which is what lets the management modal send a rename without
+ * also resending a description it never showed the user. The empty string is a real value for the
+ * description alone -- clearing one is something people do. */
+export async function updateCandidateList(listId:string,input:{name?:string;description?:string;visibility?:CandidateListVisibility}){
+  const {data,error}=await supabase.rpc('update_candidate_list',{p_list_id:listId,p_name:input.name,p_description:input.description,p_visibility:input.visibility})
+  if(error)fail(error,'The talent list was not updated.')
+  return row(data,candidateListRecordSchema,'The updated talent list did not match the expected shape')
+}
+
+export async function setCandidateListArchived(listId:string,archived:boolean){
+  const {data,error}=await supabase.rpc('set_candidate_list_archived',{p_list_id:listId,p_archived:archived})
+  if(error)fail(error,archived?'The talent list was not archived.':'The talent list was not restored.')
+  return row(data,candidateListRecordSchema,'The talent list did not match the expected shape')
+}
+
+/* Adding and removing report counts rather than success, because "12 added, 3 already there" is the
+ * honest answer and a bare "done" is not. The RPC is idempotent at the constraint, so a caller that
+ * sends the same candidate twice -- or two callers racing -- get one row and one skip. */
+export async function addCandidatesToList(listId:string,candidateIds:string[]){
+  const {data,error}=await supabase.rpc('add_candidates_to_list',{p_list_id:listId,p_candidate_ids:candidateIds})
+  if(error)fail(error,'Nothing was added to the list.')
+  const [result]=rows(data,candidateListWriteResultSchema,'The add result did not match the expected shape')
+  return (result??{added:0,skipped:0}) as CandidateListWriteResult
+}
+
+export async function removeCandidatesFromList(listId:string,candidateIds:string[]){
+  const {data,error}=await supabase.rpc('remove_candidates_from_list',{p_list_id:listId,p_candidate_ids:candidateIds})
+  if(error)fail(error,'Nothing was removed from the list.')
+  const [result]=rows(data,candidateListRemoveResultSchema,'The remove result did not match the expected shape')
+  return (result??{removed:0,skipped:0}) as CandidateListRemoveResult
 }
