@@ -136,6 +136,16 @@ const rpcMessages:Record<string,string>={
   // Deliberately identical to the wording for a transcript in another workspace: knowing a
   // transcript id must not reveal whether it exists.
   transcript_not_found:'That transcript could not be found in this workspace.',
+  /* The gate the whole feature hangs on, so the sentence says what to do rather than only what
+   * failed -- somebody hitting this has a transcript in hand and needs to know consent is the
+   * blocker, not the file. */
+  transcript_consent_required:'Record the candidate’s consent before importing this transcript.',
+  transcript_empty:'No transcript lines could be read from that file.',
+  // Raised when an entry names a speaker the parser did not list, which would silently drop lines.
+  transcript_speaker_mismatch:'That transcript could not be read cleanly. Try importing it again.',
+  transcript_speaker_not_found:'That speaker could not be found on this transcript.',
+  invalid_speaker_role:'Choose a valid speaker role.',
+  invalid_speaker_identity:'Choose exactly one person for this speaker, matching the role.',
 }
 
 /* `duplicate_candidate:<uuid>` is the one token carrying a payload -- the id of the record it collided
