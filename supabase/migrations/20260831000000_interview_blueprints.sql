@@ -90,7 +90,7 @@ returns text language sql stable security definer set search_path=public as $$
       coalesce(j.currency::text,''),
       coalesce(d.id::text,''),
       coalesce(d.version::text,'')
-    ),'utf8'),'hex')
+    ),'utf8')),'hex')
   from public.jobs j
   left join public.documents d
     on d.id=p_document_id and d.organization_id=j.organization_id and d.deleted_at is null
