@@ -92,7 +92,7 @@ jobs:
           # --frozen fails the build if deno.lock doesn't already cover the resolved dependency
           # graph exactly, rather than silently rewriting it -- a deployment must be reproducible
           # from what's committed, not from whatever the CI runner happened to resolve this time.
-          deno check --frozen calendar-auth-callback/index.ts calendar-auth-start/index.ts calendar-disconnect/index.ts calendar-sync/index.ts execute-import/index.ts generate-candidate-profile/index.ts location-autocomplete/index.ts parse-candidate-cv/index.ts parse-linkedin-profile/index.ts public-review/index.ts scheduled-maintenance/index.ts send-invitation/index.ts send-submission/index.ts
+          deno check --frozen calendar-auth-callback/index.ts calendar-auth-start/index.ts calendar-disconnect/index.ts calendar-sync/index.ts execute-import/index.ts generate-candidate-profile/index.ts generate-interview-rubric/index.ts location-autocomplete/index.ts parse-candidate-cv/index.ts parse-linkedin-profile/index.ts public-review/index.ts scheduled-maintenance/index.ts send-invitation/index.ts send-submission/index.ts
       - name: Edge Function authentication contract
         # The scheduled-maintenance credential matrix, as a unit test. It needs no Docker, no
         # database and no deployed function -- which is the point: the previous only evidence that
