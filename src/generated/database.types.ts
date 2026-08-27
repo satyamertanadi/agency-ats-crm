@@ -168,7 +168,7 @@ export type Database = {
       }
       ai_evaluations: {
         Row: {
-          candidate_id: string
+          candidate_id: string | null
           completed_at: string | null
           created_at: string
           duration_ms: number | null
@@ -196,7 +196,7 @@ export type Database = {
           uncertainties: Json
         }
         Insert: {
-          candidate_id: string
+          candidate_id?: string | null
           completed_at?: string | null
           created_at?: string
           duration_ms?: number | null
@@ -224,7 +224,7 @@ export type Database = {
           uncertainties?: Json
         }
         Update: {
-          candidate_id?: string
+          candidate_id?: string | null
           completed_at?: string | null
           created_at?: string
           duration_ms?: number | null
@@ -2745,6 +2745,7 @@ export type Database = {
         Row: {
           activated_at: string | null
           activated_by: string | null
+          ai_evaluation_id: string | null
           archived_at: string | null
           created_at: string
           created_by: string
@@ -2761,6 +2762,7 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           activated_by?: string | null
+          ai_evaluation_id?: string | null
           archived_at?: string | null
           created_at?: string
           created_by: string
@@ -2777,6 +2779,7 @@ export type Database = {
         Update: {
           activated_at?: string | null
           activated_by?: string | null
+          ai_evaluation_id?: string | null
           archived_at?: string | null
           created_at?: string
           created_by?: string
@@ -2791,6 +2794,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "interview_rubrics_ai_evaluation_fkey"
+            columns: ["ai_evaluation_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "ai_evaluations"
+            referencedColumns: ["id", "organization_id"]
+          },
           {
             foreignKeyName: "interview_rubrics_job_id_organization_id_fkey"
             columns: ["job_id", "organization_id"]
@@ -5090,6 +5100,10 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json
       }
+      activate_interview_rubric: {
+        Args: { p_organization_id: string; p_rubric_id: string }
+        Returns: string
+      }
       add_candidates_to_job: {
         Args: {
           p_candidate_ids: string[]
@@ -5456,6 +5470,23 @@ export type Database = {
         }
         Returns: string
       }
+      get_interview_blueprint_status: {
+        Args: { p_job_id: string; p_organization_id: string }
+        Returns: {
+          activated_at: string
+          core_rubric_id: string
+          core_rubric_version: number
+          draft_rubric_id: string
+          draft_updated_at: string
+          essential_question_count: number
+          is_stale: boolean
+          must_have_count: number
+          nice_to_have_count: number
+          rubric_id: string
+          source_document_id: string
+          version: number
+        }[]
+      }
       get_interview_transcript_page: {
         Args: {
           p_after_sequence?: number
@@ -5539,6 +5570,14 @@ export type Database = {
       interview_consent_status: {
         Args: { p_interview_id: string }
         Returns: string
+      }
+      interview_job_brief_hash: {
+        Args: { p_document_id?: string; p_job_id: string }
+        Returns: string
+      }
+      interview_rubric_token_spend_this_month: {
+        Args: { p_organization_id: string }
+        Returns: number
       }
       is_organization_member: {
         Args: { p_organization_id: string }
