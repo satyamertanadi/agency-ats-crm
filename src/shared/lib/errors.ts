@@ -146,6 +146,16 @@ const rpcMessages:Record<string,string>={
   transcript_speaker_not_found:'That speaker could not be found on this transcript.',
   invalid_speaker_role:'Choose a valid speaker role.',
   invalid_speaker_identity:'Choose exactly one person for this speaker, matching the role.',
+  // Raised by the queue when a worker releases a job that no longer exists. Not reachable from the
+  // interface, but the drift test requires every raised identifier to have a sentence.
+  background_job_not_found:'That background job could not be found.',
+  /* Analysis preconditions. Each names the missing step rather than saying the request was invalid,
+   * because every one of these is something the person in front of the screen can go and fix. */
+  transcript_required:'Add the interview transcript before requesting an analysis.',
+  speaker_mapping_required:'Map every speaker before requesting an analysis.',
+  core_rubric_required:'Activate an agency core interview rubric before analysing interviews.',
+  job_rubric_required:'Activate an interview blueprint for this job before analysing its interviews.',
+  analysis_run_not_found:'That analysis could not be found in this workspace.',
 }
 
 /* `duplicate_candidate:<uuid>` is the one token carrying a payload -- the id of the record it collided
