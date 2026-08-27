@@ -2075,3 +2075,40 @@ tbody tr:focus-within .row-menu-trigger,
 .quick-view-issue-label svg{color:var(--color-warning);flex-shrink:0}
 /* The reason wraps: it is a sentence, not a table cell, and .cell-quiet's nowrap would clip it. */
 .quick-view-issues .cell-quiet{white-space:normal;font-size:var(--text-xs)}
+
+/* Interview blueprint.
+   Two surfaces: a compact summary on Job Workspace and the drawer that holds the questions. The
+   summary is deliberately short -- the job page already carries a pipeline, a submissions rail and an
+   activity feed, and a full question list here would push all of it below the fold to show something
+   read once before an interview. */
+.blueprint-summary{display:flex;flex-direction:column;gap:var(--space-2)}
+.blueprint-summary-headline{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.blueprint-summary p{margin:0;color:var(--color-muted);font-size:var(--text-sm)}
+/* A missing core rubric blocks analysis entirely, so it reads as a warning rather than as detail. */
+.blueprint-summary-note{color:var(--color-warning)}
+
+.blueprint-generate{
+  display:flex;flex-direction:column;gap:var(--space-2);
+  padding:var(--space-3);margin-bottom:var(--space-4);
+  border:1px solid var(--color-line-soft);border-radius:var(--radius-md);background:var(--color-surface-soft);
+}
+.blueprint-generate-note{margin:0;color:var(--color-muted);font-size:var(--text-xs)}
+
+.blueprint-group{margin-bottom:var(--space-4)}
+.blueprint-group h3{margin:0 0 var(--space-2);font-size:var(--text-sm);font-weight:var(--weight-semibold)}
+
+.blueprint-item{
+  display:flex;flex-direction:column;gap:var(--space-2);
+  padding:var(--space-3);margin-bottom:var(--space-2);
+  border:1px solid var(--color-line-soft);border-radius:var(--radius-md);
+}
+.blueprint-item header{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-2);flex-wrap:wrap}
+.blueprint-item-meta{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.blueprint-item-question{margin:0}
+/* What good evidence looks like, subordinate to the question it belongs to. */
+.blueprint-item-evidence{margin:0;color:var(--color-muted);font-size:var(--text-xs)}
+/* Stacks under 640px so the requirement selector and Remove do not collide on a phone. */
+.blueprint-item-controls{display:flex;align-items:flex-end;gap:var(--space-3);flex-wrap:wrap}
+@media (max-width:640px){
+  .blueprint-item-controls{flex-direction:column;align-items:stretch}
+}
