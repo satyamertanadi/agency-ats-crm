@@ -5302,6 +5302,19 @@ export type Database = {
         }
         Returns: string
       }
+      create_interview_rubric_draft: {
+        Args: {
+          p_ai_evaluation_id: string
+          p_created_by: string
+          p_items: Json
+          p_job_brief_hash: string
+          p_job_id: string
+          p_name: string
+          p_organization_id: string
+          p_source_document_id: string
+        }
+        Returns: string
+      }
       create_invitation_delivery: {
         Args: {
           p_email: string
