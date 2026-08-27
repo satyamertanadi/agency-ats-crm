@@ -23,8 +23,9 @@ function renderLifecycle(interviews:Interview[]){
   const client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})
   const onUpdated=vi.fn().mockResolvedValue(undefined)
   render(<QueryClientProvider client={client}><ToastProvider><JobCandidateLifecycle
-    organizationId="org-1" jobCandidateId="job-candidate-1" candidateName="Ana Chen"
+    organizationId="org-1" jobCandidateId="job-candidate-1" candidateId="cand-1" candidateName="Ana Chen"
     interviews={interviews} offers={[]} canManageInterviews canManageOffers readOnly={false}
+    canUseInterviewIntelligence={false}
     onUpdated={onUpdated} onReschedule={vi.fn()}/></ToastProvider></QueryClientProvider>)
   return onUpdated
 }
