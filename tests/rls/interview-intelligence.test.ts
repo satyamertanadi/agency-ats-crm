@@ -21,14 +21,15 @@ if(!serviceKey)throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to seed se
 const ORG='30000000-0000-0000-0000-000000000001'
 const RIVAL_ORG='30000000-0000-0000-0000-000000000002'
 const CONSULTANT_MEMBER='40000000-0000-0000-0000-000000000003'
-const MANAGER_MEMBER='40000000-0000-0000-0000-000000000002'
+const SOURCER_MEMBER='40000000-0000-0000-0000-000000000004'
 const CANDIDATE='70000000-0000-0000-0000-000000000001'
+const JOB='80000000-0000-0000-0000-000000000001'
 const JOB_CANDIDATE='81000000-0000-0000-0000-000000000001'
 
 const service=createClient(url,serviceKey,{auth:{persistSession:false}})
 const owner=createClient(url,anon,{auth:{persistSession:false}})
 const consultant=createClient(url,anon,{auth:{persistSession:false}})
-const manager=createClient(url,anon,{auth:{persistSession:false}})
+const sourcer=createClient(url,anon,{auth:{persistSession:false}})
 const readonly=createClient(url,anon,{auth:{persistSession:false}})
 const rival=createClient(url,anon,{auth:{persistSession:false}})
 
@@ -55,7 +56,7 @@ beforeAll(async()=>{
   const signIns=await Promise.all([
     owner.auth.signInWithPassword({email:'owner@northstar.local',password:'LocalTest!123'}),
     consultant.auth.signInWithPassword({email:'consultant@northstar.local',password:'LocalTest!123'}),
-    manager.auth.signInWithPassword({email:'manager@northstar.local',password:'LocalTest!123'}),
+    sourcer.auth.signInWithPassword({email:'sourcer@northstar.local',password:'LocalTest!123'}),
     readonly.auth.signInWithPassword({email:'readonly@northstar.local',password:'LocalTest!123'}),
     rival.auth.signInWithPassword({email:'owner@rival.local',password:'LocalTest!123'}),
   ])
@@ -76,7 +77,7 @@ beforeAll(async()=>{
     created_by:consultantUser,activated_by:consultantUser,activated_at:new Date().toISOString(),
   })
   ids.jobRubric=await insert('interview_rubrics',{
-    organization_id:ORG,rubric_type:'job',job_id:'60000000-0000-0000-0000-000000000001',name:'Job blueprint',status:'active',
+    organization_id:ORG,rubric_type:'job',job_id:JOB,name:'Job blueprint',status:'active',
     created_by:consultantUser,activated_by:consultantUser,activated_at:new Date().toISOString(),
   })
   ids.transcript=await insert('interview_transcripts',{
@@ -161,10 +162,17 @@ describe('the feature is off until an owner turns it on',()=>{
   })
 
   it('does not hand interview permissions to a custom role',async()=>{
-    // The seed's "manager" is a custom (non-system) role. The migration backfilled only the two
-    // system bundles, so a workspace's own roles gain nothing because a migration ran.
-    expect((await manager.rpc('has_permission',{p_organization_id:ORG,p_permission:'interview_intelligence.review_team'})).data).toBe(false)
-    expect((await manager.rpc('has_permission',{p_organization_id:ORG,p_permission:'interview_intelligence.view_own'})).data).toBe(false)
+    /* The sourcer holds a custom (is_system=false) role built from an explicit permission list. The
+     * migration's backfill touches only the owner and consultant system bundles, so a workspace's own
+     * roles gain nothing because a migration ran.
+     *
+     * Asserted against the sourcer rather than the seeded "manager" role deliberately: that fixture
+     * is defined as "every permission except three", so it picks up new keys by construction and
+     * would prove nothing about the backfill. */
+    expect((await sourcer.rpc('has_permission',{p_organization_id:ORG,p_permission:'interview_intelligence.review_team'})).data).toBe(false)
+    expect((await sourcer.rpc('has_permission',{p_organization_id:ORG,p_permission:'interview_intelligence.view_own'})).data).toBe(false)
+    expect((await sourcer.rpc('has_permission',{p_organization_id:ORG,p_permission:'interview_intelligence.use'})).data).toBe(false)
+    expect((await sourcer.rpc('has_permission',{p_organization_id:ORG,p_permission:'interview_intelligence.configure'})).data).toBe(false)
   })
 })
 
@@ -176,13 +184,13 @@ describe('assessment visibility follows the subject, not candidate access',()=>{
   })
 
   it('hides a colleague interview-quality assessment from someone with full candidate access',async()=>{
-    // The manager holds candidates.read and jobs.read through the seeded custom role, and can read
+    // The sourcer holds candidates.read and jobs.read through the seeded custom role, and can read
     // the candidate this interview is about -- which is exactly why this assertion exists.
-    expect((await manager.rpc('has_permission',{p_organization_id:ORG,p_permission:'candidates.read'})).data).toBe(true)
-    const candidateRow=await manager.from('candidates').select('id').eq('id',CANDIDATE)
+    expect((await sourcer.rpc('has_permission',{p_organization_id:ORG,p_permission:'candidates.read'})).data).toBe(true)
+    const candidateRow=await sourcer.from('candidates').select('id').eq('id',CANDIDATE)
     expect(candidateRow.data).toHaveLength(1)
 
-    const result=await manager.from('interview_assessments').select('id').eq('id',ids.consultantAssessment)
+    const result=await sourcer.from('interview_assessments').select('id').eq('id',ids.consultantAssessment)
     expect(result.error).toBeNull()
     expect(result.data).toEqual([])
   })
@@ -205,13 +213,19 @@ describe('assessment visibility follows the subject, not candidate access',()=>{
   it('refuses client writes to machine output',async()=>{
     const write=await owner.from('interview_assessments').insert({
       organization_id:ORG,analysis_run_id:ids.run,interview_id:ids.interview,
-      assessment_type:'consultant_quality',subject_member_id:MANAGER_MEMBER,
+      assessment_type:'consultant_quality',subject_member_id:SOURCER_MEMBER,
       overall_band:'strong',confidence:'high',summary:'Injected by a client.',
     })
+    // An INSERT with no matching policy fails the WITH CHECK and raises.
     expect(write.error?.code).toBe('42501')
 
-    const edit=await owner.from('interview_assessments').update({overall_band:'strong'}).eq('id',ids.consultantAssessment)
-    expect(edit.error?.code).toBe('42501')
+    /* An UPDATE with no matching policy behaves differently, and the difference matters: the row is
+     * simply not visible to the command, so it reports success having changed nothing rather than
+     * raising 42501. Asserting on an error here would pass for the wrong reason the day someone adds
+     * a permissive UPDATE policy, so the assertion is on the row itself. */
+    const edit=await owner.from('interview_assessments').update({overall_band:'strong'}).eq('id',ids.consultantAssessment).select('id')
+    expect(edit.error).toBeNull()
+    expect(edit.data).toEqual([])
     // The row is unchanged: machine output is immutable, not merely conventionally so.
     const after=await owner.from('interview_assessments').select('overall_band').eq('id',ids.consultantAssessment).single()
     expect(after.data?.overall_band).toBe('needs_development')
@@ -241,7 +255,7 @@ describe('transcript access is participation, not candidate access',()=>{
   })
 
   it('refuses a non-participant without team review standing',async()=>{
-    const page=await manager.rpc('get_interview_transcript_page',{p_organization_id:ORG,p_transcript_id:ids.transcript,p_after_sequence:null,p_limit:50})
+    const page=await sourcer.rpc('get_interview_transcript_page',{p_organization_id:ORG,p_transcript_id:ids.transcript,p_after_sequence:null,p_limit:50})
     expect(page.error).not.toBeNull()
     expect(page.error?.message).toContain('permission_denied')
   })
@@ -292,11 +306,17 @@ describe('consent is append-only',()=>{
     }).select('id').single()
     expect(granted.error).toBeNull()
 
-    const rewrite=await consultant.from('interview_transcription_consents').update({status:'withdrawn'}).eq('id',granted.data?.id)
-    expect(rewrite.error?.code).toBe('42501')
-    const erase=await consultant.from('interview_transcription_consents').delete().eq('id',granted.data?.id)
-    expect(erase.error?.code).toBe('42501')
+    /* There is no UPDATE or DELETE policy on the consent table, so neither command can see the row.
+     * Both report success having touched nothing -- the history is append-only because the database
+     * offers no way to rewrite it, not because the application declines to. */
+    const rewrite=await consultant.from('interview_transcription_consents').update({status:'withdrawn'}).eq('id',granted.data?.id).select('id')
+    expect(rewrite.error).toBeNull()
+    expect(rewrite.data).toEqual([])
+    const erase=await consultant.from('interview_transcription_consents').delete().eq('id',granted.data?.id).select('id')
+    expect(erase.error).toBeNull()
+    expect(erase.data).toEqual([])
 
+    // The original event survived both attempts.
     expect((await consultant.rpc('interview_consent_status',{p_interview_id:ids.interview})).data).toBe('granted')
 
     // Withdrawal is a new event, and the latest event is what counts.

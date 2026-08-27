@@ -246,8 +246,16 @@ create index interview_consents_org on public.interview_transcription_consents(o
 
 -- The latest consent event for an interview. One implementation, used by RLS, by the analysis request
 -- path and by the UI, so "is this interview consented" cannot mean three different things.
+/* Deliberately security INVOKER, unlike most functions in this schema.
+ *
+ * As a definer it would bypass RLS, and since it takes a bare interview id and checks nothing, any
+ * authenticated user in any workspace who held that id would learn whether the interview had been
+ * consented to. As an invoker the table's own policy applies, so the answer is null for anyone who
+ * could not have read the row anyway -- indistinguishable from "no consent recorded", which is the
+ * correct thing for a stranger to see. It also means the rule lives in exactly one place instead of
+ * being restated here and drifting from the policy. */
 create or replace function public.interview_consent_status(p_interview_id uuid)
-returns text language sql stable security definer set search_path=public as $$
+returns text language sql stable security invoker set search_path=public as $$
   select c.status
   from public.interview_transcription_consents c
   where c.interview_id=p_interview_id
@@ -374,6 +382,14 @@ end $$;
 create trigger interview_rubric_items_frozen
   before insert or update or delete on public.interview_rubric_items
   for each row execute function public.guard_interview_rubric_items_frozen();
+
+/* Postgres grants EXECUTE to PUBLIC on every new function, and nothing in this schema alters that
+ * default. audit_function_grants() excludes trigger functions -- Postgres refuses to invoke one
+ * outside a trigger context regardless of grant, so the entry is inert -- but leaving it there is an
+ * ACL that says something the schema does not mean, and the repository has already had to clean up
+ * that class of entry twice. */
+revoke all on function public.guard_interview_rubric_immutability() from public, anon, authenticated;
+revoke all on function public.guard_interview_rubric_items_frozen() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------------------------
 -- Transcripts
@@ -742,15 +758,17 @@ create or replace function public.get_interview_transcript_page(
   p_after_sequence integer default null,
   p_limit integer default 50
 )
+-- `content` rather than `text`: a RETURNS TABLE column becomes a plpgsql variable, and naming one
+-- after a built-in type invites a shadowing warning at best and an ambiguous reference at worst.
 returns table(
-  id uuid,
+  entry_id uuid,
   sequence_number integer,
   speaker_id uuid,
   speaker_label text,
   speaker_role text,
   start_ms integer,
   end_ms integer,
-  text text
+  content text
 )
 language plpgsql stable security definer set search_path=public as $$
 declare owning_org uuid; owning_interview uuid; effective_limit integer;
