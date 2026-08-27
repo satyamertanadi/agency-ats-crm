@@ -1,4 +1,4 @@
-import {assertEquals} from 'jsr:@std/assert@1'
+import assert from 'node:assert/strict'
 import {
   computeConversationMetrics,
   consultantSpeechByMember,
@@ -31,12 +31,12 @@ Deno.test('measures speech per speaker and excludes the silence between turns',(
   ])
   const consultant=speaker(metrics,'s1')
   const candidate=speaker(metrics,'s2')
-  assertEquals(consultant.speechMs,4000)
-  assertEquals(candidate.speechMs,6000)
+  assert.deepStrictEqual(consultant.speechMs,4000)
+  assert.deepStrictEqual(candidate.speechMs,6000)
 
   const shares=speakingShare(metrics.speakers)
-  assertEquals(shares.get('s1'),0.4)
-  assertEquals(shares.get('s2'),0.6)
+  assert.deepStrictEqual(shares.get('s1'),0.4)
+  assert.deepStrictEqual(shares.get('s2'),0.6)
 })
 
 Deno.test('counts a run of consecutive lines as one turn',()=>{
@@ -51,12 +51,12 @@ Deno.test('counts a run of consecutive lines as one turn',()=>{
     entry('s1','consultant',9000,10_000),
   ])
   const candidate=speaker(metrics,'s2')
-  assertEquals(candidate.turnCount,1)
-  assertEquals(candidate.speechMs,7000)
-  assertEquals(candidate.longestTurnMs,7000)
+  assert.deepStrictEqual(candidate.turnCount,1)
+  assert.deepStrictEqual(candidate.speechMs,7000)
+  assert.deepStrictEqual(candidate.longestTurnMs,7000)
   const consultant=speaker(metrics,'s1')
-  assertEquals(consultant.turnCount,2)
-  assertEquals(consultant.averageTurnMs,1500)
+  assert.deepStrictEqual(consultant.turnCount,2)
+  assert.deepStrictEqual(consultant.averageTurnMs,1500)
 })
 
 Deno.test('reports no ratio at all when there are no timestamps',()=>{
@@ -65,15 +65,15 @@ Deno.test('reports no ratio at all when there are no timestamps',()=>{
     entry('s1','consultant',null,null),
     entry('s2','candidate',null,null),
   ])
-  assertEquals(metrics.summary.timestampCoverage,0)
-  assertEquals(metrics.summary.metricConfidence,'low')
+  assert.deepStrictEqual(metrics.summary.timestampCoverage,0)
+  assert.deepStrictEqual(metrics.summary.metricConfidence,'low')
   const shares=speakingShare(metrics.speakers)
   // null means Unavailable. Zero would be a claim about the conversation that nothing supports.
-  assertEquals(shares.get('s1'),null)
-  assertEquals(shares.get('s2'),null)
+  assert.deepStrictEqual(shares.get('s1'),null)
+  assert.deepStrictEqual(shares.get('s2'),null)
   // Turn counts survive: who spoke and how often is knowable without a clock.
-  assertEquals(speaker(metrics,'s1').turnCount,1)
-  assertEquals(speaker(metrics,'s1').averageTurnMs,null)
+  assert.deepStrictEqual(speaker(metrics,'s1').turnCount,1)
+  assert.deepStrictEqual(speaker(metrics,'s1').averageTurnMs,null)
 })
 
 Deno.test('word count is never treated as duration',()=>{
@@ -83,7 +83,7 @@ Deno.test('word count is never treated as duration',()=>{
     entry('s1','consultant',null,null),
     entry('s2','candidate',null,null),
   ])
-  assertEquals(metrics.speakers.every((speaker)=>speaker.speechMs===0),true)
+  assert.deepStrictEqual(metrics.speakers.every((speaker)=>speaker.speechMs===0),true)
 })
 
 Deno.test('partial timestamp coverage lowers confidence',()=>{
@@ -94,8 +94,8 @@ Deno.test('partial timestamp coverage lowers confidence',()=>{
     entry('s1','consultant',null,null),
     entry('s2','candidate',8000,10_000),
   ])
-  assertEquals(metrics.summary.timestampCoverage,0.5)
-  assertEquals(metrics.summary.metricConfidence,'low')
+  assert.deepStrictEqual(metrics.summary.timestampCoverage,0.5)
+  assert.deepStrictEqual(metrics.summary.metricConfidence,'low')
 })
 
 Deno.test('full coverage with clean mapping reads as high confidence',()=>{
@@ -104,8 +104,8 @@ Deno.test('full coverage with clean mapping reads as high confidence',()=>{
     entry('s1','consultant',0,2000),
     entry('s2','candidate',2000,9000),
   ])
-  assertEquals(metrics.summary.timestampCoverage,1)
-  assertEquals(metrics.summary.metricConfidence,'high')
+  assert.deepStrictEqual(metrics.summary.timestampCoverage,1)
+  assert.deepStrictEqual(metrics.summary.metricConfidence,'high')
 })
 
 Deno.test('keeps unknown speech visible instead of redistributing it',()=>{
@@ -115,13 +115,13 @@ Deno.test('keeps unknown speech visible instead of redistributing it',()=>{
     entry('s2','candidate',2000,4000),
     entry('s3','unknown',4000,10_000),
   ])
-  assertEquals(metrics.summary.unknownSpeechMs,6000)
+  assert.deepStrictEqual(metrics.summary.unknownSpeechMs,6000)
   const shares=speakingShare(metrics.speakers)
   // The unknown speaker holds its own share, so the identified pair are not flattered by it.
-  assertEquals(shares.get('s3'),0.6)
-  assertEquals(shares.get('s1'),0.2)
+  assert.deepStrictEqual(shares.get('s3'),0.6)
+  assert.deepStrictEqual(shares.get('s1'),0.2)
   // A large unattributed slice is exactly when the numbers should not read as authoritative.
-  assertEquals(metrics.summary.metricConfidence,'low')
+  assert.deepStrictEqual(metrics.summary.metricConfidence,'low')
 })
 
 Deno.test('counts overlap without deducting it from either speaker',()=>{
@@ -130,11 +130,11 @@ Deno.test('counts overlap without deducting it from either speaker',()=>{
     entry('s1','consultant',0,5000),
     entry('s2','candidate',3000,8000),
   ])
-  assertEquals(metrics.summary.overlapCount,1)
-  assertEquals(metrics.summary.overlapMs,2000)
+  assert.deepStrictEqual(metrics.summary.overlapCount,1)
+  assert.deepStrictEqual(metrics.summary.overlapMs,2000)
   // Both people really were speaking, so both keep the full duration.
-  assertEquals(speaker(metrics,'s1').speechMs,5000)
-  assertEquals(speaker(metrics,'s2').speechMs,5000)
+  assert.deepStrictEqual(speaker(metrics,'s1').speechMs,5000)
+  assert.deepStrictEqual(speaker(metrics,'s2').speechMs,5000)
 })
 
 Deno.test('does not count two cues from the same speaker as overlap',()=>{
@@ -143,8 +143,8 @@ Deno.test('does not count two cues from the same speaker as overlap',()=>{
     entry('s1','consultant',0,5000),
     entry('s1','consultant',4000,8000),
   ])
-  assertEquals(metrics.summary.overlapCount,0)
-  assertEquals(metrics.summary.overlapMs,0)
+  assert.deepStrictEqual(metrics.summary.overlapCount,0)
+  assert.deepStrictEqual(metrics.summary.overlapMs,0)
 })
 
 Deno.test('handles a zero-duration segment without distorting the average',()=>{
@@ -154,9 +154,9 @@ Deno.test('handles a zero-duration segment without distorting the average',()=>{
     entry('s2','candidate',2000,6000),
   ])
   const consultant=speaker(metrics,'s1')
-  assertEquals(consultant.speechMs,0)
-  assertEquals(consultant.turnCount,1)
-  assertEquals(consultant.averageTurnMs,0)
+  assert.deepStrictEqual(consultant.speechMs,0)
+  assert.deepStrictEqual(consultant.turnCount,1)
+  assert.deepStrictEqual(consultant.averageTurnMs,0)
 })
 
 Deno.test('orders out-of-order entries before measuring',()=>{
@@ -166,16 +166,16 @@ Deno.test('orders out-of-order entries before measuring',()=>{
     entry('s1','consultant',0,2000),
   ])
   // Sorted by start, so these are two separate turns rather than one merged run.
-  assertEquals(metrics.speakers.length,2)
-  assertEquals(metrics.summary.overlapCount,0)
+  assert.deepStrictEqual(metrics.speakers.length,2)
+  assert.deepStrictEqual(metrics.summary.overlapCount,0)
 })
 
 Deno.test('an empty transcript produces no speakers and no ratio',()=>{
   reset()
   const metrics=computeConversationMetrics([])
-  assertEquals(metrics.speakers.length,0)
-  assertEquals(metrics.summary.timestampCoverage,0)
-  assertEquals(metrics.summary.metricConfidence,'low')
+  assert.deepStrictEqual(metrics.speakers.length,0)
+  assert.deepStrictEqual(metrics.summary.timestampCoverage,0)
+  assert.deepStrictEqual(metrics.summary.metricConfidence,'low')
 })
 
 Deno.test('reports a long monologue as the longest turn',()=>{
@@ -186,7 +186,7 @@ Deno.test('reports a long monologue as the longest turn',()=>{
     entry('s1','consultant',4000,124_000),
   ])
   const consultant=speaker(metrics,'s1')
-  assertEquals(consultant.longestTurnMs,120_000)
+  assert.deepStrictEqual(consultant.longestTurnMs,120_000)
 })
 
 Deno.test('measures two consultants separately rather than as one subject',()=>{
@@ -199,9 +199,9 @@ Deno.test('measures two consultants separately rather than as one subject',()=>{
     entry('s3','candidate',4000,10_000),
   ])
   const byMember=consultantSpeechByMember(metrics.speakers,new Map([['s1','member-a'],['s2','member-b'],['s3',null]]))
-  assertEquals(byMember.get('member-a'),3000)
-  assertEquals(byMember.get('member-b'),1000)
-  assertEquals(byMember.size,2)
+  assert.deepStrictEqual(byMember.get('member-a'),3000)
+  assert.deepStrictEqual(byMember.get('member-b'),1000)
+  assert.deepStrictEqual(byMember.size,2)
 })
 
 Deno.test('ignores an unmapped consultant rather than crediting the wrong member',()=>{
@@ -211,8 +211,8 @@ Deno.test('ignores an unmapped consultant rather than crediting the wrong member
     entry('s2','consultant',3000,4000),
   ])
   const byMember=consultantSpeechByMember(metrics.speakers,new Map([['s1','member-a']]))
-  assertEquals(byMember.get('member-a'),3000)
-  assertEquals(byMember.size,1)
+  assert.deepStrictEqual(byMember.get('member-a'),3000)
+  assert.deepStrictEqual(byMember.size,1)
 })
 
 Deno.test('a client participant is measured but is not a consultant subject',()=>{
@@ -222,9 +222,9 @@ Deno.test('a client participant is measured but is not a consultant subject',()=
     entry('s2','client',2000,5000),
     entry('s3','candidate',5000,10_000),
   ])
-  assertEquals(speaker(metrics,'s2').speechMs,3000)
+  assert.deepStrictEqual(speaker(metrics,'s2').speechMs,3000)
   const byMember=consultantSpeechByMember(metrics.speakers,new Map([['s1','member-a'],['s2','member-b']]))
-  assertEquals(byMember.size,1)
+  assert.deepStrictEqual(byMember.size,1)
 })
 
 Deno.test('an inverted timespan is treated as untimed rather than negative',()=>{
@@ -233,6 +233,6 @@ Deno.test('an inverted timespan is treated as untimed rather than negative',()=>
     entry('s1','consultant',5000,1000),
     entry('s2','candidate',6000,8000),
   ])
-  assertEquals(speaker(metrics,'s1').speechMs,0)
-  assertEquals(metrics.summary.timestampCoverage,0.5)
+  assert.deepStrictEqual(speaker(metrics,'s1').speechMs,0)
+  assert.deepStrictEqual(metrics.summary.timestampCoverage,0.5)
 })
