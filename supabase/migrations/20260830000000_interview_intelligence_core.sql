@@ -934,8 +934,16 @@ create policy interview_metric_summaries_read on public.interview_conversation_m
 
 /* Extends the single capability RPC rather than adding a second one: the client already makes one
  * call for this, and the policy derivation stays server-side where it is also enforced. The four new
- * booleans are UX only -- every one of them is independently enforced by RLS above. */
-create or replace function public.get_my_workspace_capabilities(p_organization_id uuid)
+ * booleans are UX only -- every one of them is independently enforced by RLS above.
+ *
+ * Dropped first, because `create or replace` cannot add columns to a RETURNS TABLE -- Postgres
+ * refuses with 42P13, "cannot change return type of existing function". The drop means this comes
+ * back as a brand-new pg_proc row carrying Postgres's default ACL of EXECUTE to PUBLIC, which is the
+ * exact regression class 20260726020000_harden_implicit_public_grants.sql was written to clean up,
+ * so the revoke below is load-bearing rather than decorative. tests/rls/rpc-acl.test.ts is what
+ * proves it stayed revoked. */
+drop function if exists public.get_my_workspace_capabilities(uuid);
+create function public.get_my_workspace_capabilities(p_organization_id uuid)
 returns table(
   role_keys text[],
   can_write_candidates boolean,
