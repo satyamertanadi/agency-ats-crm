@@ -4478,6 +4478,7 @@ export type Database = {
       get_my_workspace_capabilities: {
         Args: { p_organization_id: string }
         Returns: {
+          can_configure_interview_intelligence: boolean
           can_import: boolean
           can_manage_commercial_terms: boolean
           can_manage_finance: boolean
@@ -4488,8 +4489,11 @@ export type Database = {
           can_manage_templates: boolean
           can_manage_workspace: boolean
           can_move_pipeline: boolean
+          can_review_team_interview_quality: boolean
           can_submit: boolean
+          can_use_interview_intelligence: boolean
           can_view_admin: boolean
+          can_view_own_interview_quality: boolean
           can_view_team_reports: boolean
           can_write_candidates: boolean
           can_write_clients: boolean

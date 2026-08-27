@@ -87,8 +87,10 @@ status) rather than an interview-specific `interview_jobs`. Claiming, retry and 
 to that generic mechanism; only the payload is interview-shaped. Later work that needs asynchrony uses
 the same table.
 
-This is the one decision here that materially expands scope beyond the plan's stated assumption, and
-it is flagged for explicit approval before WS4 begins.
+This materially expands scope beyond the plan's stated assumption, so it was put to the product owner
+rather than assumed. Reinstating the general-purpose table was approved before WS1 was written; the
+alternative considered and rejected was treating `interview_analysis_runs` as its own queue, which
+avoids new infrastructure but hand-rolls retry, backoff and dead-lettering onto the run row.
 
 ### The role matrix names five roles that no longer exist
 
@@ -138,7 +140,14 @@ Four source types are supported in A0: `transcript_entry`, `candidate_cv`, `cand
 A reference that does not resolve to a real row inside the caller's organisation fails the run. This is
 the anti-hallucination boundary, and it is enforced after the model returns rather than requested of
 it: a model that invents a transcript segment ID, quotes a candidate who never spoke, or reaches for
-another organisation's record produces a failed analysis instead of a plausible one. Consultant
+another organisation's record produces a failed analysis instead of a plausible one.
+
+Cross-organisation references are refused one level lower as well. Every reference this domain makes
+to an existing record -- a speaker's member, candidate or contact, an assessment's subject, a run's
+interview and rubrics -- is a composite `(id, organization_id)` foreign key rather than a plain one. A
+single-column key is satisfied by any row in the instance, so a speaker mapping driven from a picker
+could store another workspace's consultant and the constraint would resolve happily; RLS does not
+catch that, because RLS governs which rows a caller can see, not which identifiers they may write. Consultant
 findings of any material weight require transcript evidence specifically. Excerpts are length-bounded
 so that the evidence table cannot quietly become a second copy of the transcript under different
 retention rules.

@@ -124,6 +124,15 @@ const rpcMessages:Record<string,string>={
   occurred_at_in_future:'An activity cannot be logged in the future.',
   comments_too_long:'Shorten the comments and try again.',
   reviewer_name_too_long:'Shorten the reviewer name and try again.',
+  /* Interview Intelligence. The rubric sentences explain WHY the edit was refused rather than only
+   * that it was: an activated blueprint is the yardstick historical analyses were measured against,
+   * and someone who does not know that reads the refusal as a bug. */
+  interview_rubric_immutable_after_activation:'This interview blueprint is active and cannot be edited. Create a new version instead.',
+  interview_rubric_items_frozen_after_activation:'This interview blueprint is active, so its questions cannot be changed. Create a new version instead.',
+  interview_rubric_archived_is_final:'An archived interview blueprint cannot be reopened.',
+  // Deliberately identical to the wording for a transcript in another workspace: knowing a
+  // transcript id must not reveal whether it exists.
+  transcript_not_found:'That transcript could not be found in this workspace.',
 }
 
 /* `duplicate_candidate:<uuid>` is the one token carrying a payload -- the id of the record it collided
