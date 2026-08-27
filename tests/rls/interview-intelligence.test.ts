@@ -104,6 +104,13 @@ beforeAll(async()=>{
     transcript_bundle_hash:'tb',rubric_bundle_hash:'rb',job_input_hash:'jb',candidate_input_hash:'cb',
     input_hash:'rls-fixture-input-hash',status:'completed',
   })
+  /* The run records the exact transcript bundle it read. This table has a composite primary key and
+   * no `id`, so it cannot go through the insert helper. */
+  const runTranscript=await service.from('interview_analysis_run_transcripts').insert({
+    organization_id:ORG,analysis_run_id:ids.run,transcript_id:ids.transcript,sort_order:0,
+  })
+  if(runTranscript.error)throw runTranscript.error
+
   ids.candidateAssessment=await insert('interview_assessments',{
     organization_id:ORG,analysis_run_id:ids.run,interview_id:ids.interview,
     assessment_type:'candidate_fit',subject_candidate_id:CANDIDATE,
@@ -354,6 +361,88 @@ describe('an activated rubric is frozen',()=>{
       activated_at:new Date().toISOString(),
     })
     expect(second.error?.code).toBe('23505')
+  })
+})
+
+describe('one interview can carry several transcripts',()=>{
+  it('drops a superseded artifact from the current bundle without deleting it',async()=>{
+    // A corrected import supersedes its predecessor rather than mutating it, so a historical run can
+    // still say what it actually read.
+    const correction=await insert('interview_transcripts',{
+      organization_id:ORG,interview_id:ids.interview,source:'manual_text',status:'ready',
+      checksum:'rls-fixture-correction',has_timestamps:true,entry_count:1,completeness:'complete',
+      purge_due_at:'2026-12-01T00:00:00Z',
+    })
+    try{
+      const supersede=await service.from('interview_transcripts')
+        .update({superseded_by_transcript_id:correction,superseded_at:new Date().toISOString()})
+        .eq('id',ids.transcript)
+      expect(supersede.error).toBeNull()
+
+      const bundle=await service.rpc('current_interview_transcripts',{p_interview_id:ids.interview})
+      expect(bundle.error).toBeNull()
+      const bundleIds=(bundle.data as {id:string}[]|null||[]).map((row)=>row.id)
+      expect(bundleIds).toEqual([correction])
+
+      // The superseded artifact is still stored and still readable -- superseding is not deletion.
+      const original=await service.from('interview_transcripts').select('id,superseded_by_transcript_id').eq('id',ids.transcript).single()
+      expect(original.data?.superseded_by_transcript_id).toBe(correction)
+
+      // And the completed run still points at the exact transcript it read.
+      const link=await service.from('interview_analysis_run_transcripts').select('transcript_id').eq('analysis_run_id',ids.run)
+      expect((link.data||[]).map((row)=>row.transcript_id)).toEqual([ids.transcript])
+    }finally{
+      await service.from('interview_transcripts').update({superseded_by_transcript_id:null,superseded_at:null}).eq('id',ids.transcript)
+      await service.from('interview_transcripts').delete().eq('id',correction)
+    }
+  })
+
+  it('refuses a transcript that supersedes itself',async()=>{
+    // A self-referencing supersede would make the current-bundle query skip an artifact that nothing
+    // actually replaced, so the interview would silently lose its only transcript. The cross-workspace
+    // case is covered by the composite foreign key, as asserted for speaker mapping above.
+    const loop=await service.from('interview_transcripts').update({
+      superseded_by_transcript_id:ids.transcript,superseded_at:new Date().toISOString(),
+    }).eq('id',ids.transcript).select('id')
+    expect(loop.error).not.toBeNull()
+  })
+})
+
+describe('evidence resolves to real records',()=>{
+  it('stores multi-source evidence and cascades it with the finding',async()=>{
+    const finding=await insert('interview_assessment_findings',{
+      organization_id:ORG,assessment_id:ids.candidateAssessment,category:'requirement',
+      result:'met',confidence:'high',title:'Commercial leadership',
+      summary:'Led a commercial team for three years.',
+    })
+    // Three source types against one finding: the transcript segment, an ATS field by locator, and
+    // the job brief. This is the shape the plan calls multi-source evidence.
+    const evidence=await service.from('interview_finding_evidence').insert([
+      {organization_id:ORG,finding_id:finding,source_type:'transcript_entry',source_record_id:ids.entry,excerpt:'I led the commercial team.'},
+      {organization_id:ORG,finding_id:finding,source_type:'candidate_field',source_record_id:CANDIDATE,source_locator:'availability'},
+      {organization_id:ORG,finding_id:finding,source_type:'job_brief',source_record_id:JOB},
+    ]).select('id')
+    expect(evidence.error).toBeNull()
+    expect(evidence.data).toHaveLength(3)
+
+    // job_brief is the only source type allowed to omit a record id.
+    const unanchored=await service.from('interview_finding_evidence').insert({
+      organization_id:ORG,finding_id:finding,source_type:'transcript_entry',source_record_id:null,
+    })
+    expect(unanchored.error).not.toBeNull()
+
+    // Deleting the finding takes its evidence with it -- evidence never outlives what it supports.
+    await service.from('interview_assessment_findings').delete().eq('id',finding)
+    const orphaned=await service.from('interview_finding_evidence').select('id').eq('finding_id',finding)
+    expect(orphaned.data).toEqual([])
+  })
+
+  it('does not accept a finding whose assessment belongs to another workspace',async()=>{
+    const foreign=await service.from('interview_assessment_findings').insert({
+      organization_id:RIVAL_ORG,assessment_id:ids.candidateAssessment,category:'requirement',
+      result:'met',confidence:'high',title:'Cross-tenant finding',summary:'Should not be storable.',
+    })
+    expect(foreign.error?.code).toBe('23503')
   })
 })
 

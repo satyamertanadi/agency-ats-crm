@@ -468,7 +468,12 @@ returns setof public.interview_transcripts language sql stable security definer 
     and t.superseded_by_transcript_id is null
   order by t.started_at nulls last, t.created_at
 $$;
+/* Service-side only, following candidate_profile_token_spend_this_month: the analysis worker resolves
+ * the bundle, no client has a reason to. The explicit grant matters -- service_role's EXECUTE comes
+ * from PUBLIC, so revoking PUBLIC takes it away too, and the worker would fail with "permission
+ * denied for function" the first time it ran. */
 revoke all on function public.current_interview_transcripts(uuid) from public, anon, authenticated;
+grant execute on function public.current_interview_transcripts(uuid) to service_role;
 
 create table public.interview_transcript_speakers (
   id uuid primary key default gen_random_uuid(),
