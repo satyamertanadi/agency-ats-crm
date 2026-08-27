@@ -5157,6 +5157,14 @@ export type Database = {
           granted_roles: string[]
         }[]
       }
+      bulk_confirm_interview_transcript_speakers: {
+        Args: {
+          p_mappings: Json
+          p_organization_id: string
+          p_transcript_id: string
+        }
+        Returns: number
+      }
       can_access_interview_transcript: {
         Args: { p_interview_id: string }
         Returns: boolean
@@ -5264,6 +5272,17 @@ export type Database = {
       configure_founding_partner: {
         Args: { p_enabled?: boolean; p_organization_id: string }
         Returns: undefined
+      }
+      confirm_interview_transcript_speaker: {
+        Args: {
+          p_candidate_id?: string
+          p_contact_id?: string
+          p_member_id?: string
+          p_organization_id: string
+          p_speaker_id: string
+          p_speaker_role: string
+        }
+        Returns: string
       }
       create_candidate_list: {
         Args: {
@@ -5500,6 +5519,22 @@ export type Database = {
           version: number
         }[]
       }
+      get_interview_transcript_overview: {
+        Args: { p_interview_id: string; p_organization_id: string }
+        Returns: {
+          completeness: string
+          created_at: string
+          entry_count: number
+          has_timestamps: boolean
+          purge_due_at: string
+          source: string
+          speaker_count: number
+          status: string
+          superseded_by_transcript_id: string
+          transcript_id: string
+          unmapped_speaker_count: number
+        }[]
+      }
       get_interview_transcript_page: {
         Args: {
           p_after_sequence?: number
@@ -5579,6 +5614,26 @@ export type Database = {
       has_permission: {
         Args: { p_organization_id: string; p_permission: string }
         Returns: boolean
+      }
+      ingest_interview_transcript: {
+        Args: {
+          p_checksum: string
+          p_completeness: string
+          p_created_by: string
+          p_duration_seconds: number
+          p_ended_at: string
+          p_entries: Json
+          p_has_timestamps: boolean
+          p_interview_id: string
+          p_language_codes: string[]
+          p_organization_id: string
+          p_retention_days: number
+          p_source: string
+          p_speakers: Json
+          p_started_at: string
+          p_supersedes_transcript_id: string
+        }
+        Returns: Json
       }
       interview_consent_status: {
         Args: { p_interview_id: string }
