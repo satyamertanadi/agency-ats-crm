@@ -2121,6 +2121,320 @@ export type Database = {
           },
         ]
       }
+      interview_analysis_run_transcripts: {
+        Row: {
+          analysis_run_id: string
+          created_at: string
+          organization_id: string
+          sort_order: number
+          transcript_id: string
+        }
+        Insert: {
+          analysis_run_id: string
+          created_at?: string
+          organization_id: string
+          sort_order?: number
+          transcript_id: string
+        }
+        Update: {
+          analysis_run_id?: string
+          created_at?: string
+          organization_id?: string
+          sort_order?: number
+          transcript_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_analysis_run_transc_analysis_run_id_organization_fkey"
+            columns: ["analysis_run_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_analysis_runs"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_analysis_run_transc_transcript_id_organization_i_fkey"
+            columns: ["transcript_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_transcripts"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_analysis_run_transcripts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_analysis_runs: {
+        Row: {
+          candidate_input_hash: string
+          completed_at: string | null
+          core_rubric_id: string
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          id: string
+          input_hash: string
+          input_tokens: number | null
+          interview_id: string
+          job_candidate_id: string
+          job_input_hash: string
+          job_rubric_id: string
+          model: string
+          organization_id: string
+          output_tokens: number | null
+          processing_ms: number | null
+          prompt_version: string
+          provider: string
+          requested_by: string | null
+          rubric_bundle_hash: string
+          started_at: string | null
+          status: string
+          transcript_bundle_hash: string
+        }
+        Insert: {
+          candidate_input_hash: string
+          completed_at?: string | null
+          core_rubric_id: string
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          input_hash: string
+          input_tokens?: number | null
+          interview_id: string
+          job_candidate_id: string
+          job_input_hash: string
+          job_rubric_id: string
+          model: string
+          organization_id: string
+          output_tokens?: number | null
+          processing_ms?: number | null
+          prompt_version: string
+          provider: string
+          requested_by?: string | null
+          rubric_bundle_hash: string
+          started_at?: string | null
+          status?: string
+          transcript_bundle_hash: string
+        }
+        Update: {
+          candidate_input_hash?: string
+          completed_at?: string | null
+          core_rubric_id?: string
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          input_hash?: string
+          input_tokens?: number | null
+          interview_id?: string
+          job_candidate_id?: string
+          job_input_hash?: string
+          job_rubric_id?: string
+          model?: string
+          organization_id?: string
+          output_tokens?: number | null
+          processing_ms?: number | null
+          prompt_version?: string
+          provider?: string
+          requested_by?: string | null
+          rubric_bundle_hash?: string
+          started_at?: string | null
+          status?: string
+          transcript_bundle_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_analysis_runs_core_rubric_id_organization_id_fkey"
+            columns: ["core_rubric_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_rubrics"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_analysis_runs_interview_id_organization_id_fkey"
+            columns: ["interview_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_analysis_runs_job_candidate_id_organization_id_fkey"
+            columns: ["job_candidate_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "job_candidates"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_analysis_runs_job_rubric_id_organization_id_fkey"
+            columns: ["job_rubric_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_rubrics"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_analysis_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_assessment_findings: {
+        Row: {
+          assessment_id: string
+          category: string
+          coaching_suggestion: string | null
+          confidence: string
+          created_at: string
+          id: string
+          organization_id: string
+          result: string
+          rubric_item_id: string | null
+          score: number | null
+          severity: string
+          sort_order: number
+          summary: string
+          title: string
+        }
+        Insert: {
+          assessment_id: string
+          category: string
+          coaching_suggestion?: string | null
+          confidence: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          result: string
+          rubric_item_id?: string | null
+          score?: number | null
+          severity?: string
+          sort_order?: number
+          summary: string
+          title: string
+        }
+        Update: {
+          assessment_id?: string
+          category?: string
+          coaching_suggestion?: string | null
+          confidence?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          result?: string
+          rubric_item_id?: string | null
+          score?: number | null
+          severity?: string
+          sort_order?: number
+          summary?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_assessment_findings_assessment_id_organization_i_fkey"
+            columns: ["assessment_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_assessments"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_assessment_findings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_assessment_findings_rubric_item_id_organization__fkey"
+            columns: ["rubric_item_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_rubric_items"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      interview_assessments: {
+        Row: {
+          analysis_run_id: string
+          assessment_type: string
+          confidence: string
+          created_at: string
+          id: string
+          interview_id: string
+          organization_id: string
+          overall_band: string
+          subject_candidate_id: string | null
+          subject_member_id: string | null
+          summary: string
+        }
+        Insert: {
+          analysis_run_id: string
+          assessment_type: string
+          confidence: string
+          created_at?: string
+          id?: string
+          interview_id: string
+          organization_id: string
+          overall_band: string
+          subject_candidate_id?: string | null
+          subject_member_id?: string | null
+          summary: string
+        }
+        Update: {
+          analysis_run_id?: string
+          assessment_type?: string
+          confidence?: string
+          created_at?: string
+          id?: string
+          interview_id?: string
+          organization_id?: string
+          overall_band?: string
+          subject_candidate_id?: string | null
+          subject_member_id?: string | null
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_assessments_analysis_run_id_organization_id_fkey"
+            columns: ["analysis_run_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_analysis_runs"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_assessments_interview_id_organization_id_fkey"
+            columns: ["interview_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_assessments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_assessments_subject_candidate_id_organization_id_fkey"
+            columns: ["subject_candidate_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_assessments_subject_member_id_organization_id_fkey"
+            columns: ["subject_member_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       interview_attendees: {
         Row: {
           contact_id: string | null
@@ -2177,6 +2491,641 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_conversation_metric_summaries: {
+        Row: {
+          analysis_run_id: string
+          created_at: string
+          metric_confidence: string
+          organization_id: string
+          overlap_count: number
+          overlap_ms: number
+          timestamp_coverage: number
+          unknown_speech_ms: number
+        }
+        Insert: {
+          analysis_run_id: string
+          created_at?: string
+          metric_confidence?: string
+          organization_id: string
+          overlap_count?: number
+          overlap_ms?: number
+          timestamp_coverage?: number
+          unknown_speech_ms?: number
+        }
+        Update: {
+          analysis_run_id?: string
+          created_at?: string
+          metric_confidence?: string
+          organization_id?: string
+          overlap_count?: number
+          overlap_ms?: number
+          timestamp_coverage?: number
+          unknown_speech_ms?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_conversation_metri_analysis_run_id_organization_fkey1"
+            columns: ["analysis_run_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_analysis_runs"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_conversation_metric_summaries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_conversation_metrics: {
+        Row: {
+          analysis_run_id: string
+          average_turn_ms: number | null
+          created_at: string
+          id: string
+          longest_turn_ms: number | null
+          organization_id: string
+          speaker_id: string
+          speaker_role: string
+          speech_ms: number
+          subject_candidate_id: string | null
+          subject_member_id: string | null
+          transcript_id: string
+          turn_count: number
+        }
+        Insert: {
+          analysis_run_id: string
+          average_turn_ms?: number | null
+          created_at?: string
+          id?: string
+          longest_turn_ms?: number | null
+          organization_id: string
+          speaker_id: string
+          speaker_role: string
+          speech_ms?: number
+          subject_candidate_id?: string | null
+          subject_member_id?: string | null
+          transcript_id: string
+          turn_count?: number
+        }
+        Update: {
+          analysis_run_id?: string
+          average_turn_ms?: number | null
+          created_at?: string
+          id?: string
+          longest_turn_ms?: number | null
+          organization_id?: string
+          speaker_id?: string
+          speaker_role?: string
+          speech_ms?: number
+          subject_candidate_id?: string | null
+          subject_member_id?: string | null
+          transcript_id?: string
+          turn_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_conversation_metric_analysis_run_id_organization_fkey"
+            columns: ["analysis_run_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_analysis_runs"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_conversation_metric_subject_candidate_id_organiz_fkey"
+            columns: ["subject_candidate_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_conversation_metric_subject_member_id_organizati_fkey"
+            columns: ["subject_member_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_conversation_metric_transcript_id_organization_i_fkey"
+            columns: ["transcript_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_transcripts"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_conversation_metrics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_conversation_metrics_speaker_id_organization_id_fkey"
+            columns: ["speaker_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_transcript_speakers"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      interview_finding_evidence: {
+        Row: {
+          created_at: string
+          excerpt: string | null
+          finding_id: string
+          id: string
+          organization_id: string
+          source_locator: string | null
+          source_record_id: string | null
+          source_type: string
+        }
+        Insert: {
+          created_at?: string
+          excerpt?: string | null
+          finding_id: string
+          id?: string
+          organization_id: string
+          source_locator?: string | null
+          source_record_id?: string | null
+          source_type: string
+        }
+        Update: {
+          created_at?: string
+          excerpt?: string | null
+          finding_id?: string
+          id?: string
+          organization_id?: string
+          source_locator?: string | null
+          source_record_id?: string | null
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_finding_evidence_finding_id_organization_id_fkey"
+            columns: ["finding_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_assessment_findings"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_finding_evidence_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_rubric_items: {
+        Row: {
+          created_at: string
+          dimension: string
+          evidence_expected: string | null
+          id: string
+          item_type: string
+          label: string
+          organization_id: string
+          question_text: string | null
+          requirement_level: string
+          rubric_id: string
+          sort_order: number
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          dimension: string
+          evidence_expected?: string | null
+          id?: string
+          item_type: string
+          label: string
+          organization_id: string
+          question_text?: string | null
+          requirement_level?: string
+          rubric_id: string
+          sort_order?: number
+          weight?: number
+        }
+        Update: {
+          created_at?: string
+          dimension?: string
+          evidence_expected?: string | null
+          id?: string
+          item_type?: string
+          label?: string
+          organization_id?: string
+          question_text?: string | null
+          requirement_level?: string
+          rubric_id?: string
+          sort_order?: number
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_rubric_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_rubric_items_rubric_id_organization_id_fkey"
+            columns: ["rubric_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_rubrics"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      interview_rubrics: {
+        Row: {
+          activated_at: string | null
+          activated_by: string | null
+          archived_at: string | null
+          created_at: string
+          created_by: string
+          id: string
+          job_brief_hash: string | null
+          job_id: string | null
+          name: string
+          organization_id: string
+          rubric_type: string
+          source_document_id: string | null
+          status: string
+          version: number
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
+          archived_at?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          job_brief_hash?: string | null
+          job_id?: string | null
+          name: string
+          organization_id: string
+          rubric_type: string
+          source_document_id?: string | null
+          status?: string
+          version?: number
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by?: string | null
+          archived_at?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_brief_hash?: string | null
+          job_id?: string | null
+          name?: string
+          organization_id?: string
+          rubric_type?: string
+          source_document_id?: string | null
+          status?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_rubrics_job_id_organization_id_fkey"
+            columns: ["job_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_rubrics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_rubrics_source_document_id_organization_id_fkey"
+            columns: ["source_document_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      interview_transcript_entries: {
+        Row: {
+          created_at: string
+          end_ms: number | null
+          id: string
+          language_code: string | null
+          organization_id: string
+          sequence_number: number
+          speaker_id: string
+          start_ms: number | null
+          text: string
+          transcript_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_ms?: number | null
+          id?: string
+          language_code?: string | null
+          organization_id: string
+          sequence_number: number
+          speaker_id: string
+          start_ms?: number | null
+          text: string
+          transcript_id: string
+        }
+        Update: {
+          created_at?: string
+          end_ms?: number | null
+          id?: string
+          language_code?: string | null
+          organization_id?: string
+          sequence_number?: number
+          speaker_id?: string
+          start_ms?: number | null
+          text?: string
+          transcript_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_transcript_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_transcript_entries_speaker_id_organization_id_fkey"
+            columns: ["speaker_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_transcript_speakers"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_transcript_entries_transcript_id_organization_id_fkey"
+            columns: ["transcript_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_transcripts"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      interview_transcript_speakers: {
+        Row: {
+          candidate_id: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          contact_id: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          mapping_confidence: number | null
+          member_id: string | null
+          organization_id: string
+          source_speaker_id: string
+          speaker_role: string
+          transcript_id: string
+        }
+        Insert: {
+          candidate_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          mapping_confidence?: number | null
+          member_id?: string | null
+          organization_id: string
+          source_speaker_id: string
+          speaker_role?: string
+          transcript_id: string
+        }
+        Update: {
+          candidate_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          mapping_confidence?: number | null
+          member_id?: string | null
+          organization_id?: string
+          source_speaker_id?: string
+          speaker_role?: string
+          transcript_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_transcript_speakers_candidate_id_organization_id_fkey"
+            columns: ["candidate_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_transcript_speakers_contact_id_organization_id_fkey"
+            columns: ["contact_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_transcript_speakers_member_id_organization_id_fkey"
+            columns: ["member_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_transcript_speakers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_transcript_speakers_transcript_id_organization_i_fkey"
+            columns: ["transcript_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_transcripts"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      interview_transcription_consents: {
+        Row: {
+          candidate_id: string
+          consent_method: string
+          created_at: string
+          evidence: string | null
+          id: string
+          interview_id: string
+          notice_method: string | null
+          notice_version: string | null
+          occurred_at: string
+          organization_id: string
+          recorded_by: string
+          status: string
+        }
+        Insert: {
+          candidate_id: string
+          consent_method: string
+          created_at?: string
+          evidence?: string | null
+          id?: string
+          interview_id: string
+          notice_method?: string | null
+          notice_version?: string | null
+          occurred_at?: string
+          organization_id: string
+          recorded_by: string
+          status: string
+        }
+        Update: {
+          candidate_id?: string
+          consent_method?: string
+          created_at?: string
+          evidence?: string | null
+          id?: string
+          interview_id?: string
+          notice_method?: string | null
+          notice_version?: string | null
+          occurred_at?: string
+          organization_id?: string
+          recorded_by?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_transcription_conse_candidate_id_organization_id_fkey"
+            columns: ["candidate_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_transcription_conse_interview_id_organization_id_fkey"
+            columns: ["interview_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_transcription_consents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_transcripts: {
+        Row: {
+          checksum: string
+          completeness: string
+          created_at: string
+          created_by: string | null
+          duration_seconds: number | null
+          ended_at: string | null
+          entry_count: number
+          error_code: string | null
+          error_message: string | null
+          external_resource_name: string | null
+          has_timestamps: boolean
+          id: string
+          input_version: number
+          interview_id: string
+          language_codes: string[]
+          organization_id: string
+          purge_due_at: string
+          purged_at: string | null
+          source: string
+          started_at: string | null
+          status: string
+          superseded_at: string | null
+          superseded_by_transcript_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          checksum: string
+          completeness?: string
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          entry_count?: number
+          error_code?: string | null
+          error_message?: string | null
+          external_resource_name?: string | null
+          has_timestamps?: boolean
+          id?: string
+          input_version?: number
+          interview_id: string
+          language_codes?: string[]
+          organization_id: string
+          purge_due_at: string
+          purged_at?: string | null
+          source: string
+          started_at?: string | null
+          status?: string
+          superseded_at?: string | null
+          superseded_by_transcript_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          checksum?: string
+          completeness?: string
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          entry_count?: number
+          error_code?: string | null
+          error_message?: string | null
+          external_resource_name?: string | null
+          has_timestamps?: boolean
+          id?: string
+          input_version?: number
+          interview_id?: string
+          language_codes?: string[]
+          organization_id?: string
+          purge_due_at?: string
+          purged_at?: string | null
+          source?: string
+          started_at?: string | null
+          status?: string
+          superseded_at?: string | null
+          superseded_by_transcript_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_transcripts_interview_id_organization_id_fkey"
+            columns: ["interview_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_transcripts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_transcripts_supersedes_fkey"
+            columns: ["superseded_by_transcript_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_transcripts"
+            referencedColumns: ["id", "organization_id"]
           },
         ]
       }
@@ -2834,6 +3783,9 @@ export type Database = {
           candidate_retention_months: number
           default_submission_expiry_days: number
           document_migration_completed: boolean
+          interview_consent_notice_version: string | null
+          interview_intelligence_enabled: boolean
+          interview_rubric_generation_enabled: boolean
           logo_path: string | null
           migration_complete: boolean
           organization_id: string
@@ -2841,6 +3793,7 @@ export type Database = {
           require_invitation: boolean
           settings: Json
           support_email: string | null
+          transcript_retention_days: number
           updated_at: string
           updated_by: string | null
         }
@@ -2850,6 +3803,9 @@ export type Database = {
           candidate_retention_months?: number
           default_submission_expiry_days?: number
           document_migration_completed?: boolean
+          interview_consent_notice_version?: string | null
+          interview_intelligence_enabled?: boolean
+          interview_rubric_generation_enabled?: boolean
           logo_path?: string | null
           migration_complete?: boolean
           organization_id: string
@@ -2857,6 +3813,7 @@ export type Database = {
           require_invitation?: boolean
           settings?: Json
           support_email?: string | null
+          transcript_retention_days?: number
           updated_at?: string
           updated_by?: string | null
         }
@@ -2866,6 +3823,9 @@ export type Database = {
           candidate_retention_months?: number
           default_submission_expiry_days?: number
           document_migration_completed?: boolean
+          interview_consent_notice_version?: string | null
+          interview_intelligence_enabled?: boolean
+          interview_rubric_generation_enabled?: boolean
           logo_path?: string | null
           migration_complete?: boolean
           organization_id?: string
@@ -2873,6 +3833,7 @@ export type Database = {
           require_invitation?: boolean
           settings?: Json
           support_email?: string | null
+          transcript_retention_days?: number
           updated_at?: string
           updated_by?: string | null
         }
@@ -4182,6 +5143,22 @@ export type Database = {
           granted_roles: string[]
         }[]
       }
+      can_access_interview_transcript: {
+        Args: { p_interview_id: string }
+        Returns: boolean
+      }
+      can_configure_interview_intelligence: {
+        Args: { p_organization_id: string }
+        Returns: boolean
+      }
+      can_review_interview_quality: {
+        Args: { p_organization_id: string }
+        Returns: boolean
+      }
+      can_use_interview_intelligence: {
+        Args: { p_organization_id: string }
+        Returns: boolean
+      }
       candidate_is_due_for_retention: {
         Args: { p_as_of?: string; p_candidate_id: string }
         Returns: boolean
@@ -4418,6 +5395,41 @@ export type Database = {
         }
         Returns: string
       }
+      current_interview_transcripts: {
+        Args: { p_interview_id: string }
+        Returns: {
+          checksum: string
+          completeness: string
+          created_at: string
+          created_by: string | null
+          duration_seconds: number | null
+          ended_at: string | null
+          entry_count: number
+          error_code: string | null
+          error_message: string | null
+          external_resource_name: string | null
+          has_timestamps: boolean
+          id: string
+          input_version: number
+          interview_id: string
+          language_codes: string[]
+          organization_id: string
+          purge_due_at: string
+          purged_at: string | null
+          source: string
+          started_at: string | null
+          status: string
+          superseded_at: string | null
+          superseded_by_transcript_id: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "interview_transcripts"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       default_candidate_profile_configuration: {
         Args: { p_language?: string }
         Returns: Json
@@ -4443,6 +5455,24 @@ export type Database = {
           p_status: string
         }
         Returns: string
+      }
+      get_interview_transcript_page: {
+        Args: {
+          p_after_sequence?: number
+          p_limit?: number
+          p_organization_id: string
+          p_transcript_id: string
+        }
+        Returns: {
+          content: string
+          end_ms: number
+          entry_id: string
+          sequence_number: number
+          speaker_id: string
+          speaker_label: string
+          speaker_role: string
+          start_ms: number
+        }[]
       }
       get_maintenance_diagnostics: {
         Args: { p_organization_id: string }
@@ -4505,6 +5535,10 @@ export type Database = {
       has_permission: {
         Args: { p_organization_id: string; p_permission: string }
         Returns: boolean
+      }
+      interview_consent_status: {
+        Args: { p_interview_id: string }
+        Returns: string
       }
       is_organization_member: {
         Args: { p_organization_id: string }
@@ -4731,6 +5765,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      my_member_id: { Args: { p_organization_id: string }; Returns: string }
       normalize_email: { Args: { value: string }; Returns: string }
       preview_candidate_retention: {
         Args: { p_organization_id: string }
