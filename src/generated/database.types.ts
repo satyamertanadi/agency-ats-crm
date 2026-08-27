@@ -316,6 +316,68 @@ export type Database = {
           },
         ]
       }
+      background_jobs: {
+        Row: {
+          attempts: number
+          available_at: string
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          idempotency_key: string | null
+          job_type: string
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          organization_id: string
+          payload: Json
+          priority: number
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          idempotency_key?: string | null
+          job_type: string
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          organization_id: string
+          payload?: Json
+          priority?: number
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          idempotency_key?: string | null
+          job_type?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          organization_id?: string
+          payload?: Json
+          priority?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "background_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidate_cv_parses: {
         Row: {
           accepted_at: string | null
@@ -5269,6 +5331,32 @@ export type Database = {
         }
         Returns: Json
       }
+      claim_background_job: {
+        Args: { p_job_type: string; p_locked_by: string }
+        Returns: {
+          attempts: number
+          available_at: string
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          idempotency_key: string | null
+          job_type: string
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          organization_id: string
+          payload: Json
+          priority: number
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "background_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       configure_founding_partner: {
         Args: { p_enabled?: boolean; p_organization_id: string }
         Returns: undefined
@@ -5480,6 +5568,14 @@ export type Database = {
         Args: { p_language?: string }
         Returns: Json
       }
+      fail_interview_analysis: {
+        Args: {
+          p_error_code: string
+          p_error_message: string
+          p_run_id: string
+        }
+        Returns: string
+      }
       finalize_candidate_profile: {
         Args: {
           p_anonymized: boolean
@@ -5501,6 +5597,20 @@ export type Database = {
           p_status: string
         }
         Returns: string
+      }
+      get_interview_analysis_state: {
+        Args: { p_interview_id: string; p_organization_id: string }
+        Returns: {
+          completed_at: string
+          consent_status: string
+          created_at: string
+          error_code: string
+          has_transcripts: boolean
+          is_stale: boolean
+          run_id: string
+          stale_reason: string
+          status: string
+        }[]
       }
       get_interview_blueprint_status: {
         Args: { p_job_id: string; p_organization_id: string }
@@ -5635,6 +5745,10 @@ export type Database = {
         }
         Returns: Json
       }
+      interview_candidate_input_hash: {
+        Args: { p_candidate_id: string }
+        Returns: string
+      }
       interview_consent_status: {
         Args: { p_interview_id: string }
         Returns: string
@@ -5643,9 +5757,17 @@ export type Database = {
         Args: { p_document_id?: string; p_job_id: string }
         Returns: string
       }
+      interview_rubric_bundle_hash: {
+        Args: { p_core_rubric_id: string; p_job_rubric_id: string }
+        Returns: string
+      }
       interview_rubric_token_spend_this_month: {
         Args: { p_organization_id: string }
         Returns: number
+      }
+      interview_transcript_bundle_hash: {
+        Args: { p_interview_id: string }
+        Returns: string
       }
       is_organization_member: {
         Args: { p_organization_id: string }
@@ -5874,6 +5996,18 @@ export type Database = {
       }
       my_member_id: { Args: { p_organization_id: string }; Returns: string }
       normalize_email: { Args: { value: string }; Returns: string }
+      persist_interview_analysis: {
+        Args: {
+          p_assessments: Json
+          p_input_tokens: number
+          p_metric_summary: Json
+          p_metrics: Json
+          p_output_tokens: number
+          p_processing_ms: number
+          p_run_id: string
+        }
+        Returns: string
+      }
       preview_candidate_retention: {
         Args: { p_organization_id: string }
         Returns: {
@@ -5922,6 +6056,10 @@ export type Database = {
         Args: { p_before?: string }
         Returns: number
       }
+      release_background_job: {
+        Args: { p_error?: string; p_job_id: string; p_outcome: string }
+        Returns: string
+      }
       remove_candidates_from_list: {
         Args: { p_candidate_ids: string[]; p_list_id: string }
         Returns: {
@@ -5937,6 +6075,16 @@ export type Database = {
           p_section: string
         }
         Returns: undefined
+      }
+      request_interview_analysis: {
+        Args: {
+          p_interview_id: string
+          p_model: string
+          p_organization_id: string
+          p_prompt_version: string
+          p_provider: string
+        }
+        Returns: Json
       }
       request_ip_hash: { Args: never; Returns: string }
       resolve_submission_documents: {
