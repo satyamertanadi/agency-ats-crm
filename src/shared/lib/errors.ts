@@ -130,6 +130,9 @@ const rpcMessages:Record<string,string>={
   interview_rubric_immutable_after_activation:'This interview blueprint is active and cannot be edited. Create a new version instead.',
   interview_rubric_items_frozen_after_activation:'This interview blueprint is active, so its questions cannot be changed. Create a new version instead.',
   interview_rubric_archived_is_final:'An archived interview blueprint cannot be reopened.',
+  interview_rubric_not_found:'That interview blueprint could not be found in this workspace.',
+  // Activating an empty blueprint would make every analysis report full coverage of nothing.
+  interview_rubric_empty:'Add at least one question or requirement before activating this blueprint.',
   // Deliberately identical to the wording for a transcript in another workspace: knowing a
   // transcript id must not reveal whether it exists.
   transcript_not_found:'That transcript could not be found in this workspace.',
