@@ -187,7 +187,45 @@ async function runMaintenance(request:Request,requestID:string){
   if(transcripts.error)throw transcripts.error
   const transcriptPurge=(transcripts.data||{purged:0,skipped:0}) as {purged?:number;skipped?:number}
 
-/* Drains the interview analysis queue.
+/* Discovers Meet transcripts worth fetching and drains that queue.
+   *
+   * Discovery is a database query -- it decides WHICH interviews are eligible, including the
+   * settling margin and the attempt ceiling -- and the fetching is a separate worker. Keeping the
+   * eligibility rule in SQL means it is the same rule whether the sweep runs hourly or somebody
+   * triggers it by hand, and the worker never has to re-derive it.
+   *
+   * Same reasoning as the analysis drain: it shares this schedule rather than taking its own, and a
+   * failure is recorded without failing retention. */
+  let meetQueued=0
+  let meetProcessed=0
+  let meetError:string|null=null
+  try{
+    const discovered=await admin.rpc('discover_meet_transcript_fetches',{p_limit:25})
+    if(discovered.error)throw new Error(discovered.error.message)
+    meetQueued=Number((discovered.data as {queued?:number}|null)?.queued||0)
+
+    for(let pass=0;pass<5;pass+=1){
+      const drained=await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/fetch-meet-transcript`,{
+        method:'POST',
+        headers:{
+          'content-type':'application/json',
+          'authorization':`Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          'x-worker-secret':Deno.env.get('WORKER_SECRET')||Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'',
+        },
+        body:JSON.stringify({trigger:'scheduled'}),
+      })
+      if(!drained.ok){meetError=`HTTP ${drained.status}`;break}
+      const body=await drained.json().catch(()=>null) as {processed?:number}|null
+      const count=Number(body?.processed||0)
+      meetProcessed+=count
+      if(count===0)break
+    }
+  }catch(error){
+    meetError=error instanceof Error?error.message:String(error)
+  }
+  if(meetError)log('warn','meet_transcript_sweep_failed',{requestId:requestID,detail:meetError})
+
+  /* Drains the interview analysis queue.
    *
    * This is the SAFETY NET, not the primary path: request-interview-analysis nudges the worker
    * directly so a consultant sees progress in seconds. What this catches is the job whose nudge
@@ -239,6 +277,9 @@ async function runMaintenance(request:Request,requestID:string){
     transcriptsSkipped:transcriptPurge.skipped||0,
     analysesProcessed,
     analysisDrainError,
+    meetFetchesQueued:meetQueued,
+    meetTranscriptsProcessed:meetProcessed,
+    meetSweepError:meetError,
   }
 
   // A run that could not anonymize every candidate it picked up is not a clean run. Recording it as
