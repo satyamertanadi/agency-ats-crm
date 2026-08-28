@@ -229,6 +229,27 @@ analysis, the analysis drawer, retention and purge. A1 adds the management and c
 adds trends, once enough real interviews exist to justify them. B1 automates Google Meet transcript
 acquisition. B2 adds the daily owner brief. Each release stops for evaluation before the next begins.
 
+B1 ships with two switches rather than one, and the separation is the point. Importing a transcript
+automatically is low-risk: it is the same artifact a consultant would paste, under the same consent
+gate, through the same ingestion function, and a human still confirms who was speaking before anything
+is analysed. Analysing automatically is a different proposition, because it turns a miscalibrated
+assessment from something produced one interview at a time into something produced for every interview
+the desk runs -- which is precisely the calibration this release is gated on. So
+`interview_meet_auto_import_enabled` and `interview_auto_analysis_enabled` are separate columns and
+both default to false.
+
+Two corrections to the plan, found by checking the Meet REST v2 reference rather than assuming. The
+scope is `meetings.space.readonly`, not `meetings.space.created`: our Meet spaces come from Calendar
+events rather than from spaces this app created through the Meet API, so the "created" scope returns
+nothing. And it is requested incrementally, carried by `include_granted_scopes`, so a workspace can
+have scheduling without transcript reading -- and the settings card reports what Google *granted*
+rather than what was requested, because a consultant can approve one and decline the other.
+
+Sessions are rebased per conference rather than trusted as absolute times: a dropped-and-resumed call
+produces one transcript per session, each starting near zero, and overlaying them makes every
+speaking-share figure wrong in a way that still looks plausible. An entry Google never timed stays
+null rather than becoming zero, which is a real position in a recording.
+
 Code-completeness is not commercial readiness. The feature is reported against a maturity ladder --
 code complete, locally verified, staging verified, calibrated, pilot ready, production ready -- and
 calibration against 20-30 representative interviews is a gate rather than a formality.
