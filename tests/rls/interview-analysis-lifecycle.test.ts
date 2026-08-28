@@ -207,6 +207,8 @@ describe('input fingerprints',()=>{
     await service.from('candidate_private_details').update({phone:'+65 9000 0000'}).eq('candidate_id',CANDIDATE)
     const after=await consultant.rpc('interview_candidate_input_hash',{p_candidate_id:CANDIDATE})
     expect(after.data).toBe(before.data)
+    // Restored: another suite searches candidates by a fragment of this number.
+    await service.from('candidate_private_details').update({phone:'+65 8111 1111'}).eq('candidate_id',CANDIDATE)
   })
 
   it('changes the candidate hash when evidence the model does see changes',async()=>{
@@ -280,6 +282,12 @@ describe('analysis state and staleness',()=>{
 })
 
 describe('persisting a result',()=>{
+  beforeAll(async()=>{
+    // The staleness test above marks this run completed to exercise the comparison; persist returns
+    // early on a completed run, so it is put back to processing here.
+    await service.from('interview_analysis_runs').update({status:'processing',completed_at:null}).eq('id',runs[0])
+  })
+
   it('writes assessments, findings, evidence and metrics as one act',async()=>{
     const entry=await service.from('interview_transcript_entries').select('id').eq('transcript_id',transcriptId).limit(1).single()
     const entryId=required(entry.data,'entry').id

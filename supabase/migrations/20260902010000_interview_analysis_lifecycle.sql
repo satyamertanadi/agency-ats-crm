@@ -42,9 +42,11 @@ begin
   select jc.candidate_id, jc.job_id into candidate, job
   from public.job_candidates jc where jc.id=interview.job_candidate_id;
 
-  -- A transcript still waiting on speaker mapping would attribute every word to nobody.
+  /* Order matters, because each of these is advice. A transcript that exists but still needs its
+   * speakers mapped is never 'ready', so checking readiness first would tell a consultant to "add the
+   * transcript" they just added. Existence, then mapping, then readiness.  */
   select count(*) into ready_count from public.interview_transcripts t
-  where t.interview_id=p_interview_id and t.status='ready'
+  where t.interview_id=p_interview_id
     and t.purged_at is null and t.superseded_by_transcript_id is null;
   if ready_count=0 then raise exception 'transcript_required'; end if;
 
@@ -53,6 +55,12 @@ begin
   where t.interview_id=p_interview_id and t.purged_at is null and t.superseded_by_transcript_id is null
     and s.confirmed_at is null;
   if unmapped>0 then raise exception 'speaker_mapping_required'; end if;
+
+  -- Mapped, but the artifact itself never normalised cleanly.
+  select count(*) into ready_count from public.interview_transcripts t
+  where t.interview_id=p_interview_id and t.status='ready'
+    and t.purged_at is null and t.superseded_by_transcript_id is null;
+  if ready_count=0 then raise exception 'transcript_required'; end if;
 
   /* Both rubrics, because an analysis is measured against the agency's core standard AND the job's
    * blueprint. Missing either is a setup failure the owner can fix, not a reason to analyse against
