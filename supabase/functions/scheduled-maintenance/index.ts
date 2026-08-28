@@ -176,6 +176,17 @@ async function runMaintenance(request:Request,requestID:string){
   const payloads=await admin.from('email_delivery_payloads').delete({count:'exact'}).lt('expires_at',new Date().toISOString())
   if(payloads.error)throw payloads.error
 
+/* Interview transcripts whose retention window expired, and every transcript belonging to an
+   * interview whose consent was withdrawn. The RPC is bounded and re-checks legal hold per
+   * transcript, so a preservation obligation is honoured even though this sweep found the row.
+   *
+   * Deliberately part of the SAME hourly job as candidate retention rather than a schedule of its
+   * own: a second cron is a second thing that can be silently disabled, and the client's deletion
+   * guarantee should not depend on two of them. */
+  const transcripts=await admin.rpc('purge_due_interview_transcripts',{p_limit:50})
+  if(transcripts.error)throw transcripts.error
+  const transcriptPurge=(transcripts.data||{purged:0,skipped:0}) as {purged?:number;skipped?:number}
+
   const imports=await admin.rpc('redact_expired_import_payloads')
   if(imports.error)throw imports.error
   const importRowsRedacted=Number(imports.data||0)
@@ -187,6 +198,8 @@ async function runMaintenance(request:Request,requestID:string){
     retentionFailures,
     emailPayloadsDeleted:payloads.count||0,
     importRowsRedacted,
+    transcriptsPurged:transcriptPurge.purged||0,
+    transcriptsSkipped:transcriptPurge.skipped||0,
   }
 
   // A run that could not anonymize every candidate it picked up is not a clean run. Recording it as
