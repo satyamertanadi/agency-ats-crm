@@ -61,7 +61,9 @@ async function buildAnalysedTranscript(checksum:string,purgeDueAt='2027-01-01T00
     core_rubric_id:coreRubric,job_rubric_id:jobRubric,
     provider:'anthropic',model:'test-model',prompt_version:'interview-analysis-v1',
     transcript_bundle_hash:`tb-${checksum}`,rubric_bundle_hash:'rb',job_input_hash:'jb',
-    candidate_input_hash:'cb',input_hash:`ih-${checksum}`,status:'completed',
+    // Inserted as processing, not completed: persist_interview_analysis returns early on a
+    // completed run, so seeding it that way produces a run with nothing derived from it.
+    candidate_input_hash:'cb',input_hash:`ih-${checksum}`,status:'processing',
   }).select('id').single()
   if(run.error)throw new Error(run.error.message)
   const runId=required(run.data,'run').id
