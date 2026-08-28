@@ -52,11 +52,16 @@ async function makeDiscoverable(){
   await service.from('google_calendar_connections').update({
     status:'connected',scopes:[CALENDAR_SCOPE,MEET_SCOPE],
   }).eq('id',connectionId)
-  await service.from('interviews').update({
+  /* Both ends move together. interviews carries check(ends_at > starts_at), and updating only the end
+   * to "an hour ago" against a fixed future start is rejected -- which, unchecked, left the whole
+   * fixture unapplied and made discovery look broken rather than unconfigured. */
+  const ended=new Date(Date.now()-60*60_000)
+  const moved=await service.from('interviews').update({
     status:'completed',create_google_meet:true,meeting_url:'https://meet.google.com/abc-defg-hij',
-    ends_at:new Date(Date.now()-60*60_000).toISOString(),
-    transcript_fetch_attempts:0,transcript_last_checked_at:null,
+    starts_at:new Date(ended.getTime()-60*60_000).toISOString(),ends_at:ended.toISOString(),
+    transcript_fetch_attempts:0,transcript_last_checked_at:null,transcript_fetch_error:null,
   }).eq('id',interviewId)
+  if(moved.error)throw new Error(moved.error.message)
   await service.from('background_jobs').delete().eq('organization_id',ORG).in('job_type',['meet_transcript_fetch','interview_auto_analysis'])
   await service.from('interview_transcripts').delete().eq('interview_id',interviewId)
 }
