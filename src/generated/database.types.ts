@@ -5745,6 +5745,18 @@ export type Database = {
         }
         Returns: Json
       }
+      interview_analysis_recent_run_count: {
+        Args: {
+          p_organization_id: string
+          p_requested_by?: string
+          p_since?: string
+        }
+        Returns: number
+      }
+      interview_analysis_token_spend_this_month: {
+        Args: { p_organization_id: string }
+        Returns: number
+      }
       interview_candidate_input_hash: {
         Args: { p_candidate_id: string }
         Returns: string
