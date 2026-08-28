@@ -36,6 +36,8 @@
     "get_interview_analysis_state",
     "get_interview_attention_queue",
     "get_interview_blueprint_status",
+    "get_interview_quality_scorecard",
+    "get_interview_quality_team_patterns",
     "get_interview_today_items",
     "get_interview_transcript_overview",
     "get_interview_transcript_page",

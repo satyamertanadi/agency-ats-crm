@@ -2218,3 +2218,33 @@ tbody tr:focus-within .row-menu-trigger,
 .candidate-evidence-group-title{font-size:var(--text-xs);color:var(--color-muted);
   text-transform:uppercase;letter-spacing:.04em}
 .candidate-evidence-group ul{margin:0;padding-left:var(--space-4);font-size:var(--text-sm)}
+
+/* A count inside a table cell that opens the records behind it.
+ *
+ * Not a .kpi-actionable: that one restyles a whole tile, and this is a figure sitting in a row of
+ * other figures. It reads as the number it is -- same weight as its neighbours -- and only the
+ * underline and the pointer say it can be opened, because a table where one column is full of
+ * buttons reads as a form rather than a report.
+ *
+ * A real <button>, not a span with a handler, so it is reachable by keyboard and announced as
+ * actionable; the aria-label carries what opening it will show, since "7" alone tells a screen
+ * reader nothing about the destination. */
+.count-button {
+  font: inherit;
+  color: var(--color-accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.count-button:hover {
+  color: var(--color-accent-strong, var(--color-accent));
+}
+.count-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  /* --radius-xs: the smallest inline chrome, which is what a focus ring on an inline count is. */
+  border-radius: var(--radius-xs);
+}
