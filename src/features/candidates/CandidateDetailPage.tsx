@@ -32,6 +32,7 @@ import {AddCandidateToJobModal} from './AddCandidateToJobModal'
 import {TaskButton} from '../activities/TaskButton'
 import {useToast} from '../../shared/ui/Toast'
 import {NOT_RECORDED} from '../../shared/lib/labels'
+import {CandidateInterviewEvidence} from '../interview-intelligence/CandidateInterviewEvidence'
 
 type EditFormInput=z.input<typeof candidateProfileEditSchema>;type EditFormData=z.output<typeof candidateProfileEditSchema>
 type EditableEmployment=EmploymentItem&{id?:string}
@@ -228,6 +229,7 @@ export function CandidateDetailPage(){
     </form>:<>
         {tab==='overview'&&<>
           <div ref={pipelinesRef}><Panel title="In pipelines" icon={<Layers3 size={17}/>} subtitle="Every job this candidate is being considered for, using the same operating phases as the job board." className={highlightPipelines?'panel-highlight':''}>{pipelineCount?<Table headers={['Job','Client','Phase','Owner','Added','Days in phase']}>{pipelines.data!.map((assignment)=>{const stage=assignment.pipeline_stages;const phase=stage?pipelinePhases.find((item)=>item.key===phaseForStage(stage))?.label:'Unknown';const changed=assignment.stage_history[0]?.occurred_at||assignment.updated_at;const days=Math.max(0,Math.floor((renderedAt-new Date(changed).getTime())/86_400_000));return <tr key={assignment.id}><td><Link className="record-link" to={`/app/${organization?.slug}/jobs/${assignment.job_id}`}>{assignment.jobs?.title||'Job'}</Link></td><td>{assignment.jobs?.companies?.name||'—'}</td><td>{phase}</td><td>{assignment.jobs?.organization_members?.profiles?.full_name||assignment.jobs?.organization_members?.profiles?.email||'Unassigned'}</td><td>{formatDate(assignment.added_at)}</td><td>{days}</td></tr>})}</Table>:<EmptyState title="Not in a job pipeline" description="This candidate is not being considered for any job yet. Add them to one to start tracking their progress." action={capabilities.data?.canMovePipeline&&<Button onClick={()=>setJobOpen(true)} disabled={Boolean(candidate.deleted_at)||candidate.status==='do_not_contact'}>Add to job</Button>}/>}</Panel></div>
+          <CandidateInterviewEvidence organizationId={organization!.id} candidateId={candidate.id}/>
           <Panel title="Contact details" icon={<Mail size={17}/>}><dl className="record-summary"><div><dt>Email</dt><dd>{privateData?.email||'Not recorded'}</dd></div><div><dt>Phone</dt><dd>{privateData?.phone||'Not recorded'}{privateData?.phone&&canWrite&&<Button size="sm" variant="secondary" leadingIcon={<MessageSquare size={13}/>} onClick={openWhatsApp}>WhatsApp</Button>}</dd></div><div><dt>Notice period</dt><dd>{candidate.notice_period_days!=null?`${candidate.notice_period_days} days`:'Not recorded'}</dd></div><div><dt>Source</dt><dd>{candidate.source||'Not recorded'}</dd></div><div><dt>LinkedIn</dt><dd><ExternalLink value={candidate.linkedin_url} label="Profile"/></dd></div><div><dt>Portfolio</dt><dd><ExternalLink value={candidate.portfolio_url} label="Portfolio"/></dd></div></dl></Panel>
         </>}
 

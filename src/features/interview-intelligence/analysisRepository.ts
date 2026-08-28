@@ -173,3 +173,56 @@ export async function requestAnalysis(organizationId:string,interviewId:string){
   if(failure)throw new AppError(failure.message||'Could not request an analysis.',failure.code||'function_error',data)
   return data as {runId:string;status:string;reused:boolean}
 }
+
+export interface CandidateEvidenceEntry {
+  assessmentId:string
+  interviewId:string
+  interviewAt:string|null
+  jobTitle:string|null
+  overallBand:string
+  confidence:Confidence
+  summary:string
+  requirements:{id:string;title:string;result:string}[]
+  contradictions:string[]
+  missingInformation:string[]
+  verification:string[]
+}
+
+/* Candidate-fit assessments for one candidate, newest first.
+ *
+ * Deliberately does not ask for consultant_quality. RLS would refuse it, but a query that never
+ * requests it cannot leak it through a future policy change either -- and coaching about the
+ * interviewer has no place on the interviewee's record regardless of who is looking.
+ */
+export async function listCandidateInterviewEvidence(organizationId:string,candidateId:string,limit=10):Promise<CandidateEvidenceEntry[]>{
+  const {data,error}=await supabase.from('interview_assessments')
+    .select(`id,interview_id,overall_band,confidence,summary,created_at,
+      interviews(starts_at,job_candidates(jobs(title))),
+      interview_assessment_findings(id,category,result,title,summary,sort_order)`)
+    .eq('organization_id',organizationId)
+    .eq('assessment_type','candidate_fit')
+    .eq('subject_candidate_id',candidateId)
+    .order('created_at',{ascending:false})
+    .limit(limit)
+  if(error)fail(error,'Could not load the interview evidence.')
+
+  return (data||[]).map((row)=>{
+    const findings=(row.interview_assessment_findings||[]).slice().sort((left,right)=>(left.sort_order??0)-(right.sort_order??0))
+    const byCategory=(category:string)=>findings.filter((finding)=>finding.category===category).map((finding)=>finding.summary)
+    const interview=row.interviews as {starts_at?:string;job_candidates?:{jobs?:{title?:string}}}|null
+    return {
+      assessmentId:row.id,
+      interviewId:row.interview_id,
+      interviewAt:interview?.starts_at??null,
+      jobTitle:interview?.job_candidates?.jobs?.title??null,
+      overallBand:row.overall_band,
+      confidence:row.confidence as Confidence,
+      summary:row.summary,
+      requirements:findings.filter((finding)=>finding.category==='requirement')
+        .map((finding)=>({id:finding.id,title:finding.title,result:finding.result})),
+      contradictions:byCategory('contradiction'),
+      missingInformation:byCategory('missing_information'),
+      verification:byCategory('recommended_verification'),
+    }
+  })
+}
