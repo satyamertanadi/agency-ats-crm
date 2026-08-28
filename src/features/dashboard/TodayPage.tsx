@@ -17,6 +17,7 @@ import {Button} from '../../shared/ui/Button'
 import {useToast} from '../../shared/ui/Toast'
 import {NOT_RECORDED} from '../../shared/lib/labels'
 import {DeliveryWorkbench} from '../submissions/DeliveryWorkbench'
+import {InterviewTodayPanel} from '../interview-intelligence/InterviewTodayPanel'
 import {SegmentedControl} from '../../shared/ui/SegmentedControl'
 
 /* Deliberately short. This is a work queue: a client response from three weeks ago has either been
@@ -168,6 +169,8 @@ export function TodayPage(){
    * the error state for a page that is working perfectly. */
   if(deliveryView)return <Page {...shell}>
     <Panel elevation="raised"><DeliveryWorkbench scope={scope} currentMemberId={currentMember?.id}/></Panel>
+    {/* One bounded query, and it renders nothing when there is no interview work. */}
+    <InterviewTodayPanel organizationId={organization!.id} base={base}/>
   </Page>
   if(query.isLoading||capabilities.isLoading)return <Page {...shell}><Panel><TableSkeleton rows={6} columns={2} label="Preparing your work for today…"/></Panel></Page>
   if(query.error||!query.data)return <ErrorState error={query.error} retry={()=>void query.refetch()}/>

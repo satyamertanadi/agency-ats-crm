@@ -2346,6 +2346,71 @@ export type Database = {
           },
         ]
       }
+      interview_assessment_feedback: {
+        Row: {
+          actor_member_id: string
+          assessment_id: string
+          created_at: string
+          feedback_type: string
+          finding_id: string | null
+          id: string
+          note: string | null
+          organization_id: string
+          visibility: string
+        }
+        Insert: {
+          actor_member_id: string
+          assessment_id: string
+          created_at?: string
+          feedback_type: string
+          finding_id?: string | null
+          id?: string
+          note?: string | null
+          organization_id: string
+          visibility?: string
+        }
+        Update: {
+          actor_member_id?: string
+          assessment_id?: string
+          created_at?: string
+          feedback_type?: string
+          finding_id?: string | null
+          id?: string
+          note?: string | null
+          organization_id?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_assessment_feedback_actor_member_id_organization_fkey"
+            columns: ["actor_member_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_assessment_feedback_assessment_id_organization_i_fkey"
+            columns: ["assessment_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_assessments"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_assessment_feedback_finding_id_organization_id_fkey"
+            columns: ["finding_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_assessment_findings"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_assessment_feedback_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interview_assessment_findings: {
         Row: {
           assessment_id: string
@@ -2549,6 +2614,93 @@ export type Database = {
           },
           {
             foreignKeyName: "interview_attendees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_coaching_actions: {
+        Row: {
+          acknowledged_at: string | null
+          action_text: string
+          assessment_id: string
+          assigned_by_member_id: string
+          assigned_to_member_id: string
+          completed_at: string | null
+          consultant_response: string | null
+          created_at: string
+          due_at: string | null
+          finding_id: string | null
+          id: string
+          organization_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          action_text: string
+          assessment_id: string
+          assigned_by_member_id: string
+          assigned_to_member_id: string
+          completed_at?: string | null
+          consultant_response?: string | null
+          created_at?: string
+          due_at?: string | null
+          finding_id?: string | null
+          id?: string
+          organization_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          action_text?: string
+          assessment_id?: string
+          assigned_by_member_id?: string
+          assigned_to_member_id?: string
+          completed_at?: string | null
+          consultant_response?: string | null
+          created_at?: string
+          due_at?: string | null
+          finding_id?: string | null
+          id?: string
+          organization_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_coaching_actions_assessment_id_organization_id_fkey"
+            columns: ["assessment_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_assessments"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_coaching_actions_assigned_by_member_id_organizat_fkey"
+            columns: ["assigned_by_member_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_coaching_actions_assigned_to_member_id_organizat_fkey"
+            columns: ["assigned_to_member_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_coaching_actions_finding_id_organization_id_fkey"
+            columns: ["finding_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_assessment_findings"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_coaching_actions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -3217,6 +3369,7 @@ export type Database = {
           created_at: string
           created_by: string
           ends_at: string
+          google_meet_conference_record_name: string | null
           id: string
           interview_type: string | null
           job_candidate_id: string
@@ -3229,6 +3382,9 @@ export type Database = {
           starts_at: string
           status: string
           timezone: string
+          transcript_fetch_attempts: number
+          transcript_fetch_error: string | null
+          transcript_last_checked_at: string | null
           updated_at: string
         }
         Insert: {
@@ -3246,6 +3402,7 @@ export type Database = {
           created_at?: string
           created_by: string
           ends_at: string
+          google_meet_conference_record_name?: string | null
           id?: string
           interview_type?: string | null
           job_candidate_id: string
@@ -3258,6 +3415,9 @@ export type Database = {
           starts_at: string
           status?: string
           timezone: string
+          transcript_fetch_attempts?: number
+          transcript_fetch_error?: string | null
+          transcript_last_checked_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -3275,6 +3435,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           ends_at?: string
+          google_meet_conference_record_name?: string | null
           id?: string
           interview_type?: string | null
           job_candidate_id?: string
@@ -3287,6 +3448,9 @@ export type Database = {
           starts_at?: string
           status?: string
           timezone?: string
+          transcript_fetch_attempts?: number
+          transcript_fetch_error?: string | null
+          transcript_last_checked_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3855,8 +4019,10 @@ export type Database = {
           candidate_retention_months: number
           default_submission_expiry_days: number
           document_migration_completed: boolean
+          interview_auto_analysis_enabled: boolean
           interview_consent_notice_version: string | null
           interview_intelligence_enabled: boolean
+          interview_meet_auto_import_enabled: boolean
           interview_rubric_generation_enabled: boolean
           logo_path: string | null
           migration_complete: boolean
@@ -3875,8 +4041,10 @@ export type Database = {
           candidate_retention_months?: number
           default_submission_expiry_days?: number
           document_migration_completed?: boolean
+          interview_auto_analysis_enabled?: boolean
           interview_consent_notice_version?: string | null
           interview_intelligence_enabled?: boolean
+          interview_meet_auto_import_enabled?: boolean
           interview_rubric_generation_enabled?: boolean
           logo_path?: string | null
           migration_complete?: boolean
@@ -3895,8 +4063,10 @@ export type Database = {
           candidate_retention_months?: number
           default_submission_expiry_days?: number
           document_migration_completed?: boolean
+          interview_auto_analysis_enabled?: boolean
           interview_consent_notice_version?: string | null
           interview_intelligence_enabled?: boolean
+          interview_meet_auto_import_enabled?: boolean
           interview_rubric_generation_enabled?: boolean
           logo_path?: string | null
           migration_complete?: boolean
@@ -5212,6 +5382,16 @@ export type Database = {
         Args: { p_organization_id: string; p_template_id: string }
         Returns: undefined
       }
+      assign_interview_coaching: {
+        Args: {
+          p_action_text: string
+          p_assessment_id: string
+          p_due_at?: string
+          p_finding_id?: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
       audit_function_grants: {
         Args: never
         Returns: {
@@ -5568,6 +5748,10 @@ export type Database = {
         Args: { p_language?: string }
         Returns: Json
       }
+      discover_meet_transcript_fetches: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
       fail_interview_analysis: {
         Args: {
           p_error_code: string
@@ -5612,6 +5796,21 @@ export type Database = {
           status: string
         }[]
       }
+      get_interview_attention_queue: {
+        Args: { p_limit?: number; p_organization_id: string }
+        Returns: {
+          assessment_id: string
+          created_at: string
+          finding_id: string
+          has_open_coaching: boolean
+          interview_id: string
+          job_candidate_id: string
+          severity: string
+          subject_member_id: string
+          summary: string
+          title: string
+        }[]
+      }
       get_interview_blueprint_status: {
         Args: { p_job_id: string; p_organization_id: string }
         Returns: {
@@ -5627,6 +5826,18 @@ export type Database = {
           rubric_id: string
           source_document_id: string
           version: number
+        }[]
+      }
+      get_interview_today_items: {
+        Args: { p_limit?: number; p_organization_id: string }
+        Returns: {
+          audience: string
+          headline: string
+          interview_id: string
+          job_candidate_id: string
+          kind: string
+          occurred_at: string
+          reference_id: string
         }[]
       }
       get_interview_transcript_overview: {
@@ -5742,6 +5953,17 @@ export type Database = {
           p_speakers: Json
           p_started_at: string
           p_supersedes_transcript_id: string
+        }
+        Returns: Json
+      }
+      internal_request_interview_analysis: {
+        Args: {
+          p_interview_id: string
+          p_model: string
+          p_organization_id: string
+          p_prompt_version: string
+          p_provider: string
+          p_requested_by: string
         }
         Returns: Json
       }
@@ -5970,6 +6192,10 @@ export type Database = {
         Args: { p_interview_id: string; p_message: string }
         Returns: undefined
       }
+      maybe_queue_automatic_analysis: {
+        Args: { p_interview_id: string }
+        Returns: Json
+      }
       merge_candidates: {
         Args: {
           p_kept_candidate_id: string
@@ -6072,6 +6298,25 @@ export type Database = {
         }
         Returns: undefined
       }
+      record_interview_feedback: {
+        Args: {
+          p_assessment_id: string
+          p_feedback_type: string
+          p_finding_id?: string
+          p_note?: string
+          p_organization_id: string
+          p_visibility?: string
+        }
+        Returns: string
+      }
+      record_meet_fetch_attempt: {
+        Args: {
+          p_conference_record?: string
+          p_error?: string
+          p_interview_id: string
+        }
+        Returns: number
+      }
       redact_expired_import_payloads: {
         Args: { p_before?: string }
         Returns: number
@@ -6117,6 +6362,15 @@ export type Database = {
         }[]
       }
       resolve_submission_link: { Args: { p_token: string }; Returns: Json }
+      respond_to_interview_coaching: {
+        Args: {
+          p_action_id: string
+          p_organization_id: string
+          p_outcome: string
+          p_response?: string
+        }
+        Returns: string
+      }
       revoke_organization_invitation: {
         Args: { p_invitation_id: string }
         Returns: undefined

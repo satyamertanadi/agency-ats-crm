@@ -156,6 +156,16 @@ const rpcMessages:Record<string,string>={
   core_rubric_required:'Activate an agency core interview rubric before analysing interviews.',
   job_rubric_required:'Activate an interview blueprint for this job before analysing its interviews.',
   analysis_run_not_found:'That analysis could not be found in this workspace.',
+  assessment_not_found:'That assessment could not be found in this workspace.',
+  finding_not_found:'That finding does not belong to this assessment.',
+  invalid_feedback_type:'Choose a valid review outcome.',
+  /* Coaching is about how somebody interviewed, so there is nobody to coach on a candidate
+   * assessment. The sentence names the reason rather than only refusing. */
+  coaching_requires_consultant_assessment:'Coaching can only be assigned from an interview quality assessment.',
+  coaching_action_required:'Write what should change before assigning this coaching.',
+  coaching_action_not_found:'That coaching action could not be found.',
+  coaching_action_closed:'That coaching action is already closed.',
+  invalid_coaching_outcome:'Choose a valid coaching outcome.',
 }
 
 /* `duplicate_candidate:<uuid>` is the one token carrying a payload -- the id of the record it collided

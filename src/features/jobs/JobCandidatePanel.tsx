@@ -169,7 +169,7 @@ export function JobCandidatePanel({job,item,stage,stages,currentMemberId,intervi
       {detailError
         ?<Callout tone="warning" title="Some details could not be loaded">Offers, interviews and placements for this candidate are unavailable right now. The pipeline itself is unaffected.</Callout>
         :detailLoading&&<p className="muted">Loading offers, interviews and placements…</p>}
-      <JobCandidateLifecycle organizationId={organization!.id} jobCandidateId={item.id} candidateId={item.candidate_id} candidateName={candidateName}
+      <JobCandidateLifecycle organizationId={organization!.id} jobCandidateId={item.id} candidateId={item.candidate_id} currentMemberId={currentMemberId??null} candidateName={candidateName}
         interviews={interviews} offers={offers} canManageInterviews={Boolean(capabilities.data?.canManageInterviews)} canUseInterviewIntelligence={Boolean(capabilities.data?.canUseInterviewIntelligence)} canManageOffers={Boolean(capabilities.data?.canManageOffers)} readOnly={readOnly}
         openOutcome={action==='outcome'} onOutcomeClose={()=>onAction(null)} onUpdated={refresh} onReschedule={startReschedule}/>
       {!readOnly&&<div className="context-secondary-actions">{capabilities.data?.canManageInterviews&&<Button variant="secondary" leadingIcon={<CalendarPlus size={14}/>} onClick={()=>chooseAction('interview')}>Interview</Button>}{capabilities.data?.canManageOffers&&<Button variant="secondary" leadingIcon={<BriefcaseBusiness size={14}/>} onClick={()=>chooseAction('offer')}>Offer</Button>}{capabilities.data?.canMovePipeline&&<Button variant="quiet" onClick={()=>chooseAction('move')}>Move stage</Button>}</div>}

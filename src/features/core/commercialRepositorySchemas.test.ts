@@ -22,7 +22,7 @@ describe('commercialRepositorySchemas',()=>{
   })
 
   it('accepts a calendar connection row',()=>{
-    const row={id:'c1',organization_id:'o1',member_id:'m1',google_email:'a@gmail.com',calendar_id:'primary',status:'connected',connected_at:'2026-07-01T00:00:00Z',last_synced_at:null,last_error:null}
+    const row={id:'c1',organization_id:'o1',member_id:'m1',google_email:'a@gmail.com',calendar_id:'primary',status:'connected',connected_at:'2026-07-01T00:00:00Z',last_synced_at:null,last_error:null,scopes:['https://www.googleapis.com/auth/calendar.events']}
     expect(calendarConnectionSchema.safeParse(row).success).toBe(true)
   })
 

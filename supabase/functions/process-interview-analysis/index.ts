@@ -5,6 +5,7 @@ import {providerBillingExhausted} from '../_shared/provider-outage.ts'
 import {computeConversationMetrics,type MetricInputEntry,type SpeakerRole} from '../_shared/interview-metrics.ts'
 import {
   AnalysisValidationError,
+  INTERVIEW_ANALYSIS_PROMPT_VERSION,
   validateAnalysisOutput,
   type AnalysisSourceManifest,
   type InterviewAnalysisOutput,
@@ -45,6 +46,12 @@ Deno.serve(async(request)=>{
     /* A small batch per invocation rather than draining the queue: a runaway loop here is a runaway
      * bill, and the nudge plus the scheduled drain together get through a backlog safely. */
     for(let index=0;index<MAX_JOBS_PER_INVOCATION;index+=1){
+      /* Two job types, claimed in order. An auto-analysis job is a REQUEST -- it has no run yet --
+       * so it is turned into one here, where the model identifier lives, and the resulting
+       * interview_analysis job is picked up on a later pass. */
+      const requested=await claimAutoAnalysis(admin,requestID)
+      if(requested){processed.push('auto-analysis-request');continue}
+
       const claim=await admin.rpc('claim_background_job',{p_job_type:'interview_analysis',p_locked_by:`worker:${requestID}`})
       if(claim.error)throw new FunctionError(500,'claim_failed',claim.error.message)
       const job=(claim.data as {id:string;payload:{analysis_run_id?:string}}[]|null)?.[0]
@@ -77,6 +84,54 @@ Deno.serve(async(request)=>{
     return json(request,{error:{code:failure.code,message:failure.message,requestId:requestID}},failure.status)
   }
 })
+
+/* Turns a queued auto-analysis request into a real run, attributed to the organiser who was recorded
+ * when it was queued. Returns false when there is nothing waiting, so the caller falls through to the
+ * ordinary analysis queue. */
+async function claimAutoAnalysis(admin:Admin,requestID:string):Promise<boolean>{
+  const claim=await admin.rpc('claim_background_job',{p_job_type:'interview_auto_analysis',p_locked_by:`auto:${requestID}`})
+  if(claim.error)throw new FunctionError(500,'claim_failed',claim.error.message)
+  const job=(claim.data as {id:string;organization_id:string;payload:{interview_id?:string;requested_by?:string}}[]|null)?.[0]
+  if(!job)return false
+
+  const interviewId=job.payload?.interview_id
+  const requestedBy=job.payload?.requested_by
+  if(!interviewId||!requestedBy){
+    await admin.rpc('release_background_job',{p_job_id:job.id,p_outcome:'failed',p_error:'incomplete auto-analysis payload'})
+    return true
+  }
+
+  const model=Deno.env.get('AI_MODEL')?.trim()||''
+  if(!model||!Deno.env.get('ANTHROPIC_API_KEY')){
+    await admin.rpc('release_background_job',{p_job_id:job.id,p_outcome:'failed',p_error:'analysis_not_configured'})
+    return true
+  }
+
+  const requested=await admin.rpc('internal_request_interview_analysis',{
+    p_organization_id:job.organization_id,
+    p_interview_id:interviewId,
+    p_requested_by:requestedBy,
+    p_provider:Deno.env.get('AI_PROVIDER')?.trim()||'anthropic',
+    p_model:model,
+    p_prompt_version:INTERVIEW_ANALYSIS_PROMPT_VERSION,
+  })
+
+  if(requested.error){
+    /* A precondition that stopped holding between queueing and now -- consent withdrawn, a transcript
+     * purged -- is a completed job, not a failure to retry: nothing about retrying would change it. */
+    await admin.rpc('release_background_job',{p_job_id:job.id,p_outcome:'completed',p_error:null})
+    log('warn','interview_auto_analysis_declined',{requestId:requestID,interviewId,detail:requested.error.code})
+    return true
+  }
+
+  await admin.rpc('release_background_job',{p_job_id:job.id,p_outcome:'completed',p_error:null})
+  log('info','interview_auto_analysis_requested',{
+    requestId:requestID,interviewId,
+    runId:(requested.data as {run_id?:string}|null)?.run_id,
+    reused:(requested.data as {reused?:boolean}|null)?.reused,
+  })
+  return true
+}
 
 function authorize(request:Request){
   const ok=isAuthorized(request.headers,{

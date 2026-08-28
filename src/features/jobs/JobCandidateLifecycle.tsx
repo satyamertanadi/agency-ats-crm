@@ -30,6 +30,7 @@ export interface JobCandidateLifecycleProps {
   interviews:Interview[]
   offers:Offer[]
   candidateId:string
+  currentMemberId:string|null
   canManageInterviews:boolean
   canUseInterviewIntelligence:boolean
   canManageOffers:boolean
@@ -47,7 +48,7 @@ const offerDecisions:Array<{value:OfferDecision;label:string}>=[
   {value:'accepted',label:'Accepted'},{value:'declined',label:'Declined'},{value:'withdrawn',label:'Withdrawn'},
 ]
 
-export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateId,candidateName,interviews,offers,canManageInterviews,canUseInterviewIntelligence,canManageOffers,readOnly,openOutcome=false,onOutcomeClose,onUpdated,onReschedule}:JobCandidateLifecycleProps){
+export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateId,currentMemberId,candidateName,interviews,offers,canManageInterviews,canUseInterviewIntelligence,canManageOffers,readOnly,openOutcome=false,onOutcomeClose,onUpdated,onReschedule}:JobCandidateLifecycleProps){
   const toast=useToast()
   const [offerDecision,setOfferDecision]=useState<{offer:Offer;decision:OfferDecision}|null>(null)
   const [offerNote,setOfferNote]=useState('')
@@ -181,6 +182,6 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateId
     {transcribing&&<InterviewTranscriptDrawer organizationId={organizationId} interviewId={transcribing.id}
       candidateId={candidateId} candidateName={candidateName} onClose={()=>{setTranscribing(null);void onUpdated()}}/>}
     {analysing&&<InterviewAnalysisDrawer organizationId={organizationId} interviewId={analysing.id}
-      candidateName={candidateName} onClose={()=>setAnalysing(null)}/>}
+      candidateName={candidateName} currentMemberId={currentMemberId} onClose={()=>setAnalysing(null)}/>}
   </div>
 }
