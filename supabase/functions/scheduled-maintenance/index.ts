@@ -187,6 +187,43 @@ async function runMaintenance(request:Request,requestID:string){
   if(transcripts.error)throw transcripts.error
   const transcriptPurge=(transcripts.data||{purged:0,skipped:0}) as {purged?:number;skipped?:number}
 
+/* Drains the interview analysis queue.
+   *
+   * This is the SAFETY NET, not the primary path: request-interview-analysis nudges the worker
+   * directly so a consultant sees progress in seconds. What this catches is the job whose nudge
+   * failed -- a cold start, a transient 5xx -- which would otherwise sit queued until somebody
+   * noticed. Reusing this hourly job rather than registering a second cron is deliberate: a second
+   * schedule is a second thing that can be silently disabled.
+   *
+   * A drain failure does NOT fail the maintenance run. Retention and anonymization are the client's
+   * data-deletion guarantee and matter more than a queued analysis; the error is recorded in the
+   * heartbeat detail so a broken worker is visible in Admin rather than silent. */
+  let analysesProcessed=0
+  let analysisDrainError:string|null=null
+  try{
+    // Bounded: the worker takes a small batch per call, so a few passes clear a backlog without
+    // letting one maintenance request run unboundedly against a paid provider.
+    for(let pass=0;pass<5;pass+=1){
+      const drained=await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/process-interview-analysis`,{
+        method:'POST',
+        headers:{
+          'content-type':'application/json',
+          'authorization':`Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          'x-worker-secret':Deno.env.get('WORKER_SECRET')||Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'',
+        },
+        body:JSON.stringify({trigger:'scheduled'}),
+      })
+      if(!drained.ok){analysisDrainError=`HTTP ${drained.status}`;break}
+      const body=await drained.json().catch(()=>null) as {processed?:number}|null
+      const processed=Number(body?.processed||0)
+      analysesProcessed+=processed
+      if(processed===0)break
+    }
+  }catch(error){
+    analysisDrainError=error instanceof Error?error.message:String(error)
+  }
+  if(analysisDrainError)log('warn','interview_analysis_drain_failed',{requestId:requestID,detail:analysisDrainError})
+
   const imports=await admin.rpc('redact_expired_import_payloads')
   if(imports.error)throw imports.error
   const importRowsRedacted=Number(imports.data||0)
@@ -200,6 +237,8 @@ async function runMaintenance(request:Request,requestID:string){
     importRowsRedacted,
     transcriptsPurged:transcriptPurge.purged||0,
     transcriptsSkipped:transcriptPurge.skipped||0,
+    analysesProcessed,
+    analysisDrainError,
   }
 
   // A run that could not anonymize every candidate it picked up is not a clean run. Recording it as
