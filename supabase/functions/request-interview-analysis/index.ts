@@ -28,6 +28,7 @@ Deno.serve(async(request)=>{
     organizationId=input.organizationId
 
     const context=await requireUser(request)
+    await enforceAnalysisLimits(context,input.organizationId)
     const provider=Deno.env.get('AI_PROVIDER')?.trim()||'anthropic'
     const model=Deno.env.get('AI_MODEL')?.trim()||''
     if(provider!=='anthropic'||!model||!Deno.env.get('ANTHROPIC_API_KEY')){
@@ -60,6 +61,28 @@ Deno.serve(async(request)=>{
     return json(request,{error:{code:failure.code,message:failure.message,requestId:requestID}},failure.status)
   }
 })
+
+/* The brakes on the most expensive call in the product. A dedup already stops an identical request
+ * from spending twice, but it does nothing about a loop that varies its input -- reimporting a
+ * transcript, retrying a failure -- so the counters are over runs created, not analyses completed: a
+ * failed run still paid for a provider call.
+ *
+ * Deliberately generous starting points rather than tuned limits. Watch analysis_rate_limited and
+ * analysis_monthly_ceiling_reached in the logs and tighten once real usage is visible. */
+const HOURLY_USER_LIMIT=12
+const HOURLY_ORG_LIMIT=40
+const MONTHLY_ORG_TOKEN_CEILING=Number(Deno.env.get('AI_ANALYSIS_MONTHLY_TOKEN_CEILING'))||40_000_000
+
+async function enforceAnalysisLimits(context:Awaited<ReturnType<typeof requireUser>>,organizationId:string){
+  const [perUser,perOrg,monthlyTokens]=await Promise.all([
+    context.admin.rpc('interview_analysis_recent_run_count',{p_organization_id:organizationId,p_requested_by:context.user.id,p_since:'1 hour'}),
+    context.admin.rpc('interview_analysis_recent_run_count',{p_organization_id:organizationId,p_requested_by:null,p_since:'1 hour'}),
+    context.admin.rpc('interview_analysis_token_spend_this_month',{p_organization_id:organizationId}),
+  ])
+  if(Number(perUser.data??0)>=HOURLY_USER_LIMIT)throw new FunctionError(429,'rate_limited','You have requested too many analyses in the last hour.')
+  if(Number(perOrg.data??0)>=HOURLY_ORG_LIMIT)throw new FunctionError(429,'rate_limited','This workspace has requested too many analyses in the last hour.')
+  if(Number(monthlyTokens.data??0)>=MONTHLY_ORG_TOKEN_CEILING)throw new FunctionError(429,'monthly_ceiling_reached','This workspace has reached its monthly AI limit for interview analysis.')
+}
 
 /* Each of these is a step somebody can go and complete, so each keeps its own identifier rather than
  * collapsing into "invalid request". */
