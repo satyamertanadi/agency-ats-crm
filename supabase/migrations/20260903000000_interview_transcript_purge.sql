@@ -24,7 +24,7 @@ create or replace function public.purge_interview_transcript(p_transcript_id uui
 returns jsonb language plpgsql security definer set search_path=public as $$
 declare
   transcript public.interview_transcripts;
-  candidate_id uuid;
+  target_candidate uuid;
   on_legal_hold boolean;
   purged_runs integer:=0;
   purged_entries integer:=0;
@@ -35,7 +35,10 @@ begin
     return jsonb_build_object('transcript_id',p_transcript_id,'skipped','already_purged');
   end if;
 
-  select jc.candidate_id into candidate_id
+  -- Named target_candidate, not candidate_id: a variable sharing a column name makes
+  -- `p.candidate_id=candidate_id` below resolve to the column on both sides, so the legal-hold check
+  -- would silently read some other candidate's hold state.
+  select jc.candidate_id into target_candidate
   from public.interviews i
   join public.job_candidates jc on jc.id=i.job_candidate_id
   where i.id=transcript.interview_id;
@@ -44,7 +47,7 @@ begin
    * not something this sweep gets to override, and a transcript left in place under one has to be
    * visible as skipped rather than quietly retried forever. */
   select coalesce(p.legal_hold,false) into on_legal_hold
-  from public.candidate_private_details p where p.candidate_id=candidate_id;
+  from public.candidate_private_details p where p.candidate_id=target_candidate;
   if coalesce(on_legal_hold,false) then
     return jsonb_build_object('transcript_id',p_transcript_id,'skipped','legal_hold');
   end if;

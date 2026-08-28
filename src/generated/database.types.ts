@@ -6038,6 +6038,14 @@ export type Database = {
         }
         Returns: string
       }
+      purge_due_interview_transcripts: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      purge_interview_transcript: {
+        Args: { p_reason: string; p_transcript_id: string }
+        Returns: Json
+      }
       queue_interview_cancellation: {
         Args: { p_interview_id: string; p_organization_id: string }
         Returns: {
