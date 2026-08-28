@@ -12,6 +12,7 @@ import {StatusBadge} from '../../shared/ui/Page'
 import {useToast} from '../../shared/ui/Toast'
 import {feedbackDecision,interviewStatus,offerStatus} from '../../shared/lib/status'
 import {InterviewTranscriptDrawer} from '../interview-intelligence/InterviewTranscriptDrawer'
+import {InterviewAnalysisDrawer} from '../interview-intelligence/InterviewAnalysisDrawer'
 import {formatDateTime,formatMoney} from '../../shared/lib/format'
 
 /* The four things that were true about a candidate but unreachable from the surface built to work
@@ -53,6 +54,7 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateId
   const [cancelling,setCancelling]=useState<Interview|null>(null)
   const [completing,setCompleting]=useState<Interview|null>(null)
   const [transcribing,setTranscribing]=useState<Interview|null>(null)
+  const [analysing,setAnalysing]=useState<Interview|null>(null)
   const [outcome,setOutcome]=useState<'completed'|'no_show'>('completed')
   const [outcomeNotes,setOutcomeNotes]=useState('')
 
@@ -123,6 +125,7 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateId
             * consultant to paste a transcript of a conversation that has not taken place. */}
           {entry.status==='completed'&&canUseInterviewIntelligence&&!readOnly&&<div className="lifecycle-actions">
             <Button size="sm" variant="quiet" onClick={()=>setTranscribing(entry)}>Transcript</Button>
+            <Button size="sm" variant="quiet" onClick={()=>setAnalysing(entry)}>Analysis</Button>
           </div>}
         </li>)}
       </ul>}
@@ -177,5 +180,7 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateId
 
     {transcribing&&<InterviewTranscriptDrawer organizationId={organizationId} interviewId={transcribing.id}
       candidateId={candidateId} candidateName={candidateName} onClose={()=>{setTranscribing(null);void onUpdated()}}/>}
+    {analysing&&<InterviewAnalysisDrawer organizationId={organizationId} interviewId={analysing.id}
+      candidateName={candidateName} onClose={()=>setAnalysing(null)}/>}
   </div>
 }

@@ -2132,3 +2132,43 @@ tbody tr:focus-within .row-menu-trigger,
   padding:var(--space-2) 0;border-top:1px solid var(--color-line-soft);
 }
 .transcript-speaker-label{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+
+/* Interview analysis drawer.
+   No percentages of fit and no visible scores: the 0-4 dimension scale is internal, and a coloured
+   "good/bad" treatment on a speaking-share row would imply an ideal ratio the product explicitly
+   does not claim exists. */
+.analysis-status{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;margin:0 0 var(--space-3)}
+.analysis-status span{color:var(--color-muted);font-size:var(--text-sm)}
+.analysis-section{display:flex;flex-direction:column;gap:var(--space-3);margin-top:var(--space-4)}
+.analysis-section h3{margin:var(--space-2) 0 0;font-size:var(--text-sm);font-weight:var(--weight-semibold)}
+.analysis-headline{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+
+.analysis-requirements{display:flex;flex-direction:column;gap:var(--space-2)}
+.analysis-requirement,.analysis-dimension{
+  display:flex;flex-direction:column;gap:var(--space-2);
+  padding:var(--space-3);border:1px solid var(--color-line-soft);border-radius:var(--radius-md);
+}
+.analysis-requirement header,.analysis-dimension header{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-2);flex-wrap:wrap;
+}
+.analysis-requirement-meta{display:flex;align-items:center;gap:var(--space-2);flex-shrink:0}
+.analysis-requirement p,.analysis-dimension p{margin:0}
+.analysis-dimension-title{font-weight:var(--weight-semibold)}
+/* The next question to ask, and the behaviour to change. Both are advice, so both read quieter than
+   the finding they belong to. */
+.analysis-verify,.analysis-coaching{color:var(--color-muted);font-size:var(--text-sm)}
+.analysis-consultant{display:flex;flex-direction:column;gap:var(--space-3);margin-bottom:var(--space-4)}
+
+.analysis-list{margin:0;padding-left:var(--space-4);display:flex;flex-direction:column;gap:4px}
+.analysis-evidence{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.analysis-evidence li{display:flex;flex-direction:column;gap:2px;font-size:var(--text-xs)}
+.analysis-evidence-source{color:var(--color-muted);text-transform:uppercase;letter-spacing:.04em}
+.analysis-evidence q{font-style:italic}
+
+/* Both tables scroll inside their own container: a transcript line is prose and a metrics row has
+   five columns, and neither should make the drawer itself scroll sideways. */
+.analysis-metrics,.analysis-transcript{width:100%;border-collapse:collapse;display:block;overflow-x:auto}
+.analysis-metrics th,.analysis-transcript th{text-align:left;font-size:var(--text-xs);color:var(--color-muted);padding:var(--space-2)}
+.analysis-metrics td,.analysis-transcript td{padding:var(--space-2);border-top:1px solid var(--color-line-soft);vertical-align:top}
+.analysis-transcript td:first-child{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--color-muted)}
+.analysis-transcript-pager{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
