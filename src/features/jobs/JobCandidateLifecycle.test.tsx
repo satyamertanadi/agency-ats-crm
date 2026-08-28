@@ -25,7 +25,7 @@ function renderLifecycle(interviews:Interview[]){
   render(<QueryClientProvider client={client}><ToastProvider><JobCandidateLifecycle
     organizationId="org-1" jobCandidateId="job-candidate-1" candidateId="cand-1" candidateName="Ana Chen"
     interviews={interviews} offers={[]} canManageInterviews canManageOffers readOnly={false}
-    canUseInterviewIntelligence={false}
+    canUseInterviewIntelligence={false} currentMemberId={null}
     onUpdated={onUpdated} onReschedule={vi.fn()}/></ToastProvider></QueryClientProvider>)
   return onUpdated
 }

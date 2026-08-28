@@ -23,6 +23,8 @@ import {
   speakingShares,
 } from './analysisPresentation'
 import {formatOffset} from './transcriptPresentation'
+import {InterviewReviewPanel} from './InterviewReviewPanel'
+import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 
 /* The analysis, as a consultant reads it.
  *
@@ -34,13 +36,17 @@ import {formatOffset} from './transcriptPresentation'
  *
  * Nothing here renders raw model output, a prompt, or a percentage of fit.
  */
-export function InterviewAnalysisDrawer({organizationId,interviewId,candidateName,onClose}:{
+export function InterviewAnalysisDrawer({organizationId,interviewId,candidateName,currentMemberId,onClose}:{
   organizationId:string
   interviewId:string
   candidateName:string
+  /* Needed to tell the assessment's SUBJECT from a reviewer. Passed in rather than derived here so
+   * the drawer has no opinion about identity beyond comparing two ids. */
+  currentMemberId:string|null
   onClose:()=>void
 }){
   const toast=useToast()
+  const capabilities=useWorkspaceCapabilities()
   const queryClient=useQueryClient()
   const [tab,setTab]=useState('candidate')
 
@@ -115,7 +121,9 @@ export function InterviewAnalysisDrawer({organizationId,interviewId,candidateNam
       <Tabs items={tabs} value={tab} onChange={setTab} label="Analysis sections"/>
 
       {tab==='candidate'&&<CandidateFit assessment={candidate}/>}
-      {tab==='coaching'&&<ConsultantQuality assessments={consultantAssessments} metrics={metrics.data}/>}
+      {tab==='coaching'&&<ConsultantQuality assessments={consultantAssessments} metrics={metrics.data}
+        organizationId={organizationId} currentMemberId={currentMemberId}
+        canReview={Boolean(capabilities.data?.canReviewTeamInterviewQuality)}/>}
       {tab==='transcript'&&<TranscriptTab organizationId={organizationId} interviewId={interviewId}/>}
     </>}
   </Drawer>
@@ -164,9 +172,12 @@ function RequirementRow({finding}:{finding:AnalysisFinding}){
   </article>
 }
 
-function ConsultantQuality({assessments,metrics}:{
+function ConsultantQuality({assessments,metrics,organizationId,currentMemberId,canReview}:{
   assessments:Assessment[]
   metrics:{speakers:import('./analysisRepository').SpeakerMetric[];summary:import('./analysisRepository').MetricSummary|null}|undefined
+  organizationId:string
+  currentMemberId:string|null
+  canReview:boolean
 }){
   return <section className="analysis-section">
     {/* Each consultant is assessed separately: collapsing two into one subject would attribute one
@@ -189,6 +200,8 @@ function ConsultantQuality({assessments,metrics}:{
           {finding.coachingSuggestion&&<p className="analysis-coaching">Try: {finding.coachingSuggestion}</p>}
           <EvidenceList evidence={finding.evidence}/>
         </article>)}
+        <InterviewReviewPanel organizationId={organizationId} assessmentId={assessment.id}
+          canReview={canReview} isSubject={Boolean(currentMemberId&&assessment.subjectMemberId===currentMemberId)}/>
       </article>
     })}
 
