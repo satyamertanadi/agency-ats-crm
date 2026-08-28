@@ -10,6 +10,15 @@ export function clients(request:Request){
   }
 }
 
+/* The service-role client on its own, for workers that act for no user. Built the same way clients()
+ * builds its admin half, so callers get the same inferred client type rather than a stricter one that
+ * resolves every row to never. */
+export function serviceClient(){
+  const url=Deno.env.get('SUPABASE_URL');const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if(!url||!service)throw new Error('Supabase function environment is incomplete.')
+  return createClient(url,service,{auth:{persistSession:false}})
+}
+
 export async function requireUser(request:Request):Promise<{user:User;caller:ReturnType<typeof clients>['caller'];admin:ReturnType<typeof clients>['admin']}>{
   const {caller,admin}=clients(request)
   const {data:{user},error}=await caller.auth.getUser()

@@ -140,7 +140,7 @@ export async function getWorkspaceCapabilities(organizationId:string):Promise<Wo
   const {data,error}=await supabase.rpc('get_my_workspace_capabilities',{p_organization_id:organizationId})
   if(error)fail(error,'Could not load workspace permissions')
   const capabilities=data?.[0]
-  if(!capabilities)return {roleKeys:[],canWriteCandidates:false,canWriteClients:false,canWriteJobs:false,canMovePipeline:false,canSubmit:false,canManageInterviews:false,canManageOffers:false,canManagePlacements:false,canManageCommercialTerms:false,canViewTeamReports:false,canManageFinance:false,canImport:false,canManageOrganization:false,canManageWorkspace:false,canManageTemplates:false,canViewAdmin:false,readOnly:true}
+  if(!capabilities)return {roleKeys:[],canWriteCandidates:false,canWriteClients:false,canWriteJobs:false,canMovePipeline:false,canSubmit:false,canManageInterviews:false,canManageOffers:false,canManagePlacements:false,canManageCommercialTerms:false,canViewTeamReports:false,canManageFinance:false,canImport:false,canManageOrganization:false,canManageWorkspace:false,canManageTemplates:false,canViewAdmin:false,readOnly:true,canUseInterviewIntelligence:false,canViewOwnInterviewQuality:false,canReviewTeamInterviewQuality:false,canConfigureInterviewIntelligence:false}
   return {
     roleKeys:capabilities.role_keys||[],
     canWriteCandidates:capabilities.can_write_candidates,canWriteClients:capabilities.can_write_clients,canWriteJobs:capabilities.can_write_jobs,
@@ -149,6 +149,8 @@ export async function getWorkspaceCapabilities(organizationId:string):Promise<Wo
     canViewTeamReports:capabilities.can_view_team_reports,canManageFinance:capabilities.can_manage_finance,canImport:capabilities.can_import,
     canManageOrganization:capabilities.can_manage_organization,canManageWorkspace:capabilities.can_manage_workspace,canManageTemplates:capabilities.can_manage_templates,
     canViewAdmin:capabilities.can_view_admin,readOnly:capabilities.read_only,
+    canUseInterviewIntelligence:capabilities.can_use_interview_intelligence,canViewOwnInterviewQuality:capabilities.can_view_own_interview_quality,
+    canReviewTeamInterviewQuality:capabilities.can_review_team_interview_quality,canConfigureInterviewIntelligence:capabilities.can_configure_interview_intelligence,
   }
 }
 export async function listCandidateProfileTemplates(organizationId:string):Promise<CandidateProfileTemplate[]>{const {data,error}=await supabase.from('templates').select('id,name,configuration,version,is_default,created_at,updated_at').eq('organization_id',organizationId).eq('template_type','candidate_profile').is('deleted_at',null).order('is_default',{ascending:false}).order('name');if(error)fail(error,'Could not load candidate profile templates');return (data||[]).map((item)=>({...item,configuration:candidateProfileTemplateConfigSchema.parse(item.configuration)}))}

@@ -51,3 +51,27 @@ test('the initial load raises no console errors or unhandled rejections',async({
   const real=problems.filter((problem)=>!/favicon|net::ERR_|Failed to load resource/i.test(problem))
   expect(real,`unexpected console output: ${real.join(' | ')}`).toEqual([])
 })
+
+/* Interview Intelligence is reached from two lazy routes (Job Workspace, the candidate panel) and is
+ * switched off for every workspace by default. A signed-out visitor must therefore download none of
+ * it -- and because the schema names are distinctive, the check can be on content rather than on a
+ * chunk filename that a bundler is free to rename. */
+test('the first paint downloads no interview intelligence code',async({page})=>{
+  const scripts:string[]=[]
+  page.on('request',(request)=>{if(request.resourceType()==='script')scripts.push(request.url())})
+  await page.goto('/login')
+  await page.waitForLoadState('networkidle')
+
+  const names=chunkNames(scripts)
+  expect(names.filter((name)=>/^Interview/.test(name)),`an interview chunk was fetched: ${names.join(', ')}`).toEqual([])
+
+  const bodies=await Promise.all(scripts.map(async(url)=>{
+    const response=await page.request.get(url)
+    return response.ok()?await response.text():''
+  }))
+  const leaked=bodies.some((body)=>
+    body.includes('interview_transcript_entries')||
+    body.includes('interview_assessments')||
+    body.includes('request_interview_analysis'))
+  expect(leaked,'interview intelligence code reached the initial download').toBe(false)
+})

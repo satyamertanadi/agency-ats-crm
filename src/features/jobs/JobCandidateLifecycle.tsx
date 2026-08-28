@@ -11,6 +11,8 @@ import {Field,Select,Textarea} from '../../shared/ui/Field'
 import {StatusBadge} from '../../shared/ui/Page'
 import {useToast} from '../../shared/ui/Toast'
 import {feedbackDecision,interviewStatus,offerStatus} from '../../shared/lib/status'
+import {InterviewTranscriptDrawer} from '../interview-intelligence/InterviewTranscriptDrawer'
+import {InterviewAnalysisDrawer} from '../interview-intelligence/InterviewAnalysisDrawer'
 import {formatDateTime,formatMoney} from '../../shared/lib/format'
 
 /* The four things that were true about a candidate but unreachable from the surface built to work
@@ -27,7 +29,9 @@ export interface JobCandidateLifecycleProps {
   candidateName:string
   interviews:Interview[]
   offers:Offer[]
+  candidateId:string
   canManageInterviews:boolean
+  canUseInterviewIntelligence:boolean
   canManageOffers:boolean
   readOnly:boolean
   openOutcome?:boolean
@@ -43,12 +47,14 @@ const offerDecisions:Array<{value:OfferDecision;label:string}>=[
   {value:'accepted',label:'Accepted'},{value:'declined',label:'Declined'},{value:'withdrawn',label:'Withdrawn'},
 ]
 
-export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateName,interviews,offers,canManageInterviews,canManageOffers,readOnly,openOutcome=false,onOutcomeClose,onUpdated,onReschedule}:JobCandidateLifecycleProps){
+export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateId,candidateName,interviews,offers,canManageInterviews,canUseInterviewIntelligence,canManageOffers,readOnly,openOutcome=false,onOutcomeClose,onUpdated,onReschedule}:JobCandidateLifecycleProps){
   const toast=useToast()
   const [offerDecision,setOfferDecision]=useState<{offer:Offer;decision:OfferDecision}|null>(null)
   const [offerNote,setOfferNote]=useState('')
   const [cancelling,setCancelling]=useState<Interview|null>(null)
   const [completing,setCompleting]=useState<Interview|null>(null)
+  const [transcribing,setTranscribing]=useState<Interview|null>(null)
+  const [analysing,setAnalysing]=useState<Interview|null>(null)
   const [outcome,setOutcome]=useState<'completed'|'no_show'>('completed')
   const [outcomeNotes,setOutcomeNotes]=useState('')
 
@@ -115,6 +121,12 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
           {entry.status==='cancelled'&&interviewsActive&&((entry.cancellation_delivery_issues||0)>0||entry.calendar_sync_status==='failed')&&<div className="lifecycle-actions">
             <Button size="sm" variant="secondary" onClick={()=>setCancelling(entry)}>Retry cancellation</Button>
           </div>}
+          {/* Only once the interview actually happened. Offering it on a scheduled one would invite a
+            * consultant to paste a transcript of a conversation that has not taken place. */}
+          {entry.status==='completed'&&canUseInterviewIntelligence&&!readOnly&&<div className="lifecycle-actions">
+            <Button size="sm" variant="quiet" onClick={()=>setTranscribing(entry)}>Transcript</Button>
+            <Button size="sm" variant="quiet" onClick={()=>setAnalysing(entry)}>Analysis</Button>
+          </div>}
         </li>)}
       </ul>}
     </section>
@@ -165,5 +177,10 @@ export function JobCandidateLifecycle({organizationId,jobCandidateId,candidateNa
     <ConfirmDialog open={Boolean(cancelling)} title={cancelling?.status==='cancelled'?"Retry this cancellation?":"Cancel this interview?"} confirmLabel={cancelling?.status==='cancelled'?"Retry cancellation":"Cancel interview"}
       loading={dropInterview.isPending} onClose={()=>setCancelling(null)} onConfirm={()=>cancelling&&dropInterview.mutate(cancelling)}
       body={<p>{cancelling?.status==='cancelled'?`Failed or pending notifications for the interview on ${formatDateTime(cancelling?.starts_at)} will be attempted again.`:`The interview on ${formatDateTime(cancelling?.starts_at)} will be marked cancelled. Every recorded attendee will be notified automatically.`}</p>}/>
+
+    {transcribing&&<InterviewTranscriptDrawer organizationId={organizationId} interviewId={transcribing.id}
+      candidateId={candidateId} candidateName={candidateName} onClose={()=>{setTranscribing(null);void onUpdated()}}/>}
+    {analysing&&<InterviewAnalysisDrawer organizationId={organizationId} interviewId={analysing.id}
+      candidateName={candidateName} onClose={()=>setAnalysing(null)}/>}
   </div>
 }

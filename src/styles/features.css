@@ -2075,3 +2075,100 @@ tbody tr:focus-within .row-menu-trigger,
 .quick-view-issue-label svg{color:var(--color-warning);flex-shrink:0}
 /* The reason wraps: it is a sentence, not a table cell, and .cell-quiet's nowrap would clip it. */
 .quick-view-issues .cell-quiet{white-space:normal;font-size:var(--text-xs)}
+
+/* Interview blueprint.
+   Two surfaces: a compact summary on Job Workspace and the drawer that holds the questions. The
+   summary is deliberately short -- the job page already carries a pipeline, a submissions rail and an
+   activity feed, and a full question list here would push all of it below the fold to show something
+   read once before an interview. */
+.blueprint-summary{display:flex;flex-direction:column;gap:var(--space-2)}
+.blueprint-summary-headline{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.blueprint-summary p{margin:0;color:var(--color-muted);font-size:var(--text-sm)}
+/* A missing core rubric blocks analysis entirely, so it reads as a warning rather than as detail. */
+.blueprint-summary-note{color:var(--color-warning)}
+
+.blueprint-generate{
+  display:flex;flex-direction:column;gap:var(--space-2);
+  padding:var(--space-3);margin-bottom:var(--space-4);
+  border:1px solid var(--color-line-soft);border-radius:var(--radius-md);background:var(--color-surface-soft);
+}
+.blueprint-generate-note{margin:0;color:var(--color-muted);font-size:var(--text-xs)}
+
+.blueprint-group{margin-bottom:var(--space-4)}
+.blueprint-group h3{margin:0 0 var(--space-2);font-size:var(--text-sm);font-weight:var(--weight-semibold)}
+
+.blueprint-item{
+  display:flex;flex-direction:column;gap:var(--space-2);
+  padding:var(--space-3);margin-bottom:var(--space-2);
+  border:1px solid var(--color-line-soft);border-radius:var(--radius-md);
+}
+.blueprint-item header{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-2);flex-wrap:wrap}
+.blueprint-item-meta{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.blueprint-item-question{margin:0}
+/* What good evidence looks like, subordinate to the question it belongs to. */
+.blueprint-item-evidence{margin:0;color:var(--color-muted);font-size:var(--text-xs)}
+/* Stacks under 640px so the requirement selector and Remove do not collide on a phone. */
+.blueprint-item-controls{display:flex;align-items:flex-end;gap:var(--space-3);flex-wrap:wrap}
+@media (max-width:640px){
+  .blueprint-item-controls{flex-direction:column;align-items:stretch}
+}
+
+/* Interview transcript drawer: consent, import, speakers.
+   Three steps in one drawer because they are one errand -- splitting them across screens would give
+   a consultant three places to abandon the job half-done, and half-done here means a stored
+   recording of a named person that nothing will ever use. */
+.transcript-lifecycle{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;margin:0 0 var(--space-4)}
+.transcript-lifecycle span{color:var(--color-muted);font-size:var(--text-sm)}
+
+.transcript-step{
+  display:flex;flex-direction:column;gap:var(--space-3);
+  padding:var(--space-3);margin-bottom:var(--space-4);
+  border:1px solid var(--color-line-soft);border-radius:var(--radius-md);
+}
+.transcript-step h3{margin:0;font-size:var(--text-sm);font-weight:var(--weight-semibold)}
+
+.transcript-speaker{
+  display:flex;flex-direction:column;gap:var(--space-2);
+  padding:var(--space-2) 0;border-top:1px solid var(--color-line-soft);
+}
+.transcript-speaker-label{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+
+/* Interview analysis drawer.
+   No percentages of fit and no visible scores: the 0-4 dimension scale is internal, and a coloured
+   "good/bad" treatment on a speaking-share row would imply an ideal ratio the product explicitly
+   does not claim exists. */
+.analysis-status{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;margin:0 0 var(--space-3)}
+.analysis-status span{color:var(--color-muted);font-size:var(--text-sm)}
+.analysis-section{display:flex;flex-direction:column;gap:var(--space-3);margin-top:var(--space-4)}
+.analysis-section h3{margin:var(--space-2) 0 0;font-size:var(--text-sm);font-weight:var(--weight-semibold)}
+.analysis-headline{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+
+.analysis-requirements{display:flex;flex-direction:column;gap:var(--space-2)}
+.analysis-requirement,.analysis-dimension{
+  display:flex;flex-direction:column;gap:var(--space-2);
+  padding:var(--space-3);border:1px solid var(--color-line-soft);border-radius:var(--radius-md);
+}
+.analysis-requirement header,.analysis-dimension header{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-2);flex-wrap:wrap;
+}
+.analysis-requirement-meta{display:flex;align-items:center;gap:var(--space-2);flex-shrink:0}
+.analysis-requirement p,.analysis-dimension p{margin:0}
+.analysis-dimension-title{font-weight:var(--weight-semibold)}
+/* The next question to ask, and the behaviour to change. Both are advice, so both read quieter than
+   the finding they belong to. */
+.analysis-verify,.analysis-coaching{color:var(--color-muted);font-size:var(--text-sm)}
+.analysis-consultant{display:flex;flex-direction:column;gap:var(--space-3);margin-bottom:var(--space-4)}
+
+.analysis-list{margin:0;padding-left:var(--space-4);display:flex;flex-direction:column;gap:4px}
+.analysis-evidence{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.analysis-evidence li{display:flex;flex-direction:column;gap:2px;font-size:var(--text-xs)}
+.analysis-evidence-source{color:var(--color-muted);text-transform:uppercase;letter-spacing:.04em}
+.analysis-evidence q{font-style:italic}
+
+/* Both tables scroll inside their own container: a transcript line is prose and a metrics row has
+   five columns, and neither should make the drawer itself scroll sideways. */
+.analysis-metrics,.analysis-transcript{width:100%;border-collapse:collapse;display:block;overflow-x:auto}
+.analysis-metrics th,.analysis-transcript th{text-align:left;font-size:var(--text-xs);color:var(--color-muted);padding:var(--space-2)}
+.analysis-metrics td,.analysis-transcript td{padding:var(--space-2);border-top:1px solid var(--color-line-soft);vertical-align:top}
+.analysis-transcript td:first-child{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--color-muted)}
+.analysis-transcript-pager{display:flex;gap:var(--space-2);margin-top:var(--space-2)}

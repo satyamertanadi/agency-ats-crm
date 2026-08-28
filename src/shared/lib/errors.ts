@@ -124,6 +124,38 @@ const rpcMessages:Record<string,string>={
   occurred_at_in_future:'An activity cannot be logged in the future.',
   comments_too_long:'Shorten the comments and try again.',
   reviewer_name_too_long:'Shorten the reviewer name and try again.',
+  /* Interview Intelligence. The rubric sentences explain WHY the edit was refused rather than only
+   * that it was: an activated blueprint is the yardstick historical analyses were measured against,
+   * and someone who does not know that reads the refusal as a bug. */
+  interview_rubric_immutable_after_activation:'This interview blueprint is active and cannot be edited. Create a new version instead.',
+  interview_rubric_items_frozen_after_activation:'This interview blueprint is active, so its questions cannot be changed. Create a new version instead.',
+  interview_rubric_archived_is_final:'An archived interview blueprint cannot be reopened.',
+  interview_rubric_not_found:'That interview blueprint could not be found in this workspace.',
+  // Activating an empty blueprint would make every analysis report full coverage of nothing.
+  interview_rubric_empty:'Add at least one question or requirement before activating this blueprint.',
+  // Deliberately identical to the wording for a transcript in another workspace: knowing a
+  // transcript id must not reveal whether it exists.
+  transcript_not_found:'That transcript could not be found in this workspace.',
+  /* The gate the whole feature hangs on, so the sentence says what to do rather than only what
+   * failed -- somebody hitting this has a transcript in hand and needs to know consent is the
+   * blocker, not the file. */
+  transcript_consent_required:'Record the candidate’s consent before importing this transcript.',
+  transcript_empty:'No transcript lines could be read from that file.',
+  // Raised when an entry names a speaker the parser did not list, which would silently drop lines.
+  transcript_speaker_mismatch:'That transcript could not be read cleanly. Try importing it again.',
+  transcript_speaker_not_found:'That speaker could not be found on this transcript.',
+  invalid_speaker_role:'Choose a valid speaker role.',
+  invalid_speaker_identity:'Choose exactly one person for this speaker, matching the role.',
+  // Raised by the queue when a worker releases a job that no longer exists. Not reachable from the
+  // interface, but the drift test requires every raised identifier to have a sentence.
+  background_job_not_found:'That background job could not be found.',
+  /* Analysis preconditions. Each names the missing step rather than saying the request was invalid,
+   * because every one of these is something the person in front of the screen can go and fix. */
+  transcript_required:'Add the interview transcript before requesting an analysis.',
+  speaker_mapping_required:'Map every speaker before requesting an analysis.',
+  core_rubric_required:'Activate an agency core interview rubric before analysing interviews.',
+  job_rubric_required:'Activate an interview blueprint for this job before analysing its interviews.',
+  analysis_run_not_found:'That analysis could not be found in this workspace.',
 }
 
 /* `duplicate_candidate:<uuid>` is the one token carrying a payload -- the id of the record it collided

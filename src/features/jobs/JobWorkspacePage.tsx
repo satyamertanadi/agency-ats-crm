@@ -34,6 +34,7 @@ import {JobSubmissionsRail,type SubmissionPackageRow} from '../submissions/JobSu
 import {nextActionDetail} from './jobHealth'
 import {PhaseJump} from './PhaseJump'
 import {AddCandidateToJobModal} from '../candidates/AddCandidateToJobModal'
+import {InterviewBlueprintPanel} from '../interview-intelligence/InterviewBlueprintPanel'
 import {TaskButton} from '../activities/TaskButton'
 import {formatMoney,formatSalary} from '../../shared/lib/format'
 import {useShortcut} from '../../shared/lib/useShortcut'
@@ -392,6 +393,9 @@ export function JobWorkspacePage(){
     </>}
     {view==='activity'&&<ActivityFeed links={[{job_id:jobId}]} title="Job activity" subtitle="Calls, client updates, submissions, feedback, and stage movement in one history." readOnly={capabilities.data?.readOnly}/>}
     {view==='details'&&<JobDetails job={job} health={jobHealth} members={members.data||[]} phases={buildPipelineColumns(pipeline.data!.stages)} items={pipeline.data!.items} onEdit={capabilities.data?.canWriteJobs?()=>setEditOpen(true):undefined} onAdd={canRecruit?()=>setAddOpen(true):undefined}/>}
+    {/* Sits under Details rather than beside the board: it is read once before an interview, not
+      * worked from. The panel renders nothing at all when the workspace has the feature off. */}
+    {view==='details'&&<InterviewBlueprintPanel organizationId={organization!.id} jobId={jobId} canConfigure={Boolean(capabilities.data?.canConfigureInterviewIntelligence)}/>}
     {/* The bare list this replaces held the first 100 candidates in the organization, unsearchable and
       * unordered, and added exactly one at a time -- so filling a pipeline from the job side meant
       * repeating a scroll through a list that could not contain the person you wanted. The good modal
