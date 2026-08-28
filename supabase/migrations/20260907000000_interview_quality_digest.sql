@@ -100,10 +100,16 @@ create policy interview_digest_runs_read on public.interview_digest_runs
     )
   );
 
--- The digest is a new kind of mail, so the delivery table has to admit it exists.
+/* The digest is a new kind of mail, so the delivery table has to admit it exists.
+ *
+ * This list ACCUMULATES, and re-stating it is how a value gets lost. interview_cancellation was added
+ * by 20260809020000, and rebuilding the constraint from the original table definition dropped it --
+ * which would have broken every interview cancellation email, from a migration whose subject is a
+ * digest. Anything editing this list must carry every value already in it. */
 alter table public.email_deliveries drop constraint if exists email_deliveries_email_type_check;
 alter table public.email_deliveries add constraint email_deliveries_email_type_check
-  check (email_type in ('team_invitation','client_submission','calendar_failure','interview_quality_digest'));
+  check (email_type in (
+    'team_invitation','client_submission','calendar_failure','interview_cancellation','interview_quality_digest'));
 
 -- ---------------------------------------------------------------------------------------------
 -- Recipient management

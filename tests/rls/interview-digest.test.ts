@@ -303,9 +303,14 @@ describe('who may manage and read the brief',()=>{
   it('refuses an inactive member as a recipient',async()=>{
     /* Otherwise somebody keeps receiving the desk's summary after leaving the desk. */
     const owner=await signIn('owner@northstar.local')
-    await service.from('organization_members').update({status:'inactive'}).eq('id',SOURCER_MEMBER)
+    // 'suspended', not 'inactive': organization_members.status is ('invited','active','suspended'),
+    // and an unchecked update to a value the constraint rejects leaves the member active -- so the
+    // test would pass or fail on its own setup rather than on the rule it exists to prove.
+    const suspended=await service.from('organization_members').update({status:'suspended'}).eq('id',SOURCER_MEMBER)
+    if(suspended.error)throw new Error(suspended.error.message)
     const result=await owner.rpc('add_interview_digest_recipient',{p_organization_id:ORG,p_member_id:SOURCER_MEMBER})
-    await service.from('organization_members').update({status:'active'}).eq('id',SOURCER_MEMBER)
+    const restored=await service.from('organization_members').update({status:'active'}).eq('id',SOURCER_MEMBER)
+    if(restored.error)throw new Error(restored.error.message)
     expect(result.error?.message).toContain('member_not_active')
   })
 
