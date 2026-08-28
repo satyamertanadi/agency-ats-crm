@@ -2847,6 +2847,104 @@ export type Database = {
           },
         ]
       }
+      interview_digest_recipients: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          member_id: string
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          member_id: string
+          organization_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          member_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_digest_recipients_member_id_organization_id_fkey"
+            columns: ["member_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_digest_recipients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_digest_runs: {
+        Row: {
+          analysis_count: number
+          attention_count: number
+          content: Json | null
+          created_at: string
+          error_message: string | null
+          failure_count: number
+          id: string
+          local_report_date: string
+          organization_id: string
+          range_ended_at: string
+          range_started_at: string
+          recipient_count: number
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          analysis_count?: number
+          attention_count?: number
+          content?: Json | null
+          created_at?: string
+          error_message?: string | null
+          failure_count?: number
+          id?: string
+          local_report_date: string
+          organization_id: string
+          range_ended_at: string
+          range_started_at: string
+          recipient_count?: number
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          analysis_count?: number
+          attention_count?: number
+          content?: Json | null
+          created_at?: string
+          error_message?: string | null
+          failure_count?: number
+          id?: string
+          local_report_date?: string
+          organization_id?: string
+          range_ended_at?: string
+          range_started_at?: string
+          recipient_count?: number
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_digest_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interview_finding_evidence: {
         Row: {
           created_at: string
@@ -4021,6 +4119,10 @@ export type Database = {
           document_migration_completed: boolean
           interview_auto_analysis_enabled: boolean
           interview_consent_notice_version: string | null
+          interview_digest_enabled: boolean
+          interview_digest_last_success_at: string | null
+          interview_digest_local_time: string
+          interview_digest_skip_empty: boolean
           interview_intelligence_enabled: boolean
           interview_meet_auto_import_enabled: boolean
           interview_rubric_generation_enabled: boolean
@@ -4043,6 +4145,10 @@ export type Database = {
           document_migration_completed?: boolean
           interview_auto_analysis_enabled?: boolean
           interview_consent_notice_version?: string | null
+          interview_digest_enabled?: boolean
+          interview_digest_last_success_at?: string | null
+          interview_digest_local_time?: string
+          interview_digest_skip_empty?: boolean
           interview_intelligence_enabled?: boolean
           interview_meet_auto_import_enabled?: boolean
           interview_rubric_generation_enabled?: boolean
@@ -4065,6 +4171,10 @@ export type Database = {
           document_migration_completed?: boolean
           interview_auto_analysis_enabled?: boolean
           interview_consent_notice_version?: string | null
+          interview_digest_enabled?: boolean
+          interview_digest_last_success_at?: string | null
+          interview_digest_local_time?: string
+          interview_digest_skip_empty?: boolean
           interview_intelligence_enabled?: boolean
           interview_meet_auto_import_enabled?: boolean
           interview_rubric_generation_enabled?: boolean
@@ -5370,6 +5480,10 @@ export type Database = {
           skipped: number
         }[]
       }
+      add_interview_digest_recipient: {
+        Args: { p_member_id: string; p_organization_id: string }
+        Returns: string
+      }
       anonymize_candidate_for_retention: {
         Args: {
           p_as_of?: string
@@ -5398,6 +5512,10 @@ export type Database = {
           function_name: string
           granted_roles: string[]
         }[]
+      }
+      build_interview_digest_content: {
+        Args: { p_from: string; p_organization_id: string; p_to: string }
+        Returns: Json
       }
       bulk_confirm_interview_transcript_speakers: {
         Args: {
@@ -5536,6 +5654,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      claim_interview_digest_run: {
+        Args: { p_organization_id: string }
+        Returns: Json
       }
       configure_founding_partner: {
         Args: { p_enabled?: boolean; p_organization_id: string }
@@ -5752,6 +5874,12 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: Json
       }
+      due_interview_digest_organizations: {
+        Args: { p_limit?: number }
+        Returns: {
+          organization_id: string
+        }[]
+      }
       fail_interview_analysis: {
         Args: {
           p_error_code: string
@@ -5778,6 +5906,15 @@ export type Database = {
           p_error_code?: string
           p_error_message?: string
           p_provider_message_id?: string
+          p_status: string
+        }
+        Returns: string
+      }
+      finalize_interview_digest_run: {
+        Args: {
+          p_content?: Json
+          p_error_message?: string
+          p_run_id: string
           p_status: string
         }
         Returns: string
@@ -5827,6 +5964,33 @@ export type Database = {
           source_document_id: string
           version: number
         }[]
+      }
+      get_interview_digests: {
+        Args: { p_limit?: number; p_organization_id: string }
+        Returns: {
+          analysis_count: number
+          attention_count: number
+          content: Json
+          failure_count: number
+          id: string
+          local_report_date: string
+          recipient_count: number
+          sent_at: string
+          status: string
+        }[]
+      }
+      get_interview_quality_scorecard: {
+        Args: {
+          p_from: string
+          p_organization_id: string
+          p_scope?: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      get_interview_quality_team_patterns: {
+        Args: { p_from: string; p_organization_id: string; p_to: string }
+        Returns: Json
       }
       get_interview_today_items: {
         Args: { p_limit?: number; p_organization_id: string }
@@ -6331,6 +6495,10 @@ export type Database = {
           removed: number
           skipped: number
         }[]
+      }
+      remove_interview_digest_recipient: {
+        Args: { p_member_id: string; p_organization_id: string }
+        Returns: number
       }
       replace_candidate_profile_section: {
         Args: {

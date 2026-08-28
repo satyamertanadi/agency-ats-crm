@@ -225,6 +225,36 @@ async function runMaintenance(request:Request,requestID:string){
   }
   if(meetError)log('warn','meet_transcript_sweep_failed',{requestId:requestID,detail:meetError})
 
+  /* Sends the daily owner brief to any workspace whose local send time has passed.
+   *
+   * One call per sweep, not a drain loop: the sender claims one run per workspace per local report
+   * date on a unique constraint, so calling it again within the hour finds nothing to do. A failure
+   * here must not take the retention run down with it -- deletion guarantees outrank a summary
+   * email. */
+  let digestsSent=0
+  let digestsSkipped=0
+  let digestError:string|null=null
+  try{
+    const response=await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-interview-digest`,{
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'authorization':`Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'x-worker-secret':Deno.env.get('WORKER_SECRET')||Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'',
+      },
+      body:JSON.stringify({trigger:'scheduled'}),
+    })
+    if(!response.ok)digestError=`HTTP ${response.status}`
+    else{
+      const body=await response.json().catch(()=>null) as {sent?:number;skipped?:number}|null
+      digestsSent=Number(body?.sent||0)
+      digestsSkipped=Number(body?.skipped||0)
+    }
+  }catch(error){
+    digestError=error instanceof Error?error.message:String(error)
+  }
+  if(digestError)log('warn','interview_digest_sweep_failed',{requestId:requestID,detail:digestError})
+
   /* Drains the interview analysis queue.
    *
    * This is the SAFETY NET, not the primary path: request-interview-analysis nudges the worker
@@ -280,6 +310,9 @@ async function runMaintenance(request:Request,requestID:string){
     meetFetchesQueued:meetQueued,
     meetTranscriptsProcessed:meetProcessed,
     meetSweepError:meetError,
+    digestsSent,
+    digestsSkipped,
+    digestSweepError:digestError,
   }
 
   // A run that could not anonymize every candidate it picked up is not a clean run. Recording it as

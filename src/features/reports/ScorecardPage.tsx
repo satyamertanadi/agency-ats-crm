@@ -16,6 +16,7 @@ import {ChartCard,chartTooltipStyle} from '../../shared/ui/ChartCard'
 import {formatDateRange,formatDateTime,formatMoney,formatMoneyCompact} from '../../shared/lib/format'
 import {buildConsultantRows,buildRecruitmentFunnel,isCompletedPlacement,isOverdueTask,isRecordedPlacement,metricDefinitions,reportDateRange,shortNameLabels,type ConsultantRow} from './reportMetrics'
 import {parseMetric,type DrilldownContext,type DrilldownInput} from './scorecardDrilldown'
+import {InterviewQualityPanel} from '../interview-intelligence/InterviewQualityPanel'
 import {ScorecardDrilldownDrawer} from './ScorecardDrilldownDrawer'
 
 /* A money figure sized for a KPI cell: abbreviated on screen, exact on hover and to a screen reader.
@@ -52,6 +53,14 @@ const dateValue=(date:Date)=>date.toISOString().slice(0,10)
  * Both scopes read one query and one set of definitions, which is the point: a consultant's own
  * total can no longer disagree with the one their manager is looking at in the same meeting. */
 type Scope='mine'|'team'
+
+/* The second view the plan asks for on the existing Scorecard route, rather than a new page.
+ *
+ * Interview quality belongs beside the commercial numbers because it is read in the same
+ * conversation -- a one-to-one about a consultant's month covers both -- and a separate route would
+ * make the two halves of that conversation two destinations with two date pickers that can disagree.
+ */
+type View='performance'|'quality'
 
 /* Every tile states its own definition. A scorecard whose numbers a consultant cannot interpret is
  * a scorecard they argue with rather than act on.
@@ -102,6 +111,7 @@ export function ScorecardPage(){
   const now=useMemo(()=>new Date(),[])
   const [from,setFrom]=useState(dateValue(new Date(now.getFullYear(),0,1)));const [to,setTo]=useState(dateValue(now))
   const [scope,setScope]=useState<Scope>('mine')
+  const [view,setView]=useState<View>('performance')
   /* The open drilldown lives in the URL so it survives a reload and can be linked to in a message
    * that says "look at these fourteen". The date range does not, which is a pre-existing asymmetry
    * and out of scope here -- a shared link therefore opens the drawer over whatever range the
@@ -109,21 +119,32 @@ export function ScorecardPage(){
    * rather than of the range the sender was reading. */
   const [params,setParams]=useSearchParams()
   const range=reportDateRange(from,to,organization?.timezone||'UTC')
-  const performance=useQuery({queryKey:['agency-performance',organization?.id,from,to],enabled:Boolean(organization&&from&&to),queryFn:()=>getAgencyPerformance(organization!.id,range.fromIso,range.toIso)})
-  const team=useQuery({queryKey:['team',organization?.id],enabled:Boolean(organization),queryFn:()=>listTeamMembers(organization!.id)})
+  const showingQuality=view==='quality'
+  const performance=useQuery({queryKey:['agency-performance',organization?.id,from,to],enabled:Boolean(organization&&from&&to)&&!showingQuality,queryFn:()=>getAgencyPerformance(organization!.id,range.fromIso,range.toIso)})
+  const team=useQuery({queryKey:['team',organization?.id],enabled:Boolean(organization)&&!showingQuality,queryFn:()=>listTeamMembers(organization!.id)})
   const currentMember=membership
   // Losing the capability mid-session (a role change landing in a refetch) must not strand the page
   // on a view the user may no longer see.
   const canViewTeam=Boolean(capabilities.data?.canViewTeamReports)
-  const activeScope:Scope=canViewTeam?scope:'mine'
+  /* Interview quality has its own team permission. Reviewing a colleague's interview technique is a
+   * different grant from reading the desk's commercial numbers, so the toggle's team option is gated
+   * on whichever permission the current view actually needs. */
+  const canReviewQuality=Boolean(capabilities.data?.canReviewTeamInterviewQuality)
+  const canSeeQuality=Boolean(capabilities.data?.canViewOwnInterviewQuality)||canReviewQuality
+  const canViewTeamHere=showingQuality?canReviewQuality:canViewTeam
+  const activeScope:Scope=canViewTeamHere?scope:'mine'
 
   const title=activeScope==='team'?'Team scorecard':'My scorecard'
-  const description=activeScope==='team'
-    ?'Agency funnel, workload, and consultant performance for the selected period.'
-    :'Your own recruitment activity and outcomes, using the same definitions as the team view.'
+  const description=showingQuality
+    ?(activeScope==='team'
+      ?'How interviews are being conducted across the desk. Patterns and training themes, never a ranking of consultants.'
+      :'How your own interviews are being conducted, compared only against your own previous period.')
+    :(activeScope==='team'
+      ?'Agency funnel, workload, and consultant performance for the selected period.'
+      :'Your own recruitment activity and outcomes, using the same definitions as the team view.')
 
-  if(performance.isLoading||team.isLoading||capabilities.isLoading)return <Page title={title} eyebrow="Performance" description={description}><Panel><TableSkeleton rows={5} columns={4} label="Preparing the scorecard…"/></Panel></Page>
-  if(performance.error||team.error)return <ErrorState error={performance.error||team.error}/>
+  if((!showingQuality&&(performance.isLoading||team.isLoading))||capabilities.isLoading)return <Page title={title} eyebrow="Performance" description={description}><Panel><TableSkeleton rows={5} columns={4} label="Preparing the scorecard…"/></Panel></Page>
+  if(!showingQuality&&(performance.error||team.error))return <ErrorState error={performance.error||team.error}/>
 
   const data=performance.data!
   const overdueTasks=data.tasks.filter((item)=>isOverdueTask(item,now))
@@ -144,10 +165,12 @@ export function ScorecardPage(){
       ids={metric.select(drilldownInput,drilldownContext)} onClose={closeMetric}/>
     :null
 
-  const scopeToggle=canViewTeam?<SegmentedControl label="Report scope" value={scope} onChange={setScope}
+  const scopeToggle=canViewTeamHere?<SegmentedControl label="Report scope" value={scope} onChange={setScope}
     options={[{id:'mine',label:'My scorecard'},{id:'team',label:'Team view'}]}/>:null
+  const viewToggle=canSeeQuality?<SegmentedControl label="Report view" value={view} onChange={setView}
+    options={[{id:'performance',label:'Performance'},{id:'quality',label:'Interview quality'}]}/>:null
   const datePicker=<div className="date-range"><Field label="From"><Input type="date" value={from} max={to} onChange={(event)=>setFrom(event.target.value)}/></Field><Field label="To"><Input type="date" value={to} min={from} onChange={(event)=>setTo(event.target.value)}/></Field></div>
-  const actions=<div className="page-scope-actions">{scopeToggle}{datePicker}</div>
+  const actions=<div className="page-scope-actions">{viewToggle}{scopeToggle}{datePicker}</div>
   /* The two <input type="date"> above render in the viewer's browser locale, from shadow DOM that
    * cannot be reformatted -- so an en-US machine shows "12/31/2025" and, worse, "08/09/2026" for a
    * date that half the world reads as 8 September and half as 9 August. Echoing the resolved range
@@ -155,6 +178,20 @@ export function ScorecardPage(){
    * losing its calendar, keyboard handling, mobile picker and min/max enforcement) to get there. */
   const context=<p className="report-context">Showing <strong>{formatDateRange(from,to)}</strong> · Workspace timezone: <strong>{organization?.timezone}</strong> · Refreshed <time dateTime={now.toISOString()}>{formatDateTime(now.toISOString())}</time></p>
   const footnote=<p className="muted report-note">Counts use the definitions in the product metric contract and reconcile across both scopes for the same period. Fee totals include only recorded placements already denominated in {organization?.base_currency}; no exchange rate is invented.</p>
+
+  if(showingQuality){
+    return <Page title={title} eyebrow="Performance" description={description} actions={actions}>
+      {context}
+      <InterviewQualityPanel scope={activeScope} fromIso={range.fromIso} toIso={range.toIso}/>
+      {/* Deliberately not the commercial footnote: none of the definitions it describes apply here,
+        * and a note about fee currency under a coverage table is noise that trains people to skip
+        * footnotes on the page where one of them matters. */}
+      <p className="muted report-note">
+        Interview quality is assessed independently of how the candidate performed, and no figure here
+        is a grade. Averages are withheld until a dimension has enough analysed interviews behind it.
+      </p>
+    </Page>
+  }
 
   if(activeScope==='team'){
     const recordedPlacements=data.placements.filter(isRecordedPlacement)

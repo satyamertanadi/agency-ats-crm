@@ -136,6 +136,19 @@ const rpcMessages:Record<string,string>={
   // Deliberately identical to the wording for a transcript in another workspace: knowing a
   // transcript id must not reveal whether it exists.
   transcript_not_found:'That transcript could not be found in this workspace.',
+  // The Scorecard asks for one of two scopes. Reachable only by a caller constructing its own request.
+  invalid_scope:'That report scope is not available.',
+  // Digest recipients are re-checked at send time too; this is the one a person can actually hit.
+  member_not_active:'That person is no longer an active member of this workspace.',
+  /* Both reachable only by a caller constructing its own request -- the sweep passes one of three
+   * statuses and a run id it has just claimed. Present because a raised identifier with no sentence
+   * reaches the user verbatim. */
+  invalid_digest_status:'That is not a valid outcome for a digest run.',
+  digest_run_not_found:'That digest run could not be found.',
+  /* Refused rather than answered with zeros, because zeros would read as "nothing happened in that
+   * period" -- a statement about the desk rather than about the request. */
+  invalid_period:'Choose an end date that falls after the start date.',
+  membership_required:'You need an active membership in this workspace to see your own figures.',
   /* The gate the whole feature hangs on, so the sentence says what to do rather than only what
    * failed -- somebody hitting this has a transcript in hand and needs to know consent is the
    * blocker, not the file. */

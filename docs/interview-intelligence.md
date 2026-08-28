@@ -250,6 +250,53 @@ produces one transcript per session, each starting near zero, and overlaying the
 speaking-share figure wrong in a way that still looks plausible. An entry Google never timed stays
 null rather than becoming zero, which is a real position in a recording.
 
+A2 adds the Interview quality view to the existing Scorecard route rather than a new page, because the
+commercial numbers and the interview ones are read in the same conversation -- a one-to-one about a
+consultant's month covers both -- and a separate route would make that one conversation two
+destinations with two date pickers that can disagree.
+
+Three of A2's rules are enforced in SQL rather than in the component, because a number that crosses
+the wire gets printed by the next consumer that reads it. No average is returned below three analysed
+interviews; the count is returned instead, so the reader can see what the figure would have rested on.
+The team rollup is refused outright to a caller without the review permission, rather than quietly
+answering with their own interviews under a team heading. And the team aggregate carries no member
+identifier at all -- not hidden, not as an id the client could resolve -- so a consultant ranking
+cannot be built from it even by a later edit that wanted one.
+
+Comparison is against the consultant's own immediately preceding period of the same length, and only
+when both sides clear the floor independently. A movement smaller than a quarter of a point is
+reported as steady: inviting somebody to change what they do in response to noise is worse than
+saying nothing. Speaking share is reported as the consultant's own figure with its sample size and no
+target, because there is no ideal talk/listen ratio to miss.
+
+The aggregate runs as SECURITY INVOKER. Who may read a consultant-quality assessment -- a reviewer, or
+the consultant it is about -- is already written once in the RLS policy, and a definer function here
+would have to restate it; a restated authorization rule is one that can drift silently, which is how
+interview_consent_status shipped as a definer function that checked nothing earlier in this feature.
+
+B2 adds the daily owner brief, and what it contains is defined by what it is: an email is forwarded,
+stored unencrypted and read by whoever picks up the phone. So the brief is counts and fixed
+vocabulary -- no transcript text, no candidate answers, no contact details, no salary, and no
+model-authored sentences. That last exclusion is the one easiest to miss: it rules out finding titles
+and summaries, which are the model's own prose about a named colleague's technique. Themes are
+therefore dimension counts and candidate outcomes are a band histogram with nobody attached, and the
+brief links back into the ATS where the evidence sits behind authentication.
+
+Duplicate delivery is prevented by construction. The run row is claimed first, on a unique constraint
+over (organization, local report date), before anything is aggregated or sent -- so a slow send, a
+retry, or two workers waking together lose to the constraint rather than mailing a second copy. The
+window resumes from the last successful brief, capped at 36 hours, so a workspace switched on after a
+quiet month cannot mail a month of interviews; what falls outside the cap is in the Scorecard. A
+skipped-empty run advances the window and a failed one does not.
+
+The in-app copy is the stored content read back rather than recomputed. Two definitions of the same
+brief eventually disagree about a day nobody can re-derive, and then there is no way to establish
+what the owner actually received.
+
+It runs inside the existing hourly maintenance sweep and the existing durable email path -- no second
+job system, no second delivery mechanism -- and a digest failure is logged and stepped over rather
+than allowed to take the retention run down with it. Deletion guarantees outrank a summary email.
+
 Code-completeness is not commercial readiness. The feature is reported against a maturity ladder --
 code complete, locally verified, staging verified, calibrated, pilot ready, production ready -- and
 calibration against 20-30 representative interviews is a gate rather than a formality.
