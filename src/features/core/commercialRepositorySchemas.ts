@@ -31,6 +31,9 @@ export const calendarConnectionSchema=z.object({
   id:z.string(),organization_id:z.string(),member_id:z.string(),google_email:z.string(),calendar_id:z.string(),
   status:z.enum(['connected','reauthorization_required','disconnected','error']),connected_at:z.string(),
   last_synced_at:z.string().nullable(),last_error:z.string().nullable(),
+  /* What Google actually granted, not what we asked for: incremental consent lets somebody approve
+   * Calendar and decline transcript reading, and the UI must show the former, not the request. */
+  scopes:z.array(z.string()),
 })
 
 export const companyPipelineRowSchema=z.object({

@@ -3369,6 +3369,7 @@ export type Database = {
           created_at: string
           created_by: string
           ends_at: string
+          google_meet_conference_record_name: string | null
           id: string
           interview_type: string | null
           job_candidate_id: string
@@ -3381,6 +3382,9 @@ export type Database = {
           starts_at: string
           status: string
           timezone: string
+          transcript_fetch_attempts: number
+          transcript_fetch_error: string | null
+          transcript_last_checked_at: string | null
           updated_at: string
         }
         Insert: {
@@ -3398,6 +3402,7 @@ export type Database = {
           created_at?: string
           created_by: string
           ends_at: string
+          google_meet_conference_record_name?: string | null
           id?: string
           interview_type?: string | null
           job_candidate_id: string
@@ -3410,6 +3415,9 @@ export type Database = {
           starts_at: string
           status?: string
           timezone: string
+          transcript_fetch_attempts?: number
+          transcript_fetch_error?: string | null
+          transcript_last_checked_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -3427,6 +3435,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           ends_at?: string
+          google_meet_conference_record_name?: string | null
           id?: string
           interview_type?: string | null
           job_candidate_id?: string
@@ -3439,6 +3448,9 @@ export type Database = {
           starts_at?: string
           status?: string
           timezone?: string
+          transcript_fetch_attempts?: number
+          transcript_fetch_error?: string | null
+          transcript_last_checked_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -4007,8 +4019,10 @@ export type Database = {
           candidate_retention_months: number
           default_submission_expiry_days: number
           document_migration_completed: boolean
+          interview_auto_analysis_enabled: boolean
           interview_consent_notice_version: string | null
           interview_intelligence_enabled: boolean
+          interview_meet_auto_import_enabled: boolean
           interview_rubric_generation_enabled: boolean
           logo_path: string | null
           migration_complete: boolean
@@ -4027,8 +4041,10 @@ export type Database = {
           candidate_retention_months?: number
           default_submission_expiry_days?: number
           document_migration_completed?: boolean
+          interview_auto_analysis_enabled?: boolean
           interview_consent_notice_version?: string | null
           interview_intelligence_enabled?: boolean
+          interview_meet_auto_import_enabled?: boolean
           interview_rubric_generation_enabled?: boolean
           logo_path?: string | null
           migration_complete?: boolean
@@ -4047,8 +4063,10 @@ export type Database = {
           candidate_retention_months?: number
           default_submission_expiry_days?: number
           document_migration_completed?: boolean
+          interview_auto_analysis_enabled?: boolean
           interview_consent_notice_version?: string | null
           interview_intelligence_enabled?: boolean
+          interview_meet_auto_import_enabled?: boolean
           interview_rubric_generation_enabled?: boolean
           logo_path?: string | null
           migration_complete?: boolean
@@ -5730,6 +5748,10 @@ export type Database = {
         Args: { p_language?: string }
         Returns: Json
       }
+      discover_meet_transcript_fetches: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
       fail_interview_analysis: {
         Args: {
           p_error_code: string
@@ -5931,6 +5953,17 @@ export type Database = {
           p_speakers: Json
           p_started_at: string
           p_supersedes_transcript_id: string
+        }
+        Returns: Json
+      }
+      internal_request_interview_analysis: {
+        Args: {
+          p_interview_id: string
+          p_model: string
+          p_organization_id: string
+          p_prompt_version: string
+          p_provider: string
+          p_requested_by: string
         }
         Returns: Json
       }
@@ -6159,6 +6192,10 @@ export type Database = {
         Args: { p_interview_id: string; p_message: string }
         Returns: undefined
       }
+      maybe_queue_automatic_analysis: {
+        Args: { p_interview_id: string }
+        Returns: Json
+      }
       merge_candidates: {
         Args: {
           p_kept_candidate_id: string
@@ -6271,6 +6308,14 @@ export type Database = {
           p_visibility?: string
         }
         Returns: string
+      }
+      record_meet_fetch_attempt: {
+        Args: {
+          p_conference_record?: string
+          p_error?: string
+          p_interview_id: string
+        }
+        Returns: number
       }
       redact_expired_import_payloads: {
         Args: { p_before?: string }
