@@ -5828,6 +5828,19 @@ export type Database = {
           version: number
         }[]
       }
+      get_interview_quality_scorecard: {
+        Args: {
+          p_from: string
+          p_organization_id: string
+          p_scope?: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      get_interview_quality_team_patterns: {
+        Args: { p_from: string; p_organization_id: string; p_to: string }
+        Returns: Json
+      }
       get_interview_today_items: {
         Args: { p_limit?: number; p_organization_id: string }
         Returns: {
