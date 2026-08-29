@@ -1393,6 +1393,7 @@ export type Database = {
           deleted_at: string | null
           id: string
           industry: string | null
+          linkedin_url: string | null
           location: string | null
           name: string
           notes_summary: string | null
@@ -1411,6 +1412,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           industry?: string | null
+          linkedin_url?: string | null
           location?: string | null
           name: string
           notes_summary?: string | null
@@ -1429,6 +1431,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           industry?: string | null
+          linkedin_url?: string | null
           location?: string | null
           name?: string
           notes_summary?: string | null
@@ -6720,6 +6723,7 @@ export type Database = {
           deleted_at: string | null
           id: string
           industry: string | null
+          linkedin_url: string | null
           location: string | null
           name: string
           notes_summary: string | null
