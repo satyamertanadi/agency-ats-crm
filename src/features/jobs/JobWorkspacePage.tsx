@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from 'react'
 import {DndContext,KeyboardSensor,PointerSensor,useDraggable,useDroppable,useSensor,useSensors,type DragEndEvent,type KeyboardCoordinateGetter} from '@dnd-kit/core'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
-import {ArrowLeft,ChevronDown,Clock,GripVertical,Plus,Send,SquareCheck} from 'lucide-react'
+import {ArrowLeft,ChevronDown,Clock,Plus,Send,SquareCheck} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router'
 import {useAuth} from '../../app/AuthProvider'
 import {AppError} from '../../shared/lib/errors'
@@ -81,15 +81,23 @@ const boardKeyboardCoordinates:KeyboardCoordinateGetter=(event,{context:{droppab
 function PhaseColumn({id,label,count,color,stats,children}:{id:string;label:string;count:number;color:string;stats:{avgDays:number}|null;children:React.ReactNode}){
   const {setNodeRef,isOver}=useDroppable({id})
   const empty=count===0
-  // An empty column used to carry the exact same header chrome (coloured top bar, a stats line
-  // reading "No candidates") as a full one, at the same grid width -- all the visual weight of a
-  // populated phase for none of its content. It keeps the drop target and the label/count, and
-  // nothing else, at a narrower share of the board (see kanbanGridColumns in the parent).
+  /* An empty phase is a lane you are about to fill, not a lesser one. It previously rendered at a
+   * fraction of the width of a populated column, with the colour rail dropped and the whole section
+   * at opacity .72 -- which read as disabled rather than empty, and made the board's geometry jump
+   * around as candidates moved. It now keeps the full lane width, the rail and the header, and
+   * states its drop target in words instead of leaving a blank box.
+   *
+   * The empty state is a plain div, deliberately not a button: it is a drop target and nothing you
+   * can activate, so giving it a button role would promise a keyboard interaction that does not
+   * exist. Keyboard movement lives in the card overflow menu. */
   return <section ref={setNodeRef} data-phase-key={id} className={`kanban-column workflow-column ${isOver?'kanban-over':''}${empty?' workflow-column-empty':''}`}>
-    {!empty&&<div className="workflow-column-bar" style={{background:color}}/>}
-    <header><strong>{label}</strong><span>{count}</span></header>
-    {!empty&&<p className="workflow-column-stats">{stats?`Average ${stats.avgDays}d in phase`:'No candidates'}</p>}
+    <div className="workflow-column-bar" style={{background:color}}/>
+    <header><strong>{label}</strong><span className="workflow-column-count">{count}</span></header>
+    {/* Secondary operational metadata, so it is abbreviated and quiet. The old "No candidates" line
+      * on an empty column duplicated the zero already in the header. */}
+    {!empty&&stats&&<p className="workflow-column-stats">Avg {stats.avgDays}d in phase</p>}
     {children}
+    {empty&&<div className="workflow-column-empty-state">Drop candidates here</div>}
   </section>
 }
 
@@ -119,8 +127,10 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
     <button className="candidate-card-open" onPointerDown={(event)=>event.stopPropagation()} onClick={onOpen}>
       <span className="workflow-card-top">
         <span className="workflow-card-avatar" aria-hidden="true">{initials}</span>
+        {/* No drag handle. The card surface itself carries dnd-kit's listeners, so a grip glyph was a
+          * third control competing with the card and the overflow menu while affording nothing the
+          * card did not already do. */}
         <strong>{name}</strong>
-        <GripVertical size={13} className="workflow-card-grip" aria-hidden="true"/>
       </span>
       <span className="workflow-card-role">{item.candidates?.current_position||NOT_RECORDED}{item.candidates?.current_company?` · ${item.candidates.current_company}`:''}</span>
       <span className="workflow-card-bottom">
@@ -293,12 +303,21 @@ export function JobWorkspacePage(){
    * rather than as people.
    *
    * Fitting every phase on screen was never the requirement -- being able to READ the phase you are
-   * working in is. At 288px roughly 3.5 columns show on a 1366px laptop and the board scrolls
-   * horizontally inside its own container (`.kanban` is overflow:auto), which is a gesture every
-   * board interface already teaches. Empty and outcome columns stay narrow, so the width goes where
-   * the candidates are. */
-  const kanbanGridColumns=[...columnData.map(({items})=>items.length>0?'minmax(288px,1fr)':'minmax(140px,0.4fr)'),
-    ...outcomeCounts.map(()=>'minmax(140px,0.5fr)'),...(placedCount>0?['minmax(140px,0.5fr)']:[])].join(' ')
+   * working in is. The board scrolls horizontally inside its own container (`.kanban` is
+   * overflow:auto), which is a gesture every board interface already teaches, and the page itself
+   * never scrolls sideways (asserted by tests/e2e/layout-contract.spec.ts).
+   *
+   * Active lanes are a FIXED 276px rather than minmax(288px,1fr) with empty phases collapsed to
+   * 0.4fr. Two things were wrong with that. A phase's width tracked how many candidates happened to
+   * be in it, so the board's geometry rearranged itself as work moved through it -- the column you
+   * were dragging towards changed size while you dragged. And an empty phase at 140px read as
+   * disabled rather than as the next place work goes. Equal lanes make the board legible at a
+   * glance; the trade is more horizontal scrolling, which is the cheaper cost.
+   *
+   * Outcome columns stay narrower at 168px: they are terminal states you read a count from, not
+   * lanes you work inside. */
+  const kanbanGridColumns=[...columnData.map(()=>'minmax(276px,276px)'),
+    ...outcomeCounts.map(()=>'minmax(168px,168px)'),...(placedCount>0?['minmax(168px,168px)']:[])].join(' ')
   const moveToColumn=(item:JobCandidate,columnKey:string)=>{const stageId=resolveStageForColumn(columns,columnKey,item.current_stage_id);if(stageId)move.mutate({itemId:item.id,stageId,name:item.candidates?.full_name,label:columns.find((column)=>column.key===columnKey)?.label||'the next phase'})}
   /* Reinstating lands on the first active stage of the board rather than the stage they were closed
    * from: that stage is often deep in the pipeline and putting someone straight back into, say,
@@ -346,7 +365,7 @@ export function JobWorkspacePage(){
           {canRecruit&&<Button variant="secondary" leadingIcon={<Plus size={14}/>} onClick={()=>setAddOpen(true)}>Add candidates</Button>}
         </div>
       </div>
-      <Panel padding="sm">
+      <Panel padding="sm" className="workflow-board-panel">
         <PhaseJump containerRef={boardRef} columns={boardColumns.map((column)=>({key:column.key,label:column.label,count:pipeline.data!.items.filter((item)=>column.stages.some((stage)=>stage.id===item.current_stage_id)).length}))}/>
         {/* Above the board rather than floating over it, so it never covers a drop target. Only
           * appears once something is picked -- an always-present empty bar is a permanent reminder of
