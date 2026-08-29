@@ -1,8 +1,10 @@
 import {useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
+import {ShieldOff} from 'lucide-react'
 import {Drawer} from '../../shared/ui/Drawer'
 import {Button} from '../../shared/ui/Button'
 import {Callout} from '../../shared/ui/Callout'
+import {ConfirmDialog} from '../../shared/ui/ConfirmDialog'
 import {Field,Input,Select,Textarea} from '../../shared/ui/Field'
 import {Badge} from '../../shared/ui/Page'
 import {useToast} from '../../shared/ui/Toast'
@@ -14,6 +16,7 @@ import {
   listTranscriptSpeakers,
   listTranscripts,
   recordConsent,
+  withdrawConsent,
   type ConsentMethod,
   type NoticeMethod,
   type SpeakerMapping,
@@ -76,7 +79,6 @@ export function InterviewTranscriptDrawer({organizationId,interviewId,candidateI
     {consent.data!=='granted'&&<ConsentSection
       organizationId={organizationId}
       interviewId={interviewId}
-      candidateId={candidateId}
       current={consent.data??null}
       onRecorded={()=>{toast.success('Consent recorded.');refresh()}}
       onError={(error)=>toast.error(error,'The consent was not recorded.')}
@@ -105,10 +107,9 @@ export function InterviewTranscriptDrawer({organizationId,interviewId,candidateI
   </Drawer>
 }
 
-function ConsentSection({organizationId,interviewId,candidateId,current,onRecorded,onError}:{
+function ConsentSection({organizationId,interviewId,current,onRecorded,onError}:{
   organizationId:string
   interviewId:string
-  candidateId:string
   current:string|null
   onRecorded:()=>void
   onError:(error:unknown)=>void
@@ -117,10 +118,31 @@ function ConsentSection({organizationId,interviewId,candidateId,current,onRecord
   const [method,setMethod]=useState<ConsentMethod>('spoken')
   const [noticeMethod,setNoticeMethod]=useState<NoticeMethod>('spoken')
   const [evidence,setEvidence]=useState('')
+  const [confirmingWithdrawal,setConfirmingWithdrawal]=useState(false)
+  const [withdrawalNote,setWithdrawalNote]=useState<string|null>(null)
+
+  const withdraw=useMutation({
+    mutationFn:()=>withdrawConsent(organizationId,interviewId,evidence.trim()||null),
+    onSuccess:(result)=>{
+      setConfirmingWithdrawal(false)
+      /* The outcome is reported, never assumed. A legal hold can legitimately stop deletion, and
+       * telling somebody their recording is gone when it is not would be the worse failure. */
+      setWithdrawalNote(
+        result.outcome==='legal_hold'
+          ? `Consent withdrawn, but ${result.transcriptsOnLegalHold} transcript${result.transcriptsOnLegalHold===1?'':'s'} could not be deleted because this candidate is under a legal hold. Nothing further will be analysed.`
+          : result.outcome==='purged'
+            ? `Consent withdrawn. ${result.transcriptsPurged} transcript${result.transcriptsPurged===1?'':'s'} and everything derived from them were deleted.`
+            : result.outcome==='already_purged'
+              ? 'Consent withdrawn. The transcripts had already been deleted.'
+              : 'Consent withdrawn. There was no stored transcript to delete.')
+      onRecorded()
+    },
+    onError,
+  })
 
   const save=useMutation({
     mutationFn:()=>recordConsent({
-      organizationId,interviewId,candidateId,status,consentMethod:method,
+      organizationId,interviewId,status,consentMethod:method,
       noticeMethod,noticeVersion:null,evidence:evidence.trim()||null,
     }),
     onSuccess:onRecorded,
@@ -132,9 +154,27 @@ function ConsentSection({organizationId,interviewId,candidateId,current,onRecord
     {current==='withdrawn'&&<Callout tone="warning" title="Consent was withdrawn">
       Anything derived from this interview has been removed. Recording a new grant does not restore it.
     </Callout>}
+    {withdrawalNote&&<Callout tone="info" title="Withdrawal recorded">{withdrawalNote}</Callout>}
     <Callout tone="info">
       A platform transcription notice is not consent. Record what the candidate actually agreed to.
     </Callout>
+
+    {current==='granted'&&<div className="consent-withdrawal">
+      <p className="muted">
+        If the candidate asks to withdraw, this deletes the stored transcript and everything derived
+        from it, and stops any analysis that has not run yet.
+      </p>
+      <Button variant="caution" leadingIcon={<ShieldOff size={14}/>}
+        onClick={()=>setConfirmingWithdrawal(true)}>Withdraw consent and delete</Button>
+    </div>}
+
+    <ConfirmDialog open={confirmingWithdrawal} title="Withdraw consent and delete the transcript?"
+      confirmLabel="Withdraw and delete" loading={withdraw.isPending}
+      onClose={()=>setConfirmingWithdrawal(false)} onConfirm={()=>withdraw.mutate()}
+      body={<>
+        <p>The transcript, its speaker mapping, and every assessment, finding and metric derived from it are deleted.</p>
+        <p className="muted">The consent record itself is kept, because the history of what was agreed must remain answerable. A legal hold on this candidate will prevent deletion, and you will be told if that happens.</p>
+      </>}/>
 
     <Field label="What did the candidate say?">
       <Select value={status} onChange={(event)=>setStatus(event.target.value as 'granted'|'declined')}>

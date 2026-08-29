@@ -95,6 +95,20 @@ async function fetchOne(admin:Admin,interviewId:string,requestID:string){
   // A rescheduled or cancelled interview stops being a fetch target the moment its status changes.
   if(row.status!=='completed')return {outcome:'not_completed' as const}
 
+  /* Both switches, re-read now rather than trusted from when the job was queued. Turning auto-import
+   * off must stop work already in the queue, not merely stop new work being queued. */
+  const settings=await admin.from('organization_settings')
+    .select('interview_intelligence_enabled,interview_meet_auto_import_enabled')
+    .eq('organization_id',String(row.organization_id)).maybeSingle()
+  if(!settings.data?.interview_intelligence_enabled)return {outcome:'feature_disabled' as const}
+  if(!settings.data?.interview_meet_auto_import_enabled)return {outcome:'auto_import_disabled' as const}
+
+  /* The check that has to happen here rather than at ingestion. Once Google has handed over the
+   * transcript the disclosure has already occurred, whatever the database then decides to store. */
+  const consent=await admin.rpc('interview_consent_status',{p_interview_id:interviewId})
+  if(consent.error)throw new FunctionError(503,'consent_state_unavailable','Consent could not be verified.')
+  if(consent.data!=='granted')return {outcome:'consent_not_granted' as const}
+
   const meetingCode=meetingCodeFrom(row.meeting_url)
   if(!meetingCode)throw new FunctionError(422,'meet_link_unreadable','This interview has no readable Meet link.')
 

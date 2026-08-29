@@ -140,6 +140,14 @@ const rpcMessages:Record<string,string>={
   invalid_scope:'That report scope is not available.',
   // Digest recipients are re-checked at send time too; this is the one a person can actually hit.
   member_not_active:'That person is no longer an active member of this workspace.',
+  /* Consent vocabulary. Reachable only by a caller building its own request -- the form offers a
+   * fixed set -- but a raised identifier with no sentence reaches the user verbatim. */
+  invalid_consent_status:'Choose whether the candidate agreed or declined.',
+  invalid_consent_method:'Choose how the consent was given.',
+  invalid_notice_method:'Choose how the candidate was told.',
+  invalid_notice_version:'That notice version is too long.',
+  consent_evidence_too_long:'Shorten the note about what was agreed.',
+  invalid_cancellation_reason:'That is not a valid reason to stop an analysis.',
   /* Raised when somebody opens the settings page twice and creates a second core rubric draft. Two
    * drafts with nothing to tell them apart is how the wrong one gets activated. */
   interview_core_rubric_draft_exists:'A core rubric draft already exists. Edit or discard it before starting another.',

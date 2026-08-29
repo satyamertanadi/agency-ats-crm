@@ -109,3 +109,35 @@ describe('status line',()=>{
     expect(analysisStatusLine({status:null,isStale:false,errorCode:null}).label).toBe('Not analysed')
   })
 })
+
+describe('a stopped run reads as stopped, not as never started',()=>{
+  it('names the consent case and does not invite a retry',()=>{
+    /* Before cancellation existed as a status this fell through to "Not analysed -- request an
+     * analysis once the transcript and speakers are ready", which hid a deliberate stop and pointed
+     * the consultant at an action that would be refused for the same reason. */
+    const line=analysisStatusLine({status:'cancelled',isStale:false,errorCode:'consent_not_granted'})
+    expect(line.label).toBe('Analysis stopped')
+    expect(line.detail).toContain('withdrew consent')
+    expect(line.detail).toContain('Nothing was sent')
+    expect(line.detail).not.toMatch(/try again|request an analysis/i)
+  })
+
+  it('distinguishes a disabled workspace from a withdrawn candidate',()=>{
+    const disabled=analysisStatusLine({status:'cancelled',isStale:false,errorCode:'feature_disabled'})
+    expect(disabled.detail).toContain('switched off')
+    expect(disabled.detail).not.toContain('withdrew')
+  })
+
+  it('still says something safe for a reason it does not recognise',()=>{
+    // A later gate reason must not render an empty detail line.
+    const line=analysisStatusLine({status:'cancelled',isStale:false,errorCode:'something_new'})
+    expect(line.label).toBe('Analysis stopped')
+    expect(line.detail).toContain('Nothing was sent')
+  })
+
+  it('never reports a cancelled run as a failure',()=>{
+    // "Failed" invites a retry and reads as a defect; neither is true here.
+    const line=analysisStatusLine({status:'cancelled',isStale:false,errorCode:'consent_not_granted'})
+    expect(line.tone).not.toBe('bad')
+  })
+})
