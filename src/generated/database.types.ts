@@ -6620,11 +6620,7 @@ export type Database = {
         Returns: undefined
       }
       replace_job_requirements: {
-        Args: {
-          p_items: Json
-          p_job_id: string
-          p_organization_id: string
-        }
+        Args: { p_items: Json; p_job_id: string; p_organization_id: string }
         Returns: number
       }
       request_interview_analysis: {
