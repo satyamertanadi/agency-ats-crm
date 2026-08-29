@@ -2294,3 +2294,19 @@ tbody tr:focus-within .row-menu-trigger,
   font-weight: var(--weight-semibold);
   margin: var(--space-4) 0 var(--space-2);
 }
+
+/* The withdrawal control, set apart from the consent form above it.
+ *
+ * Withdrawing was previously one option in the same dropdown as granting -- a single selection away
+ * from the opposite meaning, with no confirmation. Deleting a recording of a named person should not
+ * be reachable by mis-clicking a <select>, so it is its own control, with its own explanation, and a
+ * rule above it that says the section changed. */
+.consent-withdrawal{
+  border-top: 1px solid var(--color-line-soft);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}

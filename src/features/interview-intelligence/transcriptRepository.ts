@@ -53,31 +53,64 @@ export async function getConsentStatus(interviewId:string):Promise<ConsentStatus
 }
 
 /* Append-only by construction. Withdrawing is a new event rather than an edit, which is what lets an
- * audit answer "what was true when this was analysed" instead of only "what is true now". */
+ * audit answer "what was true when this was analysed" instead of only "what is true now".
+ *
+ * Through an RPC rather than a table insert, and deliberately WITHOUT a candidate id. The candidate
+ * is a fact about the interview, not the caller's to assert -- supplying it made it possible to file
+ * consent for one candidate against another candidate's interview. The RPC derives it, and checks
+ * access to this specific interview rather than to the feature somewhere in the workspace.
+ */
 export async function recordConsent(input:{
   organizationId:string
   interviewId:string
-  candidateId:string
   status:ConsentStatus
   consentMethod:ConsentMethod
   noticeMethod:NoticeMethod|null
   noticeVersion:string|null
   evidence:string|null
 }){
-  const {data:{user}}=await supabase.auth.getUser()
-  if(!user)throw new AppError('Sign in again to continue.','authentication_required',null)
-  const {error}=await supabase.from('interview_transcription_consents').insert({
-    organization_id:input.organizationId,
-    interview_id:input.interviewId,
-    candidate_id:input.candidateId,
-    status:input.status,
-    consent_method:input.consentMethod,
-    notice_method:input.noticeMethod,
-    notice_version:input.noticeVersion,
-    evidence:input.evidence,
-    recorded_by:user.id,
+  const {error}=await supabase.rpc('record_interview_consent',{
+    p_organization_id:input.organizationId,
+    p_interview_id:input.interviewId,
+    p_status:input.status,
+    p_consent_method:input.consentMethod,
+    p_notice_method:input.noticeMethod,
+    p_notice_version:input.noticeVersion,
+    p_evidence:input.evidence,
   })
   if(error)fail(error,'Could not record the consent.')
+}
+
+export type WithdrawalOutcome='purged'|'legal_hold'|'already_purged'|'nothing_to_purge'
+
+export interface WithdrawalResult {
+  outcome:WithdrawalOutcome
+  transcriptsPurged:number
+  transcriptsOnLegalHold:number
+  analysisRunsCancelled:number
+}
+
+/* Withdrawal is an operation, not a status change.
+ *
+ * One call appends the event, cancels queued analysis before it can reach a provider, and purges
+ * every stored transcript with everything derived from it. The outcome is returned rather than
+ * assumed, because a legal hold can legitimately prevent deletion and telling somebody their
+ * recording is gone when it is not would be the worse failure.
+ */
+export async function withdrawConsent(organizationId:string,interviewId:string,evidence:string|null):Promise<WithdrawalResult>{
+  const {data,error}=await supabase.rpc('withdraw_interview_consent',{
+    p_organization_id:organizationId,
+    p_interview_id:interviewId,
+    p_evidence:evidence,
+  })
+  if(error)fail(error,'The consent could not be withdrawn.')
+  const row=(data??{}) as Record<string,unknown>
+  return {
+    outcome:(row.outcome as WithdrawalOutcome)??'nothing_to_purge',
+    transcriptsPurged:Number(row.transcripts_purged??0),
+    transcriptsOnLegalHold:Number(row.transcripts_on_legal_hold??0),
+    analysisRunsCancelled:Number(row.analysis_runs_cancelled??0),
+  }
 }
 
 export async function listTranscripts(organizationId:string,interviewId:string):Promise<TranscriptOverviewRow[]>{

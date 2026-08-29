@@ -29,6 +29,44 @@ import {
  * against a manifest of the ids actually sent, so a citation of anything else fails the run.
  */
 
+/* Trusted provider configuration, read once from the worker's own environment.
+ *
+ * The run carries the configuration it was fingerprinted against, and the gate refuses a run whose
+ * stored values differ from these. That is what stops a run created through some other path from
+ * choosing a model this worker never agreed to bill for. */
+function trustedConfig(){
+  return {
+    provider:Deno.env.get('AI_PROVIDER')?.trim()||'anthropic',
+    model:Deno.env.get('AI_MODEL')?.trim()||'',
+    promptVersion:INTERVIEW_ANALYSIS_PROMPT_VERSION,
+  }
+}
+
+/* Raised when a precondition stopped being true after the run was queued. Distinct from
+ * FunctionError because the responses differ in the one way that matters: a failure is retried and
+ * shown to a consultant as broken, and a cancellation must be neither. */
+class AnalysisCancelled extends Error {
+  constructor(readonly reason:string){super(reason);this.name='AnalysisCancelled'}
+}
+
+/* Asks the database whether this run may still call a provider.
+ *
+ * Called twice per run -- after claiming, and again immediately before the external call -- because
+ * the work between them is the slowest in the pipeline and consent can be withdrawn during it. */
+async function assertExecutable(admin:Admin,runId:string){
+  const config=trustedConfig()
+  const gate=await admin.rpc('interview_analysis_execution_gate',{
+    p_run_id:runId,
+    p_provider:config.provider,
+    p_model:config.model,
+    p_prompt_version:config.promptVersion,
+  })
+  // A gate that cannot be read is not a gate that said yes.
+  if(gate.error)throw new FunctionError(503,'execution_gate_unavailable','The analysis preconditions could not be verified.')
+  const verdict=gate.data as {allowed:boolean;reason:string|null}
+  if(!verdict.allowed)throw new AnalysisCancelled(verdict.reason||'run_not_executable')
+}
+
 const PAGE_SIZE=200
 const MAX_ENTRIES=6000
 const MAX_JOBS_PER_INVOCATION=3
@@ -68,6 +106,15 @@ Deno.serve(async(request)=>{
         await admin.rpc('release_background_job',{p_job_id:job.id,p_outcome:'completed',p_error:null})
         processed.push(runId)
       }catch(error){
+        if(error instanceof AnalysisCancelled){
+          /* A precondition stopped being true -- consent withdrawn, feature disabled, transcript
+           * purged. The job is COMPLETE, not failed: retrying it is another attempt to send a
+           * transcript that must not be sent. */
+          await admin.rpc('cancel_interview_analysis',{p_run_id:runId,p_reason:error.reason})
+          await admin.rpc('release_background_job',{p_job_id:job.id,p_outcome:'completed',p_error:null})
+          log('info','interview_analysis_cancelled',{requestId:requestID,runId,reason:error.reason})
+          continue
+        }
         const failure=describeFailure(error)
         /* The run and the job fail separately on purpose. The run is what a consultant sees, so it
          * carries a safe code immediately; the job decides on its own whether a retry is worth it. */
@@ -98,6 +145,17 @@ async function claimAutoAnalysis(admin:Admin,requestID:string):Promise<boolean>{
   const requestedBy=job.payload?.requested_by
   if(!interviewId||!requestedBy){
     await admin.rpc('release_background_job',{p_job_id:job.id,p_outcome:'failed',p_error:'incomplete auto-analysis payload'})
+    return true
+  }
+
+  /* Rechecked at conversion time, not only when the intent was queued. An owner who turns auto
+   * analysis off should stop work that is already in the queue, not merely work not yet queued. */
+  const settings=await admin.from('organization_settings')
+    .select('interview_intelligence_enabled,interview_auto_analysis_enabled')
+    .eq('organization_id',job.organization_id).maybeSingle()
+  if(!settings.data?.interview_intelligence_enabled||!settings.data?.interview_auto_analysis_enabled){
+    await admin.rpc('release_background_job',{p_job_id:job.id,p_outcome:'completed',p_error:null})
+    log('info','interview_auto_analysis_skipped',{requestId:requestID,reason:'switch_disabled'})
     return true
   }
 
@@ -155,6 +213,10 @@ async function processRun(admin:Admin,runId:string,requestID:string){
   const run=runResult.data as Record<string,string>
   if(run.status==='completed')return
 
+  /* Before anything is read. Loading a transcript for a run that may not proceed puts candidate
+   * speech into this worker's memory for no reason. */
+  await assertExecutable(admin,runId)
+
   await admin.from('interview_analysis_runs').update({status:'processing',started_at:new Date().toISOString()}).eq('id',runId)
 
   // The exact bundle frozen at request time, not whatever is current now.
@@ -205,6 +267,11 @@ async function processRun(admin:Admin,runId:string,requestID:string){
     consultantMemberIds:new Set(consultants.map((entry)=>entry.member_id)),
     jobId:String(job.id),
   }
+
+  /* Again, with nothing between this and the external call. Everything above -- reading the
+   * transcript, resolving sources, building the payload -- is time in which consent can be
+   * withdrawn or the workspace switched off. */
+  await assertExecutable(admin,runId)
 
   const completion=await callProvider(payload,String(run.model))
   /* Retried once, then failed visibly. A model that returns malformed structure twice is a contract
