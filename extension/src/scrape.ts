@@ -1,5 +1,7 @@
 import type {CapturePayload,EducationItem,EmploymentItem,LanguageItem} from './messages'
 import {txt,txtOf,waitFor} from './dom'
+import {canonicalCompanyUrl,looksLikeFollowerCount,parseCompanySize} from './company'
+export {canonicalCompanyUrl,isCompanyPage,looksLikeFollowerCount,parseCompanySize} from './company'
 
 // LinkedIn's DOM is obfuscated and changes without notice. Every selector here is best-effort with
 // fallbacks, and everything scraped lands in an EDITABLE form the user confirms -- a broken selector
@@ -278,4 +280,52 @@ export function profileText():string{
   const assembled=parts.filter(Boolean).join('\n\n')
   // If none of the anchors resolved we'd be sending almost nothing; fall back to the whole column.
   return (assembled.length>200?assembled:txtOf(document.querySelector('main'))).slice(0,AI_TEXT_LIMIT)
+}
+
+// ---------------------------------------------------------------------------------------------
+// Client company capture
+// ---------------------------------------------------------------------------------------------
+
+export interface ScrapedCompany{
+  name:string
+  industry:string
+  website:string
+  location:string
+  company_size:string
+  linkedin_url:string
+}
+
+export async function scrapeCompany():Promise<ScrapedCompany>{
+  await waitFor(()=>document.querySelector('main'),4000)
+
+  const name=txt('h1')||txt('.org-top-card-summary__title')||''
+  // The dimension list under the company name. Each <div> is one labelled fact.
+  const facts=Array.from(document.querySelectorAll('.org-top-card-summary-info-list__info-item, .org-page-details__definition-text, dd'))
+    .map((node)=>txtOf(node)).filter(Boolean)
+
+  let industry=''
+  let size=''
+  let where=''
+  for(const fact of facts){
+    if(!size&&!looksLikeFollowerCount(fact)){
+      const parsed=parseCompanySize(fact)
+      if(parsed){size=parsed;continue}
+    }
+    if(looksLikeFollowerCount(fact))continue
+    // A comma-separated place reads as a location; a single word beside it is usually the industry.
+    if(!where&&/,/.test(fact)&&!/employees/i.test(fact)){where=fact;continue}
+    if(!industry&&!/employees|,/i.test(fact))industry=fact
+  }
+
+  const websiteNode=document.querySelector<HTMLAnchorElement>('a[href^="http"][data-tracking-control-name*="website"], .org-top-card-primary-actions a[href^="http"]:not([href*="linkedin.com"])')
+  const website=websiteNode?.href&&!websiteNode.href.includes('linkedin.com')?websiteNode.href:''
+
+  return {
+    name,
+    industry,
+    website,
+    location:where,
+    company_size:size,
+    linkedin_url:canonicalCompanyUrl(location.href)??'',
+  }
 }
