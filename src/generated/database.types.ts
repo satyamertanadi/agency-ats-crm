@@ -5541,6 +5541,14 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: boolean
       }
+      cancel_interview_analysis: {
+        Args: { p_reason: string; p_run_id: string }
+        Returns: string
+      }
+      cancel_interview_analysis_for_interview: {
+        Args: { p_interview_id: string; p_reason: string }
+        Returns: number
+      }
       candidate_is_due_for_retention: {
         Args: { p_as_of?: string; p_candidate_id: string }
         Returns: boolean
@@ -6143,6 +6151,15 @@ export type Database = {
         }
         Returns: Json
       }
+      interview_analysis_execution_gate: {
+        Args: {
+          p_model: string
+          p_prompt_version: string
+          p_provider: string
+          p_run_id: string
+        }
+        Returns: Json
+      }
       interview_analysis_recent_run_count: {
         Args: {
           p_organization_id: string
@@ -6473,6 +6490,18 @@ export type Database = {
           p_reason: string
         }
         Returns: undefined
+      }
+      record_interview_consent: {
+        Args: {
+          p_consent_method: string
+          p_evidence?: string
+          p_interview_id: string
+          p_notice_method?: string
+          p_notice_version?: string
+          p_organization_id: string
+          p_status: string
+        }
+        Returns: string
       }
       record_interview_feedback: {
         Args: {
@@ -6849,6 +6878,14 @@ export type Database = {
       update_organization_salary_period: {
         Args: { p_organization_id: string; p_salary_period: string }
         Returns: undefined
+      }
+      withdraw_interview_consent: {
+        Args: {
+          p_evidence?: string
+          p_interview_id: string
+          p_organization_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {

@@ -74,9 +74,9 @@ export async function recordConsent(input:{
     p_interview_id:input.interviewId,
     p_status:input.status,
     p_consent_method:input.consentMethod,
-    p_notice_method:input.noticeMethod,
-    p_notice_version:input.noticeVersion,
-    p_evidence:input.evidence,
+    p_notice_method:input.noticeMethod??undefined,
+    p_notice_version:input.noticeVersion??undefined,
+    p_evidence:input.evidence??undefined,
   })
   if(error)fail(error,'Could not record the consent.')
 }
@@ -101,7 +101,7 @@ export async function withdrawConsent(organizationId:string,interviewId:string,e
   const {data,error}=await supabase.rpc('withdraw_interview_consent',{
     p_organization_id:organizationId,
     p_interview_id:interviewId,
-    p_evidence:evidence,
+    p_evidence:evidence??undefined,
   })
   if(error)fail(error,'The consent could not be withdrawn.')
   const row=(data??{}) as Record<string,unknown>
