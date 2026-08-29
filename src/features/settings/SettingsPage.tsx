@@ -46,9 +46,9 @@ export function SettingsPage(){
   const uploadLogo=useMutation({mutationFn:(file:File)=>uploadOrganizationLogo(organization!.id,file,organization?.logo_path),onSuccess:async()=>{toast.success('Logo updated.');await refresh()},onError:(error)=>toast.error(error,'The logo was not changed.')})
   const removeLogo=useMutation({mutationFn:()=>removeOrganizationLogo(organization!.id,organization!.logo_path!),onSuccess:async()=>{toast.success('Logo removed.','Client pages fall back to your workspace initials.');await refresh()},onError:(error)=>toast.error(error,'The logo was not removed.')})
   const uploadBanner=useMutation({mutationFn:(file:File)=>uploadOrganizationProfileBanner(organization!.id,file,organization?.profile_footer_banner_path),onSuccess:async()=>{toast.success('Footer banner updated.');await refresh()},onError:(error)=>toast.error(error,'The banner was not changed.')})
+  const capabilities=useWorkspaceCapabilities()
   const removeBanner=useMutation({mutationFn:()=>removeOrganizationProfileBanner(organization!.id,organization!.profile_footer_banner_path!),onSuccess:async()=>{toast.success('Footer banner removed.');await refresh()},onError:(error)=>toast.error(error,'The banner was not removed.')})
   if(members.isLoading||roles.isLoading||invitations.isLoading||calendar.isLoading||retention.isLoading)return <LoadingState/>;if(members.error||roles.error||invitations.error||calendar.error||retention.error)return <ErrorState error={members.error||roles.error||invitations.error||calendar.error||retention.error}/>
-  const capabilities=useWorkspaceCapabilities()
   const currentMembership=membership;const currentTeamMember=members.data?.find((item)=>item.user_id===user?.id);const canManageOrganization=currentTeamMember?.member_roles?.some((item)=>['owner','admin'].includes(item.roles?.role_key||''))??false;const ownConnection=calendar.data?.find((item)=>item.member_id===currentMembership?.id)
   /* No seat cap: the product is sold on a flat monthly fee rather than per user, so the team panel
    * reports headcount instead of consumption. Vendor support is counted separately because it is
