@@ -7,6 +7,7 @@ import type {Json} from '../../generated/database.types'
 import {candidateCvExtractionSchema,type CandidateCvExtraction,type CvParseResult} from '../candidates/cvParsing'
 import {candidateProfileDraftSchema,candidateProfileTemplateConfigSchema,hasStaleProfileInputs,type CandidateProfileGeneration,type CandidateProfileJob,type CandidateProfileTemplate,type CandidateProfileVersion} from '../candidates/candidateProfile'
 import type {CandidateProfileLists} from './repository'
+import {draftedRequirementSchema,draftedToRequirement,jobRequirementListSchema,jobRequirementSchema,type JobRequirement} from '../jobs/jobRequirements'
 
 function fail(error:{message:string;code?:string}|null,fallback:string):never{
   /* Raw RPC identifiers (`invalid_nonnegative_value`, `permission_denied`, ...) used to reach the user
@@ -200,6 +201,82 @@ export async function updateCandidateLanguage(organizationId:string,id:string,la
 // Renaming to a name that resolves to the same skill_id is a plain update; renaming to a different
 // skill is a move -- drop the old pairing and upsert the new one, mirroring addCandidateSkill.
 export async function updateCandidateSkill(organizationId:string,candidateId:string,previousSkillId:string,name:string,proficiency:string,yearsExperience?:number){const skillId=await resolveSkillId(organizationId,name);if(skillId===previousSkillId){const {error}=await supabase.from('candidate_skills').update({proficiency:proficiency.trim()||null,years_experience:yearsExperience??null}).eq('organization_id',organizationId).eq('candidate_id',candidateId).eq('skill_id',previousSkillId);if(error)fail(error,'Could not update skill');return}const removed=await supabase.from('candidate_skills').delete().eq('organization_id',organizationId).eq('candidate_id',candidateId).eq('skill_id',previousSkillId);if(removed.error)fail(removed.error,'Could not update skill');const {error}=await supabase.from('candidate_skills').upsert({organization_id:organizationId,candidate_id:candidateId,skill_id:skillId,proficiency:proficiency.trim()||null,years_experience:yearsExperience??null});if(error)fail(error,'Could not update skill')}
+
+/* ---- Job requirements -------------------------------------------------------------------------
+ * The requirement set candidate-profile generation assesses against. Read with the job, written as a
+ * whole ordered list, and drafted (never saved) by the model.
+ */
+
+export async function listJobRequirements(organizationId:string,jobId:string):Promise<JobRequirement[]>{
+  const {data,error}=await supabase.from('job_requirements')
+    .select('id,label,requirement_level,category,weight,evidence_expected,source')
+    .eq('organization_id',organizationId).eq('job_id',jobId).order('sort_order',{ascending:true})
+  if(error)fail(error,'Could not load job requirements')
+  return rows(data,jobRequirementSchema,'Job requirement rows did not match the expected shape') as JobRequirement[]
+}
+
+/* Replaces the whole set. The list is validated here as well as in the RPC so a duplicate or an
+ * over-long label is reported against the row that caused it, rather than as one rejected save. */
+export async function saveJobRequirements(organizationId:string,jobId:string,requirements:JobRequirement[]){
+  const items=jobRequirementListSchema.parse(requirements)
+  const {data,error}=await supabase.rpc('replace_job_requirements',{
+    p_organization_id:organizationId,p_job_id:jobId,
+    p_items:items.map(({label,requirement_level,category,weight,evidence_expected,source})=>
+      ({label,requirement_level,category,weight,evidence_expected,source})) as unknown as Json,
+  })
+  if(error)fail(error,'Could not save job requirements')
+  return Number(data??0)
+}
+
+/* Proposals only -- nothing is stored until saveJobRequirements runs, which is what keeps a model
+ * from ever writing the criteria a candidate is scored against. */
+export async function draftJobRequirements(organizationId:string,jobId:string,documentId?:string|null){
+  const result=await invoke<{requirements:unknown[]}>('draft-job-requirements',{organizationId,jobId,documentId:documentId??null})
+  return (result.requirements||[]).map((item)=>draftedToRequirement(draftedRequirementSchema.parse(item)))
+}
+
+export async function listJobDescriptionDocuments(organizationId:string,jobId:string){
+  const {data,error}=await supabase.from('documents')
+    .select('id,file_name,mime_type,created_at,storage_path,document_links!inner(job_id)')
+    .eq('organization_id',organizationId).eq('document_links.job_id',jobId)
+    .eq('is_current',true).is('deleted_at',null).order('created_at',{ascending:false})
+  if(error)fail(error,'Could not load job documents')
+  return (data||[]).map((item)=>({id:item.id as string,file_name:item.file_name as string,mime_type:item.mime_type as string,storage_path:item.storage_path as string,created_at:item.created_at as string}))
+}
+
+/* Uploads a JD onto the job.
+ *
+ * Nothing in the product wrote document_links.job_id before this, which is why the interview
+ * blueprint drawer's JD picker was always empty -- it reads exactly this link. PDF only, matching
+ * what draft-job-requirements and generate-interview-rubric can actually read; a DOCX JD would upload
+ * cleanly and then be refused at draft time, which is a worse place to find out.
+ */
+export async function uploadJobDescription(organizationId:string,jobId:string,userId:string,file:File){
+  const mimeType=file.type===pdfMime||file.name.toLowerCase().endsWith('.pdf')?pdfMime:null
+  if(!mimeType)throw new AppError('Upload the job description as a PDF.','unsupported_jd_type')
+  if(file.size<1||file.size>25*1024*1024)throw new AppError('Job descriptions are limited to 25 MB.','jd_too_large')
+  const safeName=file.name.replace(/[^a-zA-Z0-9._-]+/g,'-')
+  const storagePath=`${organizationId}/job-descriptions/${jobId}/${crypto.randomUUID()}/${safeName}`
+  const upload=await supabase.storage.from('candidate-documents').upload(storagePath,file,{contentType:mimeType,upsert:false})
+  if(upload.error)fail(upload.error,'Could not upload the job description')
+  const document=await supabase.from('documents').insert({
+    organization_id:organizationId,file_name:safeName,original_filename:file.name,storage_path:storagePath,
+    mime_type:mimeType,size_bytes:file.size,document_type:'job_description',uploaded_by:userId,
+  }).select('id').single()
+  // Storage and the two rows are not one transaction, so each failure cleans up what it can rather
+  // than leaving an orphan blob or a document nothing links to.
+  if(document.error||!document.data){
+    await supabase.storage.from('candidate-documents').remove([storagePath])
+    fail(document.error,'Could not record the job description')
+  }
+  const link=await supabase.from('document_links').insert({organization_id:organizationId,document_id:document.data.id,job_id:jobId})
+  if(link.error){
+    await supabase.from('documents').delete().eq('organization_id',organizationId).eq('id',document.data.id)
+    await supabase.storage.from('candidate-documents').remove([storagePath])
+    fail(link.error,'Could not attach the job description to this job')
+  }
+  return {id:document.data.id as string,file_name:safeName,mime_type:mimeType,storage_path:storagePath}
+}
 
 export async function getCompanyDetail(organizationId:string,id:string){const {data,error}=await supabase.from('companies').select('*,contacts(id,full_name,position,email,phone,contact_status),jobs(id,title,status,priority,updated_at)').eq('organization_id',organizationId).eq('id',id).single();if(error)fail(error,'Could not load company');return data as Record<string,unknown>}
 export async function updateCompany(organizationId:string,id:string,values:Record<string,unknown>){const {error}=await supabase.from('companies').update({...values,updated_at:new Date().toISOString()}).eq('organization_id',organizationId).eq('id',id);if(error)fail(error,'Could not update company')}

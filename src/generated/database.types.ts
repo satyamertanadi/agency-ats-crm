@@ -3699,6 +3699,72 @@ export type Database = {
           },
         ]
       }
+      job_requirements: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          evidence_expected: string | null
+          id: string
+          job_id: string
+          label: string
+          organization_id: string
+          requirement_level: string
+          sort_order: number
+          source: string
+          updated_at: string
+          updated_by: string | null
+          weight: number
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          evidence_expected?: string | null
+          id?: string
+          job_id: string
+          label: string
+          organization_id: string
+          requirement_level?: string
+          sort_order?: number
+          source?: string
+          updated_at?: string
+          updated_by?: string | null
+          weight?: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          evidence_expected?: string | null
+          id?: string
+          job_id?: string
+          label?: string
+          organization_id?: string
+          requirement_level?: string
+          sort_order?: number
+          source?: string
+          updated_at?: string
+          updated_by?: string | null
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_requirements_job_id_organization_id_fkey"
+            columns: ["job_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "job_requirements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_team_members: {
         Row: {
           job_id: string
@@ -6552,6 +6618,14 @@ export type Database = {
           p_section: string
         }
         Returns: undefined
+      }
+      replace_job_requirements: {
+        Args: {
+          p_items: Json
+          p_job_id: string
+          p_organization_id: string
+        }
+        Returns: number
       }
       request_interview_analysis: {
         Args: {
