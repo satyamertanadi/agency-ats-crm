@@ -2183,6 +2183,54 @@ export type Database = {
           },
         ]
       }
+      interview_analysis_attempts: {
+        Row: {
+          analysis_run_id: string
+          attempt_number: number
+          created_at: string
+          id: string
+          input_tokens: number
+          organization_id: string
+          outcome: string
+          output_tokens: number
+        }
+        Insert: {
+          analysis_run_id: string
+          attempt_number: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          organization_id: string
+          outcome: string
+          output_tokens?: number
+        }
+        Update: {
+          analysis_run_id?: string
+          attempt_number?: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          organization_id?: string
+          outcome?: string
+          output_tokens?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_analysis_attempts_analysis_run_id_organization_i_fkey"
+            columns: ["analysis_run_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "interview_analysis_runs"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "interview_analysis_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interview_analysis_run_transcripts: {
         Row: {
           analysis_run_id: string
@@ -6160,6 +6208,16 @@ export type Database = {
         }
         Returns: Json
       }
+      interview_analysis_limit_breach: {
+        Args: {
+          p_hourly_org_limit?: number
+          p_hourly_user_limit?: number
+          p_monthly_token_ceiling?: number
+          p_organization_id: string
+          p_requested_by: string
+        }
+        Returns: string
+      }
       interview_analysis_recent_run_count: {
         Args: {
           p_organization_id: string
@@ -6490,6 +6548,16 @@ export type Database = {
           p_reason: string
         }
         Returns: undefined
+      }
+      record_interview_analysis_attempt: {
+        Args: {
+          p_attempt_number: number
+          p_input_tokens?: number
+          p_outcome: string
+          p_output_tokens?: number
+          p_run_id: string
+        }
+        Returns: string
       }
       record_interview_consent: {
         Args: {
