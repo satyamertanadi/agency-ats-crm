@@ -5711,6 +5711,10 @@ export type Database = {
         }
         Returns: string
       }
+      create_interview_core_rubric_draft: {
+        Args: { p_items: Json; p_name: string; p_organization_id: string }
+        Returns: string
+      }
       create_interview_rubric_draft: {
         Args: {
           p_ai_evaluation_id: string
@@ -5870,6 +5874,10 @@ export type Database = {
         Args: { p_language?: string }
         Returns: Json
       }
+      discard_interview_core_rubric_draft: {
+        Args: { p_organization_id: string; p_rubric_id: string }
+        Returns: boolean
+      }
       discover_meet_transcript_fetches: {
         Args: { p_limit?: number }
         Returns: Json
@@ -5978,6 +5986,10 @@ export type Database = {
           sent_at: string
           status: string
         }[]
+      }
+      get_interview_intelligence_settings: {
+        Args: { p_organization_id: string }
+        Returns: Json
       }
       get_interview_quality_scorecard: {
         Args: {
@@ -6811,6 +6823,19 @@ export type Database = {
           p_skills?: Json
         }
         Returns: undefined
+      }
+      update_interview_intelligence_settings: {
+        Args: {
+          p_auto_analysis_enabled?: boolean
+          p_digest_enabled?: boolean
+          p_digest_local_time?: string
+          p_digest_skip_empty?: boolean
+          p_intelligence_enabled?: boolean
+          p_meet_auto_import_enabled?: boolean
+          p_organization_id: string
+          p_rubric_generation_enabled?: boolean
+        }
+        Returns: Json
       }
       update_member_access: {
         Args: {
