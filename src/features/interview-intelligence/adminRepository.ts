@@ -1,5 +1,6 @@
 import {supabase} from '../../shared/lib/supabase'
 import {AppError,humanizeRpcError} from '../../shared/lib/errors'
+import type {Json} from '../../generated/database.types'
 
 /* Configuring Interview Intelligence: the switches, the digest recipients, and the agency core
  * rubric.
@@ -118,7 +119,7 @@ export interface CoreRubricItemInput {
 
 export async function createCoreRubricDraft(organizationId:string,name:string,items:CoreRubricItemInput[]):Promise<string>{
   const {data,error}=await supabase.rpc('create_interview_core_rubric_draft',{
-    p_organization_id:organizationId,p_name:name,p_items:items,
+    p_organization_id:organizationId,p_name:name,p_items:items as unknown as Json,
   })
   if(error)fail(error,'Could not create the agency core rubric.')
   return data as string
