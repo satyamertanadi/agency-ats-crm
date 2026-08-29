@@ -148,6 +148,11 @@ const rpcMessages:Record<string,string>={
   invalid_notice_version:'That notice version is too long.',
   consent_evidence_too_long:'Shorten the note about what was agreed.',
   invalid_cancellation_reason:'That is not a valid reason to stop an analysis.',
+  /* The shared ceiling raises these from inside the request function, so they can surface even when
+   * the Edge Function's friendlier check was passed or skipped. */
+  rate_limited_user:'You have requested too many analyses in the last hour.',
+  rate_limited_organization:'This workspace has requested too many analyses in the last hour.',
+  invalid_attempt_outcome:'That is not a valid outcome for a provider attempt.',
   /* Raised when somebody opens the settings page twice and creates a second core rubric draft. Two
    * drafts with nothing to tell them apart is how the wrong one gets activated. */
   interview_core_rubric_draft_exists:'A core rubric draft already exists. Edit or discard it before starting another.',

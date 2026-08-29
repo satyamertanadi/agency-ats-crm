@@ -277,12 +277,29 @@ async function processRun(admin:Admin,runId:string,requestID:string){
   /* Retried once, then failed visibly. A model that returns malformed structure twice is a contract
    * problem to look at, not something to keep paying to re-roll. */
   let validated:InterviewAnalysisOutput
-  try{validated=validateAnalysisOutput(completion.value,manifest)}
+  try{
+    validated=validateAnalysisOutput(completion.value,manifest)
+    await recordAttempt(admin,runId,1,'succeeded',completion)
+  }
   catch(first){
-    if(!(first instanceof AnalysisValidationError))throw first
+    if(!(first instanceof AnalysisValidationError)){
+      // Not a validation problem, but the call still happened and was still billed.
+      await recordAttempt(admin,runId,1,'provider_error',completion)
+      throw first
+    }
+    await recordAttempt(admin,runId,1,'invalid_output',completion)
     log('warn','interview_analysis_output_retry',{requestId:requestID,runId,code:first.code,detailCount:first.details.length})
+
     const retry=await callProvider(payload,String(run.model))
-    validated=validateAnalysisOutput(retry.value,manifest)
+    try{
+      validated=validateAnalysisOutput(retry.value,manifest)
+      await recordAttempt(admin,runId,2,'succeeded',retry)
+    }catch(second){
+      /* The case the old code lost entirely: two billed calls, neither counted, because the throw
+       * happened before anything was written. */
+      await recordAttempt(admin,runId,2,'invalid_output',retry)
+      throw second
+    }
     completion.inputTokens=(completion.inputTokens??0)+(retry.inputTokens??0)
     completion.outputTokens=(completion.outputTokens??0)+(retry.outputTokens??0)
   }
@@ -310,6 +327,26 @@ async function processRun(admin:Admin,runId:string,requestID:string){
     consultantCount:validated.consultants.length,candidateFindingCount:validated.candidate.findings.length,
     entryCount:entries.length,metricConfidence:metrics.summary.metricConfidence,durationMs:Date.now()-started,
   })
+}
+
+async function recordAttempt(
+  admin:Admin,
+  runId:string,
+  attemptNumber:number,
+  outcome:'succeeded'|'invalid_output'|'provider_error',
+  usage:{inputTokens?:number|null;outputTokens?:number|null},
+){
+  const recorded=await admin.rpc('record_interview_analysis_attempt',{
+    p_run_id:runId,
+    p_attempt_number:attemptNumber,
+    p_outcome:outcome,
+    p_input_tokens:usage.inputTokens??0,
+    p_output_tokens:usage.outputTokens??0,
+  })
+  if(recorded.error){
+    // Counts only, never a provider body.
+    log('warn','interview_analysis_attempt_unrecorded',{runId,attemptNumber,outcome})
+  }
 }
 
 async function loadSpeakers(admin:Admin,transcriptIds:string[]){

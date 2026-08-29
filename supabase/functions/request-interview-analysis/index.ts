@@ -12,6 +12,12 @@ import {INTERVIEW_ANALYSIS_PROMPT_VERSION} from '../_shared/interview-analysis-s
  * The worker is nudged afterwards on a best-effort basis so a consultant sees progress in seconds
  * rather than waiting for the next scheduled drain. If that nudge fails, nothing is lost: the job is
  * durable and the scheduled drain picks it up.
+ *
+ * Access is verified with the CALLER's client and the run is created with the SERVICE client. Those
+ * are two different questions -- may this person analyse this interview, and what configuration is
+ * this deployment allowed to bill for -- and answering the second with the caller's client is what
+ * made request_interview_analysis take a model name as an argument. A signed-in user could call it
+ * directly through PostgREST with any model string and no ceiling at all.
  */
 
 interface Input {organizationId?:string;interviewId?:string}
@@ -28,16 +34,36 @@ Deno.serve(async(request)=>{
     organizationId=input.organizationId
 
     const context=await requireUser(request)
+
+    /* Both checks run as the CALLER, so RLS and the permission functions see the real user. The
+     * feature permission is workspace-wide; access to this interview is not, and analysing a
+     * colleague's interview needs the second one too. */
+    const [permitted,accessible]=await Promise.all([
+      context.caller.rpc('can_use_interview_intelligence',{p_organization_id:input.organizationId}),
+      context.caller.rpc('can_access_interview_transcript',{p_interview_id:input.interviewId}),
+    ])
+    if(permitted.error||!permitted.data||accessible.error||!accessible.data){
+      throw new FunctionError(403,'permission_denied','You do not have permission to analyse this interview.')
+    }
+
+    /* A friendly early refusal. The same ceiling is enforced again inside the request function,
+     * where every path that can create a paid run passes -- this one exists so the page can say
+     * which limit was hit rather than surfacing a raw identifier. */
     await enforceAnalysisLimits(context,input.organizationId)
+
     const provider=Deno.env.get('AI_PROVIDER')?.trim()||'anthropic'
     const model=Deno.env.get('AI_MODEL')?.trim()||''
     if(provider!=='anthropic'||!model||!Deno.env.get('ANTHROPIC_API_KEY')){
       throw new FunctionError(503,'analysis_not_configured','Interview analysis is not configured.')
     }
 
-    const result=await context.caller.rpc('request_interview_analysis',{
+    /* Service client, trusted configuration, and the caller's identity passed explicitly rather than
+     * inferred. The run is attributed to the person who asked for it, so cost and rate limits land
+     * on them. */
+    const result=await context.admin.rpc('internal_request_interview_analysis',{
       p_organization_id:input.organizationId,
       p_interview_id:input.interviewId,
+      p_requested_by:context.user.id,
       p_provider:provider,
       p_model:model,
       p_prompt_version:INTERVIEW_ANALYSIS_PROMPT_VERSION,
@@ -95,6 +121,12 @@ function requestFailure(message:string):FunctionError{
     job_rubric_required:[409,'Activate an interview blueprint for this job first.'],
     interview_not_found:[404,'That interview could not be found in this workspace.'],
     permission_denied:[403,'You do not have permission to analyse this interview.'],
+    /* Raised by the shared ceiling inside the request function. Reaching these means the request got
+     * past the Edge Function's own check -- a race, or a path that does not call it -- so they still
+     * need sentences. */
+    rate_limited_user:[429,'You have requested too many analyses in the last hour.'],
+    rate_limited_organization:[429,'This workspace has requested too many analyses in the last hour.'],
+    monthly_ceiling_reached:[429,'This workspace has reached its monthly AI limit for interview analysis.'],
   }
   for(const [code,[status,text]] of Object.entries(map)){
     if(message.includes(code))return new FunctionError(status,code,text)
