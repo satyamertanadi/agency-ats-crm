@@ -52,8 +52,13 @@ export function CandidateProfileGenerator({organizationId,userId,candidate,organ
   const update=(change:Partial<CandidateProfileDraft>)=>setDraft((current)=>current?{...current,...change}:current)
   return <div className="stack profile-generator">
     <div className="form-grid"><Field label="Target vacancy"><Select value={jobId} onChange={(event)=>{setJobId(event.target.value);setGeneration(null);setDraft(null)}}>{jobs.data.map((job)=><option key={job.id} value={job.id}>{job.title}{job.company_name?` - ${job.company_name}`:''}</option>)}</Select></Field><Field label="Profile template"><Select value={templateId} onChange={(event)=>{const template=templates.data?.find((item)=>item.id===event.target.value);setTemplateId(event.target.value);setAnonymized(Boolean(template?.configuration.anonymize_by_default));setGeneration(null);setDraft(null)}}>{templates.data.map((template)=><option key={template.id} value={template.id}>{template.name} ({template.configuration.output_language==='id'?'ID':'EN'})</option>)}</Select></Field></div>
-    <label><input type="checkbox" checked={anonymized} onChange={(event)=>setAnonymized(event.target.checked)}/> Remove name, contact details, photo, social URLs, and precise address from both files</label>
-    <p className="muted">The score and requirement evidence stay internal. No profile is sent, ranked, or finalized until you review every client-facing field below.</p>
+    <label><input type="checkbox" checked={anonymized} onChange={(event)=>setAnonymized(event.target.checked)}/> Remove name, contact details, photo, social URLs, and precise address from the generated document</label>
+    {/* Says what anonymising does and does not cover. It redacts the document; it is not a limit on
+      * what the assessment reads, and a consultant who assumed otherwise would be surprised by a CV
+      * excerpt naming the candidate in the internal evidence panel below. That evidence never leaves
+      * the workspace -- no submission or public-review surface reads it, and the DOCX never renders
+      * it -- which is why the honest fix here is precise wording rather than a narrower payload. */}
+    <p className="muted">The score and requirement evidence stay internal. Anonymising redacts the document you send the client &mdash; the assessment itself still reads the full candidate record and CV. No profile is sent, ranked, or finalized until you review every client-facing field below.</p>
     <div><Button leadingIcon={<Sparkles size={15}/>} loading={generate.isPending} disabled={!jobId||!templateId} onClick={()=>generate.mutate()}>{generation?'Regenerate as a new version':'Generate evidence-backed draft'}</Button></div>
     {generate.error&&<p className="form-error" role="alert">{generate.error.message}</p>}
     {generation&&draft&&<>
