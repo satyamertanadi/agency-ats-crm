@@ -152,18 +152,23 @@ describe('provider is part of the identity of a run',()=>{
 })
 
 describe('the ceiling applies to every path that creates a paid run',()=>{
-  it('refuses a new run once the workspace hourly limit is reached',async()=>{
+  it('refuses a new run once a ceiling is reached',async()=>{
     /* Enforced inside internal_request_interview_analysis rather than only in the Edge Function,
-     * which automatic analysis never calls. This is the automatic path's ceiling too. */
+     * which automatic analysis never calls. This is the automatic path's ceiling too.
+     *
+     * Asserted as "some ceiling" rather than naming one: these runs are all attributed to the same
+     * person, so the per-user limit is reached first and which one trips is an artefact of the
+     * fixture. The specific codes are pinned below against explicit thresholds. */
     for(let index=0;index<40;index+=1)await seedRun()
     const blocked=await requestRun('anthropic','model-after-limit')
-    expect(blocked.error?.message).toContain('rate_limited_organization')
+    expect(blocked.error?.message).toMatch(/rate_limited/)
   })
 
   it('still returns an existing run when the limit is reached',async()=>{
     /* Reuse costs nothing, so a rate limit must not break the page for somebody who is not spending.
      * The check deliberately sits after the dedup lookup. */
     const first=await requestRun()
+    expect(first.error).toBeNull()
     for(let index=0;index<40;index+=1)await seedRun()
     const reused=await requestRun()
     expect(reused.error).toBeNull()
