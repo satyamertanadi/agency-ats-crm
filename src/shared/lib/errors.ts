@@ -140,6 +140,11 @@ const rpcMessages:Record<string,string>={
   invalid_scope:'That report scope is not available.',
   // Digest recipients are re-checked at send time too; this is the one a person can actually hit.
   member_not_active:'That person is no longer an active member of this workspace.',
+  /* Raised when somebody opens the settings page twice and creates a second core rubric draft. Two
+   * drafts with nothing to tell them apart is how the wrong one gets activated. */
+  interview_core_rubric_draft_exists:'A core rubric draft already exists. Edit or discard it before starting another.',
+  // Active and archived rubrics are evidence: an assessment cites the rubric it was judged against.
+  interview_rubric_not_a_draft:'Only a draft can be discarded. An activated rubric is kept as the record of how past interviews were judged.',
   /* Both reachable only by a caller constructing its own request -- the sweep passes one of three
    * statuses and a run id it has just claimed. Present because a raised identifier with no sentence
    * reaches the user verbatim. */

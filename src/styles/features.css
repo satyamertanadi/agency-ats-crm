@@ -2248,3 +2248,49 @@ tbody tr:focus-within .row-menu-trigger,
   /* --radius-xs: the smallest inline chrome, which is what a focus ring on an inline count is. */
   border-radius: var(--radius-xs);
 }
+
+/* A settings switch with its consequence written under it.
+ *
+ * The label alone cannot carry these: "Analyse every interview automatically" and "Enable Interview
+ * Intelligence" look equally routine in a list of checkboxes, and one of them spends money on every
+ * interview the desk runs. The description is part of the control, not decoration around it, so it
+ * sits inside the <label> and is read out with it.
+ *
+ * grid rather than flex so the description aligns with the label text and not with the checkbox. */
+.interview-toggle label{
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 var(--space-3);
+  align-items: start;
+  cursor: pointer;
+}
+.interview-toggle input{
+  margin-top: 4px;
+}
+.interview-toggle span{
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.interview-toggle small{
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+/* The two switches that change what happens to colleagues' work without anyone pressing a button
+   that day. Not red -- they are legitimate settings, not errors -- but not the same weight as the
+   rest of the list either. */
+.interview-toggle-caution{
+  color: var(--color-warning-text, var(--color-muted));
+}
+.interview-toggle input:disabled + span strong,
+.interview-toggle input:disabled + span small{
+  opacity: .55;
+}
+.settings-subhead{
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  margin: var(--space-4) 0 var(--space-2);
+}
