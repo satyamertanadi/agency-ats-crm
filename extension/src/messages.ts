@@ -1,5 +1,5 @@
 // Message contract between the content-script panel and the background service worker.
-export type ProspectKind='candidate'|'contact'
+export type ProspectKind='candidate'|'contact'|'client'
 
 // Timeline/skill shapes mirror the CvExtraction contract (supabase/functions/_shared/cv-schema.ts) so
 // the AI parse output and the rich scraper feed capture_prospect through one shape.
@@ -14,6 +14,9 @@ export interface CapturePayload{
   email?:string;phone?:string;company_id?:string;position?:string;source?:string;
   private?:PrivateDetails;employment?:EmploymentItem[];education?:EducationItem[];skills?:SkillItem[];languages?:LanguageItem[];
   note?:string;tags?:string[];owner_member_id?:string;status?:string;
+  /* Client capture. `name` rather than `full_name` because a company is not a person, and reusing
+   * full_name would have made the server guess which kind it was looking at. */
+  name?:string;industry?:string;website?:string;company_size?:string;
 }
 
 export interface OrgSummary{id:string;name:string}

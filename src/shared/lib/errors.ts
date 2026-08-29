@@ -140,6 +140,8 @@ const rpcMessages:Record<string,string>={
   invalid_scope:'That report scope is not available.',
   // Digest recipients are re-checked at send time too; this is the one a person can actually hit.
   member_not_active:'That person is no longer an active member of this workspace.',
+  // Raised when the extension captures a client company with no usable name.
+  company_name_required:'A client name is required.',
   /* Consent vocabulary. Reachable only by a caller building its own request -- the form offers a
    * fixed set -- but a raised identifier with no sentence reaches the user verbatim. */
   invalid_consent_status:'Choose whether the candidate agreed or declined.',

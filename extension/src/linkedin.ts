@@ -1,7 +1,8 @@
+import {isCompanyPage} from './company'
 import {api} from './api'
 import {badgeFor} from './radar'
 import {el,isProfilePage,observeBody,onUrlChange} from './dom'
-import {canonicalProfileUrl,hasContactInfoLink,profileText,readContactInfo,scrapeProfile} from './scrape'
+import {scrapeCompany,canonicalProfileUrl,hasContactInfoLink,profileText,readContactInfo,scrapeProfile} from './scrape'
 import type {CapturePayload,CompanySummary,JobSummary,MemberSummary,ProspectKind,ProspectMatch,StateResponse} from './messages'
 
 // Profile-page cockpit: scrape (rich) → radar status → auto enrichment → capture the full candidate
@@ -69,6 +70,18 @@ async function openPanel(){
   tagsInput.setAttribute('list','ats-tag-list')
   const tagList=el('datalist',{id:'ats-tag-list'})
 
+  /* Client capture reads a company page, so it has its own fields rather than reusing the person
+   * ones. Sharing "Company" between "the company this person works at" and "the company we are
+   * capturing" would have made the save handler guess which meaning was on screen. */
+  const clientNameInput=trackEdits(el('input',{className:'ats-input'}))
+  const clientLocationInput=trackEdits(el('input',{className:'ats-input',placeholder:'Headquarters'}))
+  const clientLinkedinInput=trackEdits(el('input',{className:'ats-input'}))
+  const industryInput=trackEdits(el('input',{className:'ats-input',placeholder:'e.g. Hospitality'}))
+  const websiteInput=trackEdits(el('input',{className:'ats-input',placeholder:'Optional'}))
+  const sizeInput=trackEdits(el('input',{className:'ats-input',placeholder:'e.g. 1,001-5,000 employees'}))
+  const clientOnly=el('div')
+  clientOnly.style.display='none'
+
   const orgSelect=el('select',{className:'ats-input'})
   const jobSelect=el('select',{className:'ats-input'})
   const companySelect=el('select',{className:'ats-input'})
@@ -92,18 +105,43 @@ async function openPanel(){
   const candBtn=el('button',{className:'ats-seg ats-seg-on',textContent:'Candidate'})
   const contBtn=el('button',{className:'ats-seg',textContent:'Contact'})
   const candidateOnly=el('div')
-  const setKind=(next:ProspectKind)=>{kind=next;candBtn.className=`ats-seg${next==='candidate'?' ats-seg-on':''}`;contBtn.className=`ats-seg${next==='contact'?' ats-seg-on':''}`;jobField.style.display=next==='candidate'?'':'none';companyField.style.display=next==='contact'?'':'none';candidateOnly.style.display=next==='candidate'?'':'none';if(next==='contact')void loadCompanies()}
-  candBtn.onclick=()=>setKind('candidate');contBtn.onclick=()=>setKind('contact')
-  kindToggle.append(candBtn,contBtn)
+  const personOnly=el('div')
+  const clientBtn=el('button',{className:'ats-seg',textContent:'Client'})
+  const setKind=(next:ProspectKind)=>{
+    kind=next
+    candBtn.className=`ats-seg${next==='candidate'?' ats-seg-on':''}`
+    contBtn.className=`ats-seg${next==='contact'?' ats-seg-on':''}`
+    clientBtn.className=`ats-seg${next==='client'?' ats-seg-on':''}`
+    const person=next!=='client'
+    personOnly.style.display=person?'':'none'
+    clientOnly.style.display=person?'none':''
+    jobField.style.display=next==='candidate'?'':'none'
+    companyField.style.display=next==='contact'?'':'none'
+    candidateOnly.style.display=next==='candidate'?'':'none'
+    // The radar answers "is this PERSON in your ATS", which is not the question in client mode.
+    radar.style.display=person?'':'none'
+    if(next==='contact')void loadCompanies()
+    if(next==='client')void fillClientFromPage()
+  }
+  candBtn.onclick=()=>setKind('candidate');contBtn.onclick=()=>setKind('contact');clientBtn.onclick=()=>setKind('client')
+  kindToggle.append(candBtn,contBtn,clientBtn)
 
   candidateOnly.append(field('Note',noteInput),field('Tags',tagsInput),tagList,field('Owner',ownerSelect),field('Status',statusSelect),jobField)
-  // Painted before any await: the panel is on screen with the form laid out while the scrape and the
-  // workspace lookups are still in flight, instead of staying blank until getState() returns.
-  body.append(
-    radar,kindToggle,
+  personOnly.append(
     el('div',{className:'ats-row'},[aiBtn,contactBtn]),richSummary,
     field('Name',nameInput),field('Position',positionInput),field('Company',companyInput),field('Location',locationInput),
     field('Email',emailInput),field('Phone',phoneInput),field('LinkedIn URL',linkedinInput),
+  )
+  clientOnly.append(
+    field('Client name',clientNameInput),field('Industry',industryInput),
+    field('Location',clientLocationInput),field('Company size',sizeInput),
+    field('Website',websiteInput),field('LinkedIn URL',clientLinkedinInput),
+    el('p',{className:'ats-note',textContent:'Saved as a prospect at lead stage, with no owner. Set the account status and owner in the ATS.'}),
+  )
+  // Painted before any await: the panel is on screen with the form laid out while the scrape and the
+  // workspace lookups are still in flight, instead of staying blank until getState() returns.
+  body.append(
+    radar,kindToggle,personOnly,clientOnly,
     field('Workspace',orgSelect),companyField,candidateOnly,saveBtn,status,
   )
 
@@ -206,12 +244,60 @@ async function openPanel(){
     finally{contactBtn.disabled=false;contactBtn.textContent=label}
   }
 
+  /* Reads the company page into the client form. Called when the mode is chosen rather than on
+   * panel open, because most of the time the user wants the person and scraping a company page they
+   * are not looking at would just be wrong. Fills blanks only, so a correction survives a re-click. */
+  async function fillClientFromPage(){
+    if(!isCompanyPage(location.href)){
+      status.className='ats-note'
+      status.textContent='Open a LinkedIn company page to capture a client, or type the details in.'
+      return
+    }
+    try{
+      const company=await scrapeCompany()
+      fillIfEmpty(clientNameInput,company.name)
+      fillIfEmpty(industryInput,company.industry)
+      fillIfEmpty(clientLocationInput,company.location)
+      fillIfEmpty(sizeInput,company.company_size)
+      fillIfEmpty(websiteInput,company.website)
+      fillIfEmpty(clientLinkedinInput,company.linkedin_url)
+      status.className='ats-note'
+      status.textContent='Read the company page. Check the fields, then save.'
+    }catch{
+      // A broken selector degrades to an empty form the user can type into, never a wrong save.
+      status.className='ats-note'
+      status.textContent='Could not read the company page. Fill the fields in and save.'
+    }
+  }
+
   saveBtn.onclick=async()=>{
-    if(!nameInput.value.trim()){status.className='ats-error';status.textContent='A name is required.';return}
+    if(kind==='client'&&!clientNameInput.value.trim()){status.className='ats-error';status.textContent='A client name is required.';return}
+    if(kind!=='client'&&!nameInput.value.trim()){status.className='ats-error';status.textContent='A name is required.';return}
     if(kind==='contact'&&!companySelect.value){status.className='ats-error';status.textContent='Choose a company for a contact.';return}
     if(!orgSelect.value){status.className='ats-error';status.textContent='Still loading your workspace — try again in a moment.';return}
     saveBtn.disabled=true;status.className='ats-note';status.textContent='Saving…'
     try{
+      if(kind==='client'){
+        /* Deliberately none of the person fields, and none of the tag/owner/status ones: a company
+         * captured from LinkedIn is a lead, and the commercial judgement about it belongs to whoever
+         * picks it up in the ATS. */
+        const clientPayload:CapturePayload={
+          full_name:clientNameInput.value.trim(),
+          name:clientNameInput.value.trim(),
+          industry:industryInput.value.trim()||undefined,
+          website:websiteInput.value.trim()||undefined,
+          location:clientLocationInput.value.trim()||undefined,
+          company_size:sizeInput.value.trim()||undefined,
+          linkedin_url:clientLinkedinInput.value.trim()||undefined,
+          source:'LinkedIn',
+        }
+        const clientRes=await api.capture(orgSelect.value,'client',clientPayload)
+        if(clientRes.error){status.className='ats-error';status.textContent=clientRes.error;return}
+        status.className='ats-success'
+        status.textContent=clientRes.result?.deduped?'Already a client — details filled in.':'Saved as a prospect.'
+        return
+      }
+
       const payload:CapturePayload={
         full_name:nameInput.value.trim(),current_position:positionInput.value.trim()||undefined,current_company:companyInput.value.trim()||undefined,
         location:locationInput.value.trim()||undefined,linkedin_url:linkedinInput.value.trim()||undefined,source:'LinkedIn',
