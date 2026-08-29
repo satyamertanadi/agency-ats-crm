@@ -28,12 +28,14 @@ comment on column public.companies.linkedin_url is
 
 /* Adds 'client' to capture_prospect.
  *
- * A sibling branch rather than a separate RPC, because everything around it is already shared: the
- * organisation check, the source label, the deduped/created result shape, and the coalesce-merge rule
- * that a re-capture never overwrites curated data. Splitting it would duplicate all of that and give
- * the extension two result contracts to handle.
+ * A sibling branch rather than a separate RPC: the organisation check, the source label, the
+ * deduped/created result shape and the coalesce-merge rule are already shared, and splitting would
+ * give the extension two result contracts to handle.
  *
- * The candidate and contact branches below are carried over unchanged.
+ * Rebuilt from 20260810020000, the CURRENT definition -- not from the original in 20260718000000.
+ * capture_prospect has been replaced four times, gaining rich employment, skills, tags, owner,
+ * status and note-to-activity handling along the way, and recreating it from the first version
+ * silently reverted all of it. The prospect-enrichment suite caught that.
  */
 create or replace function public.capture_prospect(
   p_organization_id uuid,
@@ -42,8 +44,11 @@ create or replace function public.capture_prospect(
   p_job_id uuid default null
 ) returns jsonb language plpgsql security definer set search_path=public as $$
 declare
+  v_private jsonb := coalesce(p_payload->'private','{}'::jsonb);
   v_full_name text := nullif(trim(p_payload->>'full_name'),'');
-  v_email text := public.normalize_email(p_payload->>'email');
+  v_email_raw text := coalesce(nullif(trim(p_payload->>'email'),''), nullif(trim(v_private->>'email'),''));
+  v_phone_raw text := coalesce(nullif(trim(p_payload->>'phone'),''), nullif(trim(v_private->>'phone'),''));
+  v_email text := public.normalize_email(v_email_raw);
   v_linkedin text := nullif(trim(p_payload->>'linkedin_url'),'');
   v_source text := coalesce(nullif(trim(p_payload->>'source'),''), 'Capture');
   v_id uuid;
@@ -51,12 +56,20 @@ declare
   v_job_linked boolean := false;
   v_stage_id uuid;
   v_existing_stage uuid;
+  item jsonb;
+  normalized_skill text;
+  v_skill_id uuid;
+  tag_id uuid;
+  v_tag text;
+  v_owner uuid := nullif(p_payload->>'owner_member_id','')::uuid;
+  v_status text := nullif(trim(p_payload->>'status'),'');
+  v_note text := nullif(trim(p_payload->>'note'),'');
   v_company_name text;
 begin
   if p_kind not in ('candidate','contact','client') then raise exception 'invalid_kind' using errcode='22023'; end if;
 
   /* The client branch returns before the person checks below. A company has no full_name, so that
-   * requirement belongs to the two person kinds rather than to the function. */
+   * requirement belongs to the two person kinds rather than to the function as a whole. */
   if p_kind = 'client' then
     if not public.has_permission(p_organization_id,'companies.write') then raise exception 'permission_denied' using errcode='42501'; end if;
 
@@ -77,9 +90,9 @@ begin
     end if;
 
     if v_id is not null then
-      /* Coalesce-merge, exactly as the person branches do. A client record carries commercial
-       * judgement -- account status, BD stage, owner, notes -- and a re-capture from LinkedIn must
-       * never overwrite any of it. Only genuinely empty fields are filled. */
+      /* Coalesce-merge, as the person branches do. A client record carries commercial judgement --
+       * account status, BD stage, owner, notes -- and a re-capture from LinkedIn must never overwrite
+       * any of it. Only genuinely empty fields are filled. */
       update public.companies set
         industry=coalesce(nullif(industry,''), nullif(trim(p_payload->>'industry'),'')),
         website=coalesce(nullif(website,''), nullif(trim(p_payload->>'website'),'')),
@@ -114,9 +127,6 @@ begin
   if p_kind = 'candidate' then
     if not public.has_permission(p_organization_id,'candidates.write') then raise exception 'permission_denied' using errcode='42501'; end if;
 
-    -- Match on email first (strong, unique-indexed -- and matched regardless of deleted_at so a
-    -- re-capture of a soft-archived candidate revives them instead of tripping the unique index),
-    -- then on linkedin_url among live candidates.
     if v_email is not null then
       select c.id into v_id
       from public.candidate_private_details d join public.candidates c on c.id=d.candidate_id
@@ -128,7 +138,6 @@ begin
     end if;
 
     if v_id is not null then
-      -- Coalesce-merge: only fill fields that are currently empty; never overwrite curated data.
       update public.candidates set
         current_company=coalesce(nullif(current_company,''), nullif(trim(p_payload->>'current_company'),'')),
         current_position=coalesce(nullif(current_position,''), nullif(trim(p_payload->>'current_position'),'')),
@@ -137,20 +146,85 @@ begin
         portfolio_url=coalesce(nullif(portfolio_url,''), nullif(trim(p_payload->>'portfolio_url'),'')),
         deleted_at=null, updated_by=auth.uid(), updated_at=now()
       where id=v_id;
-      insert into public.candidate_private_details(candidate_id,organization_id,email,phone)
-        values(v_id,p_organization_id,nullif(p_payload->>'email',''),nullif(p_payload->>'phone',''))
-      on conflict (candidate_id) do update set
-        email=coalesce(nullif(public.candidate_private_details.email,''), excluded.email),
-        phone=coalesce(nullif(public.candidate_private_details.phone,''), excluded.phone),
-        updated_at=now();
       v_deduped := true;
     else
       insert into public.candidates(organization_id,full_name,current_company,current_position,location,linkedin_url,portfolio_url,source,created_by)
         values(p_organization_id,v_full_name,nullif(trim(p_payload->>'current_company'),''),nullif(trim(p_payload->>'current_position'),''),nullif(trim(p_payload->>'location'),''),v_linkedin,nullif(trim(p_payload->>'portfolio_url'),''),v_source,auth.uid())
         returning id into v_id;
-      insert into public.candidate_private_details(candidate_id,organization_id,email,phone)
-        values(v_id,p_organization_id,nullif(p_payload->>'email',''),nullif(p_payload->>'phone',''));
     end if;
+
+    -- Private details: single coalesce-merge upsert (email/phone/salary/work auth). Never overwrites
+    -- a curated value with a blank.
+    insert into public.candidate_private_details(candidate_id,organization_id,email,phone,current_salary,expected_salary,salary_currency,work_authorization)
+      values(v_id,p_organization_id,v_email_raw,v_phone_raw,nullif(v_private->>'current_salary','')::numeric,nullif(v_private->>'expected_salary','')::numeric,nullif(upper(v_private->>'salary_currency'),''),nullif(trim(v_private->>'work_authorization'),''))
+    on conflict (candidate_id) do update set
+      email=coalesce(nullif(public.candidate_private_details.email,''), excluded.email),
+      phone=coalesce(nullif(public.candidate_private_details.phone,''), excluded.phone),
+      current_salary=coalesce(public.candidate_private_details.current_salary, excluded.current_salary),
+      expected_salary=coalesce(public.candidate_private_details.expected_salary, excluded.expected_salary),
+      salary_currency=coalesce(public.candidate_private_details.salary_currency, excluded.salary_currency),
+      work_authorization=coalesce(nullif(public.candidate_private_details.work_authorization,''), excluded.work_authorization),
+      updated_at=now();
+
+    -- Rich arrays (dedup-guarded, identical to accept_candidate_cv_parse).
+    for item in select value from jsonb_array_elements(coalesce(p_payload->'employment','[]'::jsonb)) loop
+      if nullif(trim(item->>'company_name'),'') is null or nullif(trim(item->>'title'),'') is null then continue; end if;
+      if not exists(select 1 from public.candidate_employment e where e.candidate_id=v_id
+        and lower(trim(e.company_name))=lower(trim(item->>'company_name'))
+        and lower(trim(e.title))=lower(trim(item->>'title'))
+        and e.started_on is not distinct from nullif(item->>'started_on','')::date) then
+        insert into public.candidate_employment(organization_id,candidate_id,company_name,title,location,started_on,ended_on,is_current,summary,started_on_precision,ended_on_precision,sort_order)
+          values(p_organization_id,v_id,trim(item->>'company_name'),trim(item->>'title'),nullif(trim(item->>'location'),''),nullif(item->>'started_on','')::date,nullif(item->>'ended_on','')::date,coalesce((item->>'is_current')::boolean,false),nullif(trim(item->>'summary'),''),nullif(item->>'started_on_precision',''),nullif(item->>'ended_on_precision',''),coalesce((item->>'sort_order')::integer,0));
+      end if;
+    end loop;
+    for item in select value from jsonb_array_elements(coalesce(p_payload->'education','[]'::jsonb)) loop
+      if nullif(trim(item->>'institution'),'') is null then continue; end if;
+      if not exists(select 1 from public.candidate_education e where e.candidate_id=v_id
+        and lower(trim(e.institution))=lower(trim(item->>'institution'))
+        and lower(trim(coalesce(e.degree,'')))=lower(trim(coalesce(item->>'degree','')))
+        and e.started_on is not distinct from nullif(item->>'started_on','')::date) then
+        insert into public.candidate_education(organization_id,candidate_id,institution,degree,field_of_study,started_on,ended_on,started_on_precision,ended_on_precision,sort_order)
+          values(p_organization_id,v_id,trim(item->>'institution'),nullif(trim(item->>'degree'),''),nullif(trim(item->>'field_of_study'),''),nullif(item->>'started_on','')::date,nullif(item->>'ended_on','')::date,nullif(item->>'started_on_precision',''),nullif(item->>'ended_on_precision',''),coalesce((item->>'sort_order')::integer,0));
+      end if;
+    end loop;
+    for item in select value from jsonb_array_elements(coalesce(p_payload->'languages','[]'::jsonb)) loop
+      if nullif(trim(item->>'language'),'') is not null then
+        insert into public.candidate_languages(organization_id,candidate_id,language,proficiency)
+          values(p_organization_id,v_id,trim(item->>'language'),nullif(trim(item->>'proficiency'),''))
+        on conflict(candidate_id,language) do nothing;
+      end if;
+    end loop;
+    for item in select value from jsonb_array_elements(coalesce(p_payload->'skills','[]'::jsonb)) loop
+      normalized_skill := lower(regexp_replace(trim(item->>'name'),'\s+',' ','g'));
+      if normalized_skill='' then continue; end if;
+      insert into public.skills(organization_id,name,normalized_name)
+        values(p_organization_id,trim(item->>'name'),normalized_skill)
+      on conflict(organization_id,normalized_name) do update set name=skills.name returning id into v_skill_id;
+      insert into public.candidate_skills(candidate_id,skill_id,organization_id,proficiency,years_experience)
+        values(v_id,v_skill_id,p_organization_id,nullif(trim(item->>'proficiency'),''),nullif(item->>'years_experience','')::numeric)
+      on conflict(candidate_id,skill_id) do nothing;
+    end loop;
+
+    -- Capture-time metadata.
+    if v_owner is not null and exists(select 1 from public.organization_members where id=v_owner and organization_id=p_organization_id and status='active') then
+      update public.candidates set owner_member_id=v_owner where id=v_id;
+    end if;
+    if v_status is not null and v_status in ('active','passive','placed','do_not_contact','archived') then
+      update public.candidates set status=v_status where id=v_id;
+    end if;
+    if v_note is not null then
+      -- The extension's note field wrote to notes/note_links, which no screen in the app has
+      -- ever read: a consultant who captured a profile with a note lost it silently. It now
+      -- becomes an activity, which ActivityFeed already renders on the candidate record.
+      perform public.log_activity(p_organization_id,'note',v_note,'Capture note','internal',auth.uid(),jsonb_build_array(jsonb_build_object('candidate_id',v_id)));
+    end if;
+    for v_tag in select value from jsonb_array_elements_text(coalesce(p_payload->'tags','[]'::jsonb)) loop
+      v_tag := nullif(trim(v_tag),'');
+      if v_tag is null then continue; end if;
+      insert into public.tags(organization_id,name) values(p_organization_id,v_tag)
+        on conflict(organization_id,name) do update set name=tags.name returning id into tag_id;
+      insert into public.candidate_tags(candidate_id,tag_id,organization_id) values(v_id,tag_id,p_organization_id) on conflict do nothing;
+    end loop;
 
     -- Optional pipeline placement.
     if p_job_id is not null then
@@ -183,15 +257,15 @@ begin
     if v_id is not null then
       update public.contacts set
         position=coalesce(nullif(position,''), nullif(trim(p_payload->>'current_position'),''), nullif(trim(p_payload->>'position'),'')),
-        email=coalesce(nullif(email,''), nullif(p_payload->>'email','')),
-        phone=coalesce(nullif(phone,''), nullif(p_payload->>'phone','')),
+        email=coalesce(nullif(email,''), v_email_raw),
+        phone=coalesce(nullif(phone,''), v_phone_raw),
         linkedin_url=coalesce(nullif(linkedin_url,''), v_linkedin),
         updated_by=auth.uid(), updated_at=now()
       where id=v_id;
       v_deduped := true;
     else
       insert into public.contacts(organization_id,company_id,full_name,position,email,phone,linkedin_url,created_by)
-        values(p_organization_id,(p_payload->>'company_id')::uuid,v_full_name,coalesce(nullif(trim(p_payload->>'current_position'),''),nullif(trim(p_payload->>'position'),'')),nullif(p_payload->>'email',''),nullif(p_payload->>'phone',''),v_linkedin,auth.uid())
+        values(p_organization_id,(p_payload->>'company_id')::uuid,v_full_name,coalesce(nullif(trim(p_payload->>'current_position'),''),nullif(trim(p_payload->>'position'),'')),v_email_raw,v_phone_raw,v_linkedin,auth.uid())
         returning id into v_id;
     end if;
   end if;
