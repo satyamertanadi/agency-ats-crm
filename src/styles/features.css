@@ -1303,6 +1303,50 @@ tbody tr:focus-within .row-menu-trigger,
   display: block;
   margin: 3px 0 0;
 }
+
+/* Must-have coverage sits directly under the score because it is the reading that qualifies it: a
+   weighted average can look healthy while a non-negotiable is unevidenced. */
+.evidence-coverage {
+  margin: var(--space-2) 0 0;
+  color: var(--tone-info-fg);
+}
+.evidence-coverage-short {
+  color: var(--tone-warn-fg);
+}
+
+/* The job requirement editor. One row per requirement, wide label and three narrow controls, with
+   the reorder and delete buttons kept out of the input flow so tabbing runs down the list. */
+.requirement-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+.requirement-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+  align-items: end;
+  border-top: 1px solid var(--color-line);
+  padding-top: var(--space-3);
+}
+.requirement-row-main {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.6fr);
+  gap: var(--space-2);
+  align-items: end;
+}
+.requirement-row-actions {
+  display: flex;
+  gap: 2px;
+}
+
+@media (max-width: 900px) {
+  .requirement-row-main {
+    grid-template-columns: 1fr 1fr;
+  }
+}
 .page-scope-actions,.workflow-toolbar,.candidate-context-summary,.next-action-card,.milestone-list article,.today-shortcuts a,.admin-grid a,.progressive-section>div:first-child{display:flex;align-items:center}
 .segmented-control{display:inline-flex;padding:3px;border:1px solid var(--color-line);border-radius:var(--radius-sm);background:var(--color-surface-soft)}
 .segmented-control button{border:0;background:transparent;color:var(--color-muted);padding:7px 12px;border-radius:var(--radius-xs);font:inherit;font-weight:var(--weight-semibold);cursor:pointer}

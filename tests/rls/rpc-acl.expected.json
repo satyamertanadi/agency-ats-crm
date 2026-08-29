@@ -78,6 +78,7 @@
     "remove_candidates_from_list",
     "remove_interview_digest_recipient",
     "replace_candidate_profile_section",
+    "replace_job_requirements",
     "request_interview_analysis",
     "respond_to_interview_coaching",
     "revoke_organization_invitation",

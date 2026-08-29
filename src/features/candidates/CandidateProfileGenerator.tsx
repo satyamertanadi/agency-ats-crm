@@ -60,7 +60,38 @@ export function CandidateProfileGenerator({organizationId,userId,candidate,organ
       {/* The degraded path is the one that runs while the AI balance is empty, so it has to read as
         * a working state with fields to fill, not as a failure. */}
       {generation.degraded&&<p className="warning-box" role="status">The AI provider is unavailable (billing), so the summary, strengths, risks, and role relevance were not written. Everything drawn from the candidate record is unaffected — fill the fields below and the document is complete. Anything left blank prints “To be confirmed”.</p>}
-      <section className="evidence-panel" aria-label="Internal role evidence"><div><strong>Internal evidence score</strong><span className="evidence-score">{generation.degraded?'Not evaluated':`${generation.evaluation.score}/100`}</span></div><p className="muted">{generation.degraded?'No requirements were assessed, so there is no score. This does not reflect on the candidate.':'Deterministic score from matched, partial, missing, and uncertain requirements. Excluded from client documents.'}</p><div className="evidence-list">{generation.evaluation.evidence.map((item,index)=><article key={`${item.requirement}-${index}`}><Badge tone={item.classification==='matched'?'good':item.classification==='missing'?'bad':'warn'}>{item.classification}</Badge><div><strong>{item.requirement}</strong><p>{item.explanation}</p>{item.excerpt&&<small>{item.source_path}: “{item.excerpt}”</small>}</div></article>)}</div></section>
+      <section className="evidence-panel" aria-label="Internal role evidence">
+        <div><strong>Internal evidence score</strong><span className="evidence-score">{generation.degraded?'Not evaluated':`${generation.evaluation.score}/100`}</span></div>
+        {/* Reported beside the score rather than folded into it. A weighted average can hide one
+          * unevidenced non-negotiable behind a row of matched nice-to-haves, and that single fact is
+          * usually the whole decision -- so it gets its own line and its own words. */}
+        {!generation.degraded&&draft.must_have_coverage&&draft.must_have_coverage.total>0&&
+          <p className={draft.must_have_coverage.evidenced<draft.must_have_coverage.total?'evidence-coverage evidence-coverage-short':'evidence-coverage'}>
+            <strong>{draft.must_have_coverage.evidenced} of {draft.must_have_coverage.total} must-haves evidenced.</strong>
+            {draft.must_have_coverage.evidenced<draft.must_have_coverage.total?' Check the unevidenced ones before submitting.':''}
+          </p>}
+        <p className="muted">{generation.degraded
+          ?'No requirements were assessed, so there is no score. This does not reflect on the candidate.'
+          :'Deterministic score from matched, partial, missing, and uncertain requirements, weighted by requirement level. Excluded from client documents.'}</p>
+        {/* An unstructured assessment is not wrong, but it was scored against prose nobody approved
+          * rather than a requirement set, and that changes how much the number is worth. */}
+        {draft.requirements_source==='unstructured'&&!generation.degraded&&
+          <p className="warning-box" role="status">This vacancy has no saved requirements, so the assessment used the job description text and every requirement counted equally. Add requirements on the job to get a weighted, repeatable score.</p>}
+        <div className="evidence-list">{generation.evaluation.evidence.map((item,index)=>
+          <article key={`${item.requirement}-${index}`}>
+            <Badge tone={item.classification==='matched'?'good':item.classification==='missing'?'bad':'warn'}>{item.classification}</Badge>
+            <div>
+              <strong>{item.requirement}</strong>
+              {item.requirement_level==='must_have'&&<Badge tone="info">Must have</Badge>}
+              <p>{item.explanation}</p>
+              {/* CV citations are labelled because they cannot be checked the way record citations
+                * can: a candidate.* excerpt is findable in the data that was sent, a CV excerpt was
+                * read out of the attached document and is only as good as the model reading it. */}
+              {item.excerpt&&<small>{item.source==='candidate_cv'?'From the CV — ':''}{item.source_path}: “{item.excerpt}”</small>}
+            </div>
+          </article>)}</div>
+      </section>
+
       <Field label="Prepared by"><Input value={preparedBy} onChange={(event)=>setPreparedBy(event.target.value)}/></Field>
       {/* Above the AI fields deliberately: in the degraded path those are empty, and these are the
         * only content the consultant can actually supply. */}

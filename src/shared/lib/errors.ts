@@ -105,6 +105,8 @@ const rpcMessages:Record<string,string>={
   invalid_profile_list:'The candidate profile details are not valid.',
   invalid_profile_lists:'The candidate profile details are not valid.',
   invalid_profile_section:'Choose a valid candidate profile section.',
+  invalid_requirement_list:'The job requirements are not valid.',
+  too_many_requirements:'A vacancy can carry at most 40 requirements. Remove some and save again.',
   invalid_task_link:'Choose one valid record for this follow-up.',
   invalid_initial_stage:'That stage does not belong to this job’s pipeline.',
   invalid_activity_type:'Choose a valid activity type.',

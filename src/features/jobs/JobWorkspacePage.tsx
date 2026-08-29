@@ -3,6 +3,8 @@ import {DndContext,KeyboardSensor,PointerSensor,useDraggable,useDroppable,useSen
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {ArrowLeft,ChevronDown,Clock,GripVertical,Plus,Send,SquareCheck} from 'lucide-react'
 import {Link,useParams,useSearchParams} from 'react-router'
+import {useAuth} from '../../app/AuthProvider'
+import {AppError} from '../../shared/lib/errors'
 import {useOrganization} from '../../app/OrganizationProvider'
 import {useWorkspaceCapabilities} from '../../app/useWorkspaceCapabilities'
 import {getJob,getPipeline,listInterviews,listJobHealth,listOffers,listPlacements,listSubmissionPackages} from '../core/repository'
@@ -21,6 +23,7 @@ import {employmentType} from '../../shared/lib/optionSets'
 import {Modal} from '../../shared/ui/Modal'
 import {Page,Panel,StatusBadge} from '../../shared/ui/Page'
 import {jobPriority,jobStatus,lookup} from '../../shared/lib/status'
+import {jobFormErrors,jobFormSchema} from './jobFormSchema'
 import {BoardSkeleton,ErrorState} from '../../shared/ui/States'
 import {useToast} from '../../shared/ui/Toast'
 import {ActivityFeed} from '../activities/ActivityFeed'
@@ -35,6 +38,7 @@ import {nextActionDetail} from './jobHealth'
 import {PhaseJump} from './PhaseJump'
 import {AddCandidateToJobModal} from '../candidates/AddCandidateToJobModal'
 import {InterviewBlueprintPanel} from '../interview-intelligence/InterviewBlueprintPanel'
+import {JobRequirementsPanel} from './JobRequirementsPanel'
 import {TaskButton} from '../activities/TaskButton'
 import {formatMoney,formatSalary} from '../../shared/lib/format'
 import {useShortcut} from '../../shared/lib/useShortcut'
@@ -143,7 +147,7 @@ function CandidateCard({item,columnKey,columnColor,now,members,onOpen,onMove,onO
 
 export function JobWorkspacePage(){
   const toast=useToast()
-  const {jobId=''}=useParams();const {organization,membership}=useOrganization();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [editOpen,setEditOpen]=useState(false);const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerCandidates,setComposerCandidates]=useState<ComposerCandidate[]|null>(null)
+  const {jobId=''}=useParams();const {user}=useAuth();const {organization,membership}=useOrganization();const capabilities=useWorkspaceCapabilities();const cache=useQueryClient();const boardRef=useRef<HTMLDivElement>(null);const [params,setParams]=useSearchParams();const [addOpen,setAddOpen]=useState(false);const [editOpen,setEditOpen]=useState(false);const [outcomesOpen,setOutcomesOpen]=useState(false);const [outcome,setOutcome]=useState<{item:JobCandidate;stage:PipelineStage}|null>(null);const [composerCandidates,setComposerCandidates]=useState<ComposerCandidate[]|null>(null)
   /* Columns used to render every card unconditionally, so a well-worked Sourcing column with forty
    * names pushed every other phase off the fold below it. Capped per column, expanded on request --
    * a set of expanded keys rather than a single board-wide toggle, because "I want to see everyone
@@ -393,6 +397,9 @@ export function JobWorkspacePage(){
     </>}
     {view==='activity'&&<ActivityFeed links={[{job_id:jobId}]} title="Job activity" subtitle="Calls, client updates, submissions, feedback, and stage movement in one history." readOnly={capabilities.data?.readOnly}/>}
     {view==='details'&&<JobDetails job={job} health={jobHealth} members={members.data||[]} phases={buildPipelineColumns(pipeline.data!.stages)} items={pipeline.data!.items} onEdit={capabilities.data?.canWriteJobs?()=>setEditOpen(true):undefined} onAdd={canRecruit?()=>setAddOpen(true):undefined}/>}
+    {/* Directly under the overview, above the blueprint: the requirement set is what a candidate
+      * profile is assessed against, so it is worked from far more often than a blueprint is read. */}
+    {view==='details'&&user&&<JobRequirementsPanel organizationId={organization!.id} jobId={jobId} userId={user.id} canWrite={Boolean(capabilities.data?.canWriteJobs)}/>}
     {/* Sits under Details rather than beside the board: it is read once before an interview, not
       * worked from. The panel renders nothing at all when the workspace has the feature off. */}
     {view==='details'&&<InterviewBlueprintPanel organizationId={organization!.id} jobId={jobId} canConfigure={Boolean(capabilities.data?.canConfigureInterviewIntelligence)}/>}
@@ -447,11 +454,6 @@ function JobDetails({job,health,members,phases,items,onEdit,onAdd}:{job:Job;heal
   </div>
 }
 
-/* Empty means "not set", which for the fee fields is not the same as zero: a null override falls back
- * to the account agreement, a 0 asserts this job is worked for free. `''` therefore has to survive as
- * null rather than being coerced through Number(). */
-const numberOrNull=(value:string)=>value.trim()===''?null:Number(value)
-
 function JobEditModal({job,members,open,onClose,onSaved}:{job:Job;members:Array<{id:string;status:string;profiles?:{full_name?:string;email?:string}|null}>;open:boolean;onClose:()=>void;onSaved:()=>Promise<void>}){
   const {organization}=useOrganization();const toast=useToast()
   const [title,setTitle]=useState(job.title);const [location,setLocation]=useState(job.location||'');const [priority,setPriority]=useState(job.priority);const [status,setStatus]=useState(job.status);const [owner,setOwner]=useState(job.owner_member_id||'');const [description,setDescription]=useState(job.description||'')
@@ -463,20 +465,42 @@ function JobEditModal({job,members,open,onClose,onSaved}:{job:Job;members:Array<
   // The column shipped with the initial schema and never had an input; only the CSV importer wrote it.
   const [employment,setEmployment]=useState(employmentType.key(job.employment_type))
   const period=organization?.salary_period==='monthly'?'month':'year'
+  /* Validated as a whole before anything is written, rather than field by field on change: the two
+   * rules that actually catch mistakes here (min <= max, and percentage-or-fixed) are relationships
+   * between fields, and reporting them mid-typing would flag a half-entered band as wrong. */
+  const [errors,setErrors]=useState<Record<string,string>>({})
   const mutation=useMutation({
-    mutationFn:()=>updateJob(job.organization_id,job.id,{title,location:location||null,priority,status,employment_type:employment||null,owner_member_id:owner||null,description:description||null,
-      salary_min:numberOrNull(salaryMin),salary_max:numberOrNull(salaryMax),currency:currency.trim().toUpperCase()||null,
-      placement_fee_percentage:numberOrNull(feePercentage),fixed_fee:numberOrNull(fixedFee)}),
+    mutationFn:async()=>{
+      const parsed=jobFormSchema.safeParse({
+        title,location:location||null,priority,status,employment_type:employment||null,owner_member_id:owner||null,
+        description:description||null,salary_min:salaryMin,salary_max:salaryMax,currency,
+        placement_fee_percentage:feePercentage,fixed_fee:fixedFee,
+      })
+      if(!parsed.success){setErrors(jobFormErrors(parsed.error));throw new AppError('Check the highlighted fields.','invalid_job_form')}
+      setErrors({})
+      const values=parsed.data
+      return updateJob(job.organization_id,job.id,{
+        title:values.title,location:values.location,priority:values.priority,status:values.status,
+        employment_type:values.employment_type,owner_member_id:values.owner_member_id,description:values.description,
+        salary_min:values.salary_min,salary_max:values.salary_max,currency:values.currency,
+        placement_fee_percentage:values.placement_fee_percentage,fixed_fee:values.fixed_fee,
+      })
+    },
     onSuccess:async()=>{await onSaved();toast.success(`${title} was updated.`)},
     onError:(error)=>toast.error(error,'The job is unchanged.'),
   })
-  return <Modal title="Edit job" open={open} onClose={onClose}><div className="stack"><Field label="Job title"><Input value={title} onChange={(event)=>setTitle(event.target.value)}/></Field><div className="form-grid"><Field label="Owner"><Select value={owner} onChange={(event)=>setOwner(event.target.value)}><option value="">Unassigned</option>{members.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><LocationField value={location} onChange={setLocation}/><Field label="Priority"><Select value={priority} onChange={(event)=>setPriority(event.target.value as Job['priority'])}>{Object.entries(jobPriority).map(([value,item])=><option key={value} value={value}>{item.label}</option>)}</Select></Field><Field label="Employment type"><OptionSelect label="Employment type" placeholder="Not specified" options={employmentType.options(employment)} value={employmentType.key(employment)} onChange={setEmployment}/></Field><Field label="Status"><Select value={status} onChange={(event)=>setStatus(event.target.value as Job['status'])}><option value="draft">Draft</option><option value="open">Open</option><option value="on_hold">On hold</option><option value="filled">Filled</option><option value="closed">Closed</option><option value="cancelled">Cancelled</option></Select></Field></div>
-    <div className="form-grid"><Field label={`Salary minimum (per ${period})`}><Input type="number" min="0" value={salaryMin} onChange={(event)=>setSalaryMin(event.target.value)}/></Field><Field label={`Salary maximum (per ${period})`}><Input type="number" min="0" value={salaryMax} onChange={(event)=>setSalaryMax(event.target.value)}/></Field><Field label="Currency"><Select value={currency} onChange={(event)=>setCurrency(event.target.value)}>{currencyOptions(organization?.base_currency).map((option)=><option key={option.code} value={option.code}>{option.code} — {option.name}</option>)}</Select></Field></div>
-    <details className="advanced-fields"><summary>Fee override and description</summary>
+  return <Modal title="Edit job" open={open} onClose={onClose}><div className="stack"><Field label="Job title" error={errors.title}><Input value={title} onChange={(event)=>setTitle(event.target.value)}/></Field><div className="form-grid"><Field label="Owner"><Select value={owner} onChange={(event)=>setOwner(event.target.value)}><option value="">Unassigned</option>{members.filter((member)=>member.status==='active').map((member)=><option value={member.id} key={member.id}>{member.profiles?.full_name||member.profiles?.email}</option>)}</Select></Field><LocationField value={location} onChange={setLocation}/><Field label="Priority"><Select value={priority} onChange={(event)=>setPriority(event.target.value as Job['priority'])}>{Object.entries(jobPriority).map(([value,item])=><option key={value} value={value}>{item.label}</option>)}</Select></Field><Field label="Employment type"><OptionSelect label="Employment type" placeholder="Not specified" options={employmentType.options(employment)} value={employmentType.key(employment)} onChange={setEmployment}/></Field><Field label="Status"><Select value={status} onChange={(event)=>setStatus(event.target.value as Job['status'])}><option value="draft">Draft</option><option value="open">Open</option><option value="on_hold">On hold</option><option value="filled">Filled</option><option value="closed">Closed</option><option value="cancelled">Cancelled</option></Select></Field></div>
+    <div className="form-grid"><Field label={`Salary minimum (per ${period})`} error={errors.salary_min}><Input type="number" min="0" value={salaryMin} onChange={(event)=>setSalaryMin(event.target.value)}/></Field><Field label={`Salary maximum (per ${period})`} error={errors.salary_max}><Input type="number" min="0" value={salaryMax} onChange={(event)=>setSalaryMax(event.target.value)}/></Field><Field label="Currency" error={errors.currency}><Select value={currency} onChange={(event)=>setCurrency(event.target.value)}>{currencyOptions(organization?.base_currency).map((option)=><option key={option.code} value={option.code}>{option.code} — {option.name}</option>)}</Select></Field></div>
+    {/* Description used to sit collapsed inside "Fee override and description", which is how the
+      * one field the AI assessment actually reads ended up behind a disclosure triangle labelled
+      * after the fee. It is the brief; it belongs on the form. */}
+    <Field label="Description" hint="The brief. Read when drafting this vacancy's requirements.">
+      <Textarea value={description} onChange={(event)=>setDescription(event.target.value)}/>
+    </Field>
+    <details className="advanced-fields"><summary>Fee override</summary>
       {/* Named an override because that is what it is: leave both empty and the fee follows the
         * client's approved commercial terms, which is the right answer for most jobs. */}
       <p className="muted">Leave both fee fields empty to use the client's approved commercial terms. A fixed fee wins over a percentage.</p>
-      <div className="form-grid"><Field label="Fee percentage of salary"><Input type="number" min="0" max="100" step="0.5" value={feePercentage} onChange={(event)=>setFeePercentage(event.target.value)}/></Field><Field label="Fixed fee"><Input type="number" min="0" value={fixedFee} onChange={(event)=>setFixedFee(event.target.value)}/></Field></div>
-      <Field label="Description"><Textarea value={description} onChange={(event)=>setDescription(event.target.value)}/></Field>
+      <div className="form-grid"><Field label="Fee percentage of salary" error={errors.placement_fee_percentage}><Input type="number" min="0" max="100" step="0.5" value={feePercentage} onChange={(event)=>setFeePercentage(event.target.value)}/></Field><Field label="Fixed fee" error={errors.fixed_fee}><Input type="number" min="0" value={fixedFee} onChange={(event)=>setFixedFee(event.target.value)}/></Field></div>
     </details>{mutation.error&&<p className="form-error" role="alert">{mutation.error.message}</p>}<div className="form-actions"><Button variant="quiet" onClick={onClose}>Cancel</Button><Button loading={mutation.isPending} disabled={title.trim().length<2} onClick={()=>mutation.mutate()}>Save job</Button></div></div></Modal>
 }

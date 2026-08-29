@@ -104,6 +104,12 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# Same shape as generate-candidate-profile: the handler calls requireUser() itself, and the browser's
+# CORS preflight carries no Authorization header, so the gateway must not reject OPTIONS on its own.
+[functions.draft-job-requirements]
+enabled = true
+verify_jwt = false
+
 [functions.location-autocomplete]
 enabled = true
 verify_jwt = false
