@@ -117,6 +117,26 @@ export function groupCandidateFindings(findings:AnalysisFinding[]){
   }
 }
 
+/* Why a run was stopped, and what the reader should do about it.
+ *
+ * Each reason has a different next step, so each gets its own sentence rather than one generic
+ * "cancelled". The consent case deliberately does NOT suggest retrying: the answer is not to run it
+ * again, and a message that implies otherwise is worse than none.
+ */
+function cancellationDetail(errorCode:string|null):string{
+  const reasons:Record<string,string>={
+    consent_not_granted:'The candidate withdrew consent, so this was stopped and the transcript was deleted. Nothing was sent for analysis.',
+    feature_disabled:'Interview Intelligence was switched off for this workspace before this run started.',
+    transcript_unavailable:'The transcript was deleted before this run started, so there was nothing to analyse.',
+    transcript_required:'The transcript was deleted before this run started, so there was nothing to analyse.',
+    consultant_subject_inactive:'A consultant on this interview is no longer an active member, so no assessment was produced for them.',
+    configuration_mismatch:'This run was queued for a different analysis version and was not carried over.',
+    rubric_unresolved:'The interview blueprint this run referenced is no longer available.',
+    subject_unresolved:'The candidate or job this run referenced is no longer available.',
+  }
+  return reasons[errorCode??'']??'This run was stopped before it reached the model. Nothing was sent.'
+}
+
 /* A run's headline state, in the words the consultant needs. */
 export function analysisStatusLine(input:{status:string|null;isStale:boolean;errorCode:string|null}):{label:string;tone:Tone;detail:string}{
   if(input.status==='queued')return {label:'Queued',tone:'neutral',detail:'The analysis is waiting to start.'}
@@ -126,6 +146,9 @@ export function analysisStatusLine(input:{status:string|null;isStale:boolean;err
       detail:input.errorCode==='prohibited_inference'
         ? 'The result was rejected because it referenced something this system must not assess. Nothing was stored.'
         : 'Nothing was stored. You can try again.'}
+  }
+  if(input.status==='cancelled'){
+    return {label:'Analysis stopped',tone:'warn',detail:cancellationDetail(input.errorCode)}
   }
   if(input.status==='completed'&&input.isStale){
     return {label:'May be outdated',tone:'warn',
