@@ -1,8 +1,13 @@
 name: CI
 
 on:
+  # Previously this also ran on every push to every branch, in addition to
+  # pull_request. Since pull_request already covers all commits pushed to an
+  # open PR, that meant every commit was tested twice, back to back —
+  # doubling Actions minutes for identical work. push is now scoped to main
+  # only, to still cover commits merged/pushed directly without a PR.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
 
 permissions:
