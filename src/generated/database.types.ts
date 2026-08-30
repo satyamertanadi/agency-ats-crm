@@ -889,6 +889,7 @@ export type Database = {
           id: string
           input_hash: string
           input_versions: Json
+          interview_notes: string | null
           job_id: string
           organization_id: string
           pdf_document_id: string | null
@@ -917,6 +918,7 @@ export type Database = {
           id?: string
           input_hash: string
           input_versions?: Json
+          interview_notes?: string | null
           job_id: string
           organization_id: string
           pdf_document_id?: string | null
@@ -945,6 +947,7 @@ export type Database = {
           id?: string
           input_hash?: string
           input_versions?: Json
+          interview_notes?: string | null
           job_id?: string
           organization_id?: string
           pdf_document_id?: string | null

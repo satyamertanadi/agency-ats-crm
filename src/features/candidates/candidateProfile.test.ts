@@ -144,6 +144,21 @@ describe('parsing stored profile drafts',()=>{
     ]}).success).toBe(false)
   })
 
+  /* Notes are recruiter-authored, so this schema checks only the SHAPE. Whether the excerpt is
+   * genuinely present in the notes is verified server-side at generation time, where the notes text
+   * is in hand -- this schema also parses stored drafts, whose notes live in a separate column. */
+  it('accepts interview-note evidence and holds it to a notes. path with an excerpt',()=>{
+    expect(candidateProfileDraftSchema.safeParse({...base,requirement_evidence:[
+      evidence({source:'interview_notes',source_path:'notes.relocation',excerpt:'Willing to relocate from October.'}),
+    ]}).success).toBe(true)
+    expect(candidateProfileDraftSchema.safeParse({...base,requirement_evidence:[
+      evidence({source:'interview_notes',source_path:'candidate.location',excerpt:'Jakarta'}),
+    ]}).success).toBe(false)
+    expect(candidateProfileDraftSchema.safeParse({...base,requirement_evidence:[
+      evidence({source:'interview_notes',source_path:'notes.relocation',excerpt:''}),
+    ]}).success).toBe(false)
+  })
+
   it('keeps refusing evidence that cites nothing while claiming a source',()=>{
     expect(candidateProfileDraftSchema.safeParse({...base,requirement_evidence:[
       evidence({source:'none',source_path:'candidate.location',excerpt:'Jakarta'}),
