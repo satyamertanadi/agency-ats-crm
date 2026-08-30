@@ -49,7 +49,7 @@ export function defaultCandidateProfileTemplate(language:ProfileLanguage='en'){
 export const candidateRequirementEvidenceSchema=z.object({
   requirement:z.string().trim().min(1),
   classification:z.enum(['matched','partial','missing','uncertain']),
-  source:z.enum(['candidate_record','candidate_cv','none']),
+  source:z.enum(['candidate_record','candidate_cv','interview_notes','none']),
   source_path:z.string().trim(),
   excerpt:z.string().trim().max(300),
   explanation:z.string().trim().min(1),
@@ -59,6 +59,10 @@ export const candidateRequirementEvidenceSchema=z.object({
   if(evidence.source==='none'&&(evidence.source_path||evidence.excerpt))context.addIssue({code:'custom',message:'Missing evidence cannot cite a source.'})
   if(evidence.source==='candidate_record'&&(!evidence.source_path.startsWith('candidate.')||!evidence.excerpt))context.addIssue({code:'custom',message:'Candidate evidence requires an exact candidate field and excerpt.'})
   if(evidence.source==='candidate_cv'&&(!evidence.source_path.startsWith('cv.')||!evidence.excerpt))context.addIssue({code:'custom',message:'CV evidence requires a CV location and excerpt.'})
+  /* Shape only. Whether the excerpt is genuinely present in the notes is checked server-side at
+     generation time, where the notes text is in hand; this schema also parses STORED drafts, whose
+     notes live in a separate column and are not necessarily loaded alongside them. */
+  if(evidence.source==='interview_notes'&&(!evidence.source_path.startsWith('notes.')||!evidence.excerpt))context.addIssue({code:'custom',message:'Interview note evidence requires a notes location and excerpt.'})
 })
 
 export type CandidateRequirementEvidence=z.infer<typeof candidateRequirementEvidenceSchema>

@@ -5,7 +5,7 @@ import {candidateProfileJsonSchema,validateCandidateProfileDraft,type CandidateP
 import {providerBillingExhausted} from '../_shared/provider-outage.ts'
 import {buildCandidateProfileUserMessage,CANDIDATE_PROFILE_PROMPT_VERSION,CANDIDATE_PROFILE_SYSTEM_PROMPT,type ProfileSourcePayload} from '../_shared/candidate-profile-prompt.ts'
 
-interface Input {organizationId?:string;candidateId?:string;jobId?:string;templateId?:string;anonymize?:boolean;force?:boolean}
+interface Input {organizationId?:string;candidateId?:string;jobId?:string;templateId?:string;anonymize?:boolean;force?:boolean;interviewNotes?:string|null}
 type Context=Awaited<ReturnType<typeof requireUser>>
 interface Employment {company_name:string;title:string;location:string|null;started_on:string|null;ended_on:string|null;started_on_precision:string|null;ended_on_precision:string|null;is_current:boolean;summary:string|null;sort_order:number}
 /* A requirement row as this function uses it: the scoring fields the shared contract needs, plus the
@@ -28,6 +28,9 @@ const bucket='candidate-documents'
 const PROMPT_VERSION=CANDIDATE_PROFILE_PROMPT_VERSION
 /* Matches the cap replace_job_requirements enforces on a structured set, so the unstructured path
  * cannot produce a longer prompt than the approved one. */
+/* Matches the CHECK on candidate_profile_versions.interview_notes and the form's own counter. Bounded
+ * because this text goes into a prompt on the expensive evaluation model on every regeneration. */
+const MAX_INTERVIEW_NOTES=4000
 const MAX_FALLBACK_REQUIREMENTS=40
 const HOURLY_USER_LIMIT=20
 const HOURLY_ORG_LIMIT=100
@@ -46,11 +49,14 @@ Deno.serve(async(request)=>{
     // required fields into a fresh const with their now-proven-defined types, matching the
     // ScopedInput pattern already used the same way in parse-candidate-cv/index.ts.
     const scopedInput={...input,organizationId:input.organizationId,candidateId:input.candidateId,jobId:input.jobId,templateId:input.templateId}
+    // Normalised once here so the hash, the validator, the prompt and the stored row all see exactly
+    // the same string. Empty-after-trim collapses to null: "notes supplied" must mean actual content.
+    const interviewNotes=String(scopedInput.interviewNotes||'').trim().slice(0,MAX_INTERVIEW_NOTES)||null
     context=await requireProfilePermission(request,scopedInput.organizationId,Boolean(scopedInput.force))
     await enforceProfileRateLimits(context,scopedInput.organizationId)
     const prepared=await prepareInput(context,scopedInput)
     const provider=Deno.env.get('AI_PROVIDER')?.trim()||'anthropic';const model=Deno.env.get('AI_MODEL')?.trim()||''
-    const inputVersions={candidate_updated_at:prepared.candidate.updated_at,job_updated_at:prepared.job.updated_at,template_version:prepared.template.version,prompt_version:PROMPT_VERSION}
+    const inputVersions={candidate_updated_at:prepared.candidate.updated_at,job_updated_at:prepared.job.updated_at,template_version:prepared.template.version,prompt_version:PROMPT_VERSION,interview_notes_length:interviewNotes?.length??0}
     /* prompt_version is part of the hash. Without it a prompt revision changed nothing in practice:
      * the dedup lookup below matches on input_hash alone, so every candidate/job pair that already had
      * a draft kept being served output written to the OLD contract, indefinitely, with no way to tell
@@ -60,7 +66,7 @@ Deno.serve(async(request)=>{
      * braces on purpose: the trigger is what makes the stale badge work, and this is what makes the
      * cache correct even if some future write path reaches the table without firing it. Serving a
      * cached draft scored against a replaced requirement set is silent and unrecoverable. */
-    const inputHash=await sha256(stableStringify({candidate:prepared.candidate,job:prepared.job,requirements:prepared.requirements,template:{id:prepared.template.id,version:prepared.template.version,configuration:prepared.configuration},anonymize:Boolean(scopedInput.anonymize),prompt_version:PROMPT_VERSION}))
+    const inputHash=await sha256(stableStringify({candidate:prepared.candidate,job:prepared.job,requirements:prepared.requirements,template:{id:prepared.template.id,version:prepared.template.version,configuration:prepared.configuration},anonymize:Boolean(scopedInput.anonymize),interview_notes:interviewNotes,prompt_version:PROMPT_VERSION}))
     // Dedup: an unchanged input hash means an identical prior generation already exists. input_versions
     // folds in candidate/job/template updated_at, so any real edit busts the match. Serving the stored
     // draft skips a paid model call with no change to output; input.force lets an explicit regenerate bypass.
@@ -83,14 +89,14 @@ Deno.serve(async(request)=>{
     // evaluation -- leaving a consultant unable to produce or audit any document while the balance
     // is empty. Every other provider error still throws.
     let generated:Awaited<ReturnType<typeof callProvider>>|null=null;let degraded:{reason:string;message:string}|null=null
-    try{generated=await callProvider(context,prepared,model,requestID)}
+    try{generated=await callProvider(context,prepared,interviewNotes,model,requestID)}
     catch(error){const message=error instanceof Error?error.message:'';if(!providerBillingExhausted(message))throw error;degraded={reason:'provider_billing_exhausted',message}}
     let draft:CandidateProfileDraft
     if(degraded)draft=degradedDraft(prepared)
     else{
       const text=generated?.text
       if(!text)throw new FunctionError(502,'empty_result','The profile generator returned no result.')
-      try{draft=validateCandidateProfileDraft(JSON.parse(text),prepared.requirements)}catch(error){throw new FunctionError(502,'invalid_provider_output',error instanceof Error?error.message:'The provider returned invalid output.')}
+      try{draft=validateCandidateProfileDraft(JSON.parse(text),prepared.requirements,interviewNotes)}catch(error){throw new FunctionError(502,'invalid_provider_output',error instanceof Error?error.message:'The provider returned invalid output.')}
     }
     const duration=Date.now()-started
     const classified={
@@ -105,7 +111,7 @@ Deno.serve(async(request)=>{
     if(updated.error)throw new FunctionError(500,'evaluation_persistence_failed','Could not save the profile evidence.')
     // A degraded draft must never enter the dedup cache: the lookup above matches on input_hash, so
     // an unprefixed one would keep serving blank judgment fields back after the balance is restored.
-    const profile=await context.admin.from('candidate_profile_versions').insert({organization_id:scopedInput.organizationId,candidate_id:scopedInput.candidateId,job_id:scopedInput.jobId,template_id:scopedInput.templateId,template_version:prepared.template.version,ai_evaluation_id:evaluationId,status:'draft',generated_content:draft,template_snapshot:prepared.configuration,input_hash:degraded?`degraded:${inputHash}`:inputHash,input_versions:inputVersions,anonymized:scopedInput.anonymize??prepared.configuration.anonymize_by_default,generation_ms:duration,created_by:context.user.id}).select('id,version').single()
+    const profile=await context.admin.from('candidate_profile_versions').insert({organization_id:scopedInput.organizationId,candidate_id:scopedInput.candidateId,job_id:scopedInput.jobId,template_id:scopedInput.templateId,template_version:prepared.template.version,ai_evaluation_id:evaluationId,status:'draft',generated_content:draft,template_snapshot:prepared.configuration,input_hash:degraded?`degraded:${inputHash}`:inputHash,input_versions:inputVersions,anonymized:scopedInput.anonymize??prepared.configuration.anonymize_by_default,interview_notes:interviewNotes,generation_ms:duration,created_by:context.user.id}).select('id,version').single()
     if(profile.error||!profile.data)throw new FunctionError(500,'profile_persistence_failed','The evaluation completed, but its profile draft could not be saved.')
     log(degraded?'warn':'info',degraded?'candidate_profile_degraded':'candidate_profile_generated',{requestId:requestID,organizationId:scopedInput.organizationId,candidateId:scopedInput.candidateId,jobId:scopedInput.jobId,profileVersionId:profile.data.id,version:profile.data.version,durationMs:duration,inputTokens:generated?.inputTokens||0,outputTokens:generated?.outputTokens||0,degraded:degraded?.reason})
     return json(request,{profileVersionId:profile.data.id,draft,evaluation:{id:evaluationId,score:draft.score,evidence:draft.requirement_evidence},requestId:requestID,degraded})
@@ -235,7 +241,7 @@ function stableStringify(value:unknown):string{
   return JSON.stringify(value)??'null'
 }
 
-async function callProvider(context:Context,prepared:Awaited<ReturnType<typeof prepareInput>>,model:string,requestID:string){
+async function callProvider(context:Context,prepared:Awaited<ReturnType<typeof prepareInput>>,interviewNotes:string|null,model:string,requestID:string){
   const {candidate,job,configuration,requirements,cvExtract,cvDocument}=prepared
   const employment=([...(candidate.candidate_employment||[])] as Employment[]).sort((a,b)=>a.sort_order-b.sort_order)
   const structured=requirements.length>0
@@ -263,6 +269,7 @@ async function callProvider(context:Context,prepared:Awaited<ReturnType<typeof p
      * contract distinguishes what came from the record (verifiable against this payload) from what
      * came from the CV, and merging the two would erase exactly that distinction. */
     cv:cvExtract??null,
+    interview_notes:interviewNotes,
     role:{
       title:job.title,client:(job.companies as {name?:string}|null)?.name||'',location:job.location,
       employment_type:job.employment_type,salary_min:job.salary_min,salary_max:job.salary_max,currency:job.currency,
@@ -298,6 +305,6 @@ async function callProvider(context:Context,prepared:Awaited<ReturnType<typeof p
   const body=await response.json().catch(()=>null) as {content?:{type:string;text?:string}[];usage?:{input_tokens?:number;output_tokens?:number};error?:{message?:string}}
   if(!response.ok)throw new FunctionError(response.status===429?429:502,response.status===429?'provider_rate_limited':'provider_error',body?.error?.message||'The profile generator is unavailable. Try again shortly.')
   const text=body?.content?.find((item)=>item.type==='text')?.text;if(!text)throw new FunctionError(502,'empty_result','The profile generator returned no result.')
-  log('info','candidate_profile_provider_completed',{requestId:requestID,inputTokens:body.usage?.input_tokens||0,outputTokens:body.usage?.output_tokens||0,cvAttached:Boolean(cvDocument),requirementCount:requirementPayload.length})
+  log('info','candidate_profile_provider_completed',{requestId:requestID,inputTokens:body.usage?.input_tokens||0,outputTokens:body.usage?.output_tokens||0,cvAttached:Boolean(cvDocument),requirementCount:requirementPayload.length,notesLength:interviewNotes?.length??0})
   return {text,inputTokens:body.usage?.input_tokens||0,outputTokens:body.usage?.output_tokens||0}
 }

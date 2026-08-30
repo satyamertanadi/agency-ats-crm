@@ -209,3 +209,64 @@ Deno.test('still refuses evidence that claims a source it does not cite',()=>{
   assert.throws(()=>validateCandidateProfileDraft(profile([entry({source:'candidate_record',source_path:'role.description',excerpt:'Own the mandate.'})]),requirements),
     /must cite an exact candidate field/)
 })
+
+/* ---- Interview notes as a verified evidence source ------------------------------------------- */
+
+/* Notes are the only source whose excerpt this code can actually check. The record is structured
+ * data the model was handed; the CV is a PDF it read and nobody can re-read here; the notes arrive
+ * as a string. That verification is what makes it defensible for a note to carry a requirement all
+ * the way to 'matched' -- notes are written by the person whose placement fee depends on the answer. */
+const NOTES='Confirmed willing to relocate to Lombok from October.\nRan a 12-person delivery team at Summarecon, not just planning.'
+
+const notesEntry=(overrides:Record<string,unknown>={})=>entry({
+  source:'interview_notes',source_path:'notes.relocation',
+  excerpt:'Confirmed willing to relocate to Lombok from October.',
+  explanation:'Stated directly in the interview.',...overrides,
+})
+
+Deno.test('accepts a note citation whose excerpt is really in the notes',()=>{
+  const draft=validateCandidateProfileDraft(profile([notesEntry()]),requirements,NOTES)
+  assert.equal(draft.requirement_evidence[0].source,'interview_notes')
+})
+
+Deno.test('rejects a note citation quoting words that are not in the notes',()=>{
+  assert.throws(()=>validateCandidateProfileDraft(profile([
+    notesEntry({excerpt:'Holds an active CPA licence and has led a listed-company audit.'}),
+  ]),requirements,NOTES),/does not appear in the supplied notes/)
+})
+
+Deno.test('rejects a note citation when no notes were supplied at all',()=>{
+  assert.throws(()=>validateCandidateProfileDraft(profile([notesEntry()]),requirements,null),
+    /no interview notes were supplied/)
+})
+
+/* Re-wrapping a quotation or normalising a double space is not fabrication, and failing a whole paid
+ * generation over it would be pedantry. Quoting something absent is a different thing entirely. */
+Deno.test('tolerates whitespace and casing differences in a note excerpt',()=>{
+  const draft=validateCandidateProfileDraft(profile([
+    notesEntry({excerpt:'confirmed   willing to relocate\n  to Lombok from October.'}),
+  ]),requirements,NOTES)
+  assert.equal(draft.requirement_evidence[0].source,'interview_notes')
+})
+
+Deno.test('holds note evidence to a notes. path and a non-empty excerpt',()=>{
+  assert.throws(()=>validateCandidateProfileDraft(profile([notesEntry({source_path:'candidate.location'})]),requirements,NOTES),
+    /must cite a notes location/)
+  assert.throws(()=>validateCandidateProfileDraft(profile([notesEntry({excerpt:''})]),requirements,NOTES),
+    /must cite a notes location/)
+})
+
+/* A note is worth a full match, deliberately -- that was the decision this feature was built to
+ * implement. The guard is that the quote is real, not that the source is second class. */
+Deno.test('a verified note can carry a requirement to matched and scores like any other source',()=>{
+  const draft=validateCandidateProfileDraft(profile([notesEntry({classification:'matched'})]),requirements,NOTES)
+  assert.equal(draft.requirement_evidence[0].classification,'matched')
+  assert.equal(draft.score,calculateEvidenceScore(draft.requirement_evidence,requirements))
+})
+
+Deno.test('supplying notes changes nothing for drafts that do not cite them',()=>{
+  const withNotes=validateCandidateProfileDraft(profile([entry()]),requirements,NOTES)
+  const without=validateCandidateProfileDraft(profile([entry()]),requirements)
+  assert.equal(withNotes.score,without.score)
+  assert.deepEqual(withNotes.must_have_coverage,without.must_have_coverage)
+})

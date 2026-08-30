@@ -11,6 +11,8 @@ import type {CandidateDetail} from '../../shared/types/domain'
 import {countEditedFields,type CandidateProfileDraft,type CandidateProfileGeneration} from './candidateProfile'
 import {buildCandidateProfileViewModel,loadProfileLogo,profileFilename,type ProfileCandidate,type ProfileEmployment} from './candidateProfileViewModel'
 import {detailFields,prefillProfileDetails,roleKey,type ProfileDetails,type RoleWebsites} from './candidateProfileDetails'
+import {listActivities} from '../core/repository'
+import {MAX_INTERVIEW_NOTES,interviewNotesFromActivities} from './interviewNotes'
 
 const DOCX_MIME='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 function byRecent(a:ProfileEmployment,b:ProfileEmployment){if(a.is_current!==b.is_current)return a.is_current?-1:1;return (b.started_on||'').localeCompare(a.started_on||'')}
@@ -28,10 +30,23 @@ export function CandidateProfileGenerator({organizationId,userId,candidate,organ
   // a consultant fills the template by hand.
   const [details,setDetails]=useState<ProfileDetails>(()=>prefillProfileDetails(candidate))
   const [websites,setWebsites]=useState<RoleWebsites>({})
+  /* Optional, and the only input here the record cannot supply: what the consultant learned by
+   * talking to the person. Seeded from interview activities already logged against this candidate so
+   * a debrief written last week is not retyped, then edited freely -- what is sent is only ever what
+   * the consultant approved in this box. */
+  const [interviewNotes,setInterviewNotes]=useState('')
+  const [notesTouched,setNotesTouched]=useState(false)
+  const activities=useQuery({queryKey:['candidate-interview-activities',organizationId,candidate.id],queryFn:()=>listActivities(organizationId,{candidate_id:candidate.id},25)})
+  // Seeds once, and never over typing: a background refetch landing mid-sentence must not discard it.
+  useEffect(()=>{
+    if(notesTouched||interviewNotes||!activities.data)return
+    const seeded=interviewNotesFromActivities(activities.data)
+    if(seeded)setInterviewNotes(seeded)
+  },[activities.data,notesTouched,interviewNotes])
   useEffect(()=>{if(!jobId&&jobs.data?.[0])setJobId(jobs.data[0].id)},[jobId,jobs.data])
   useEffect(()=>{if(!templateId&&templates.data?.length){const selected=templates.data.find((item)=>item.is_default)||templates.data[0];if(selected){setTemplateId(selected.id);setAnonymized(selected.configuration.anonymize_by_default)}}},[templateId,templates.data])
   const selectedJob=jobs.data?.find((job)=>job.id===jobId);const selectedTemplate=templates.data?.find((template)=>template.id===templateId)
-  const generate=useMutation({mutationFn:()=>generateCandidateProfile({organizationId,candidateId:candidate.id,jobId,templateId,anonymize:anonymized}),onSuccess:(value)=>{toast.success('Draft profile generated.','Review every section before sending it to a client.');setGeneration(value);setDraft(value.draft)},onError:(error)=>toast.error(error,'No profile was generated and no AI budget was spent on a saved draft.')})
+  const generate=useMutation({mutationFn:()=>generateCandidateProfile({organizationId,candidateId:candidate.id,jobId,templateId,anonymize:anonymized,interviewNotes:interviewNotes.trim()||null}),onSuccess:(value)=>{toast.success('Draft profile generated.','Review every section before sending it to a client.');setGeneration(value);setDraft(value.draft)},onError:(error)=>toast.error(error,'No profile was generated and no AI budget was spent on a saved draft.')})
   const finalize=useMutation({mutationFn:async()=>{
     if(!generation||!draft||!selectedJob||!selectedTemplate)throw new Error('Generate and review a profile draft first.')
     const {buildCandidateProfileDocx,downloadBlob}=await import('./candidateProfileDocx')
@@ -58,7 +73,17 @@ export function CandidateProfileGenerator({organizationId,userId,candidate,organ
       * excerpt naming the candidate in the internal evidence panel below. That evidence never leaves
       * the workspace -- no submission or public-review surface reads it, and the DOCX never renders
       * it -- which is why the honest fix here is precise wording rather than a narrower payload. */}
-    <p className="muted">The score and requirement evidence stay internal. Anonymising redacts the document you send the client &mdash; the assessment itself still reads the full candidate record and CV. No profile is sent, ranked, or finalized until you review every client-facing field below.</p>
+    <p className="muted">The score and requirement evidence stay internal. Anonymising redacts the document you send the client &mdash; the assessment itself still reads the full candidate record, CV and your interview notes. No profile is sent, ranked, or finalized until you review every client-facing field below.</p>
+    {/* Deliberately says what happens to the text on BOTH surfaces. A consultant writing shorthand
+      * needs to know it is quoted verbatim in the internal evidence panel and only ever rewritten
+      * into the client document -- otherwise they either self-censor useful observations or are
+      * surprised to find their phrasing in something a client read. */}
+    <Field label="Interview notes (optional)"
+      hint={`What you learned talking to this candidate. Used as evidence and quoted verbatim only in the internal panel below; rewritten in professional language for the client document. ${interviewNotes.length}/${MAX_INTERVIEW_NOTES}`}>
+      <Textarea rows={4} value={interviewNotes} maxLength={MAX_INTERVIEW_NOTES}
+        placeholder="e.g. Confirmed willing to relocate to Lombok from October. Ran a 12-person delivery team at Summarecon, not just planning."
+        onChange={(event)=>{setNotesTouched(true);setInterviewNotes(event.target.value)}}/>
+    </Field>
     <div><Button leadingIcon={<Sparkles size={15}/>} loading={generate.isPending} disabled={!jobId||!templateId} onClick={()=>generate.mutate()}>{generation?'Regenerate as a new version':'Generate evidence-backed draft'}</Button></div>
     {generate.error&&<p className="form-error" role="alert">{generate.error.message}</p>}
     {generation&&draft&&<>
@@ -89,10 +114,12 @@ export function CandidateProfileGenerator({organizationId,userId,candidate,organ
               <strong>{item.requirement}</strong>
               {item.requirement_level==='must_have'&&<Badge tone="info">Must have</Badge>}
               <p>{item.explanation}</p>
-              {/* CV citations are labelled because they cannot be checked the way record citations
-                * can: a candidate.* excerpt is findable in the data that was sent, a CV excerpt was
-                * read out of the attached document and is only as good as the model reading it. */}
-              {item.excerpt&&<small>{item.source==='candidate_cv'?'From the CV — ':''}{item.source_path}: “{item.excerpt}”</small>}
+              {/* Every citation says which source it came from, because they are checkable to
+                * different degrees. A candidate.* excerpt is findable in the data that was sent. An
+                * interview-notes excerpt is verified against the notes server-side before the draft
+                * is accepted. A CV excerpt was read out of the attached PDF and is only as good as
+                * the model reading it -- so a consultant should treat those three differently. */}
+              {item.excerpt&&<small>{item.source==='candidate_cv'?'From the CV — ':item.source==='interview_notes'?'From your notes — ':''}{item.source_path}: “{item.excerpt}”</small>}
             </div>
           </article>)}</div>
       </section>

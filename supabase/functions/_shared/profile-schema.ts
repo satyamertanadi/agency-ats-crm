@@ -4,7 +4,13 @@ export type EvidenceClassification='matched'|'partial'|'missing'|'uncertain'
  * are checkable to different degrees: a candidate_record excerpt can be found again in the payload
  * that was sent, a CV excerpt read out of a PDF cannot. The UI badges them differently so a
  * consultant knows which citations they can verify. */
-export type EvidenceSource='candidate_record'|'candidate_cv'|'none'
+/* 'interview_notes' is recruiter-authored first-hand evidence and, unusually, the ONLY source whose
+ * excerpt this code can actually check. A candidate_record excerpt is findable in the payload that
+ * was sent; a candidate_cv excerpt was read out of a PDF and cannot be confirmed; notes arrive as a
+ * string, so a quoted excerpt is verified against it below before the evidence is accepted. That
+ * verification is what makes it safe for notes to carry a requirement to 'matched' on their own --
+ * they are written by the person whose placement fee depends on the outcome. */
+export type EvidenceSource='candidate_record'|'candidate_cv'|'interview_notes'|'none'
 export interface CandidateRequirementEvidence {
   requirement:string
   classification:EvidenceClassification
@@ -38,7 +44,7 @@ export const candidateProfileJsonSchema={
     strengths_opportunities:{type:'string'},risks_challenges:{type:'string'},points_to_validate:{type:'array',items:{type:'string'}},
     experience_relevance:{type:'array',items:{type:'object',additionalProperties:false,required:['company_name','title','relevance'],properties:{company_name:{type:'string'},title:{type:'string'},relevance:{type:'array',items:{type:'string'}}}}},
     requirement_evidence:{type:'array',items:{type:'object',additionalProperties:false,required:['requirement','classification','source','source_path','excerpt','explanation'],properties:{
-      requirement:{type:'string'},classification:{type:'string',enum:['matched','partial','missing','uncertain']},source:{type:'string',enum:['candidate_record','candidate_cv','none']},source_path:{type:'string'},excerpt:{type:'string'},explanation:{type:'string'},
+      requirement:{type:'string'},classification:{type:'string',enum:['matched','partial','missing','uncertain']},source:{type:'string',enum:['candidate_record','candidate_cv','interview_notes','none']},source_path:{type:'string'},excerpt:{type:'string'},explanation:{type:'string'},
       // Echoed back so each judgment can be tied to the row the recruiter actually authored. Not
       // required by the provider schema: the unstructured fallback has no ids to echo.
       requirement_id:{type:'string'},
@@ -103,10 +109,16 @@ export function calculateMustHaveCoverage(evidence:ScorableEvidence[],requiremen
 }
 // --- scoring:end ---
 
-export function validateCandidateProfileDraft(value:unknown,requirements?:readonly ScoredRequirement[]):CandidateProfileDraft{
+/* Casefolded and whitespace-collapsed on both sides. A model that re-wraps a quotation or normalises
+ * a double space has not fabricated anything, and rejecting a whole paid generation over that would
+ * be pedantry; a quotation that is simply not in the notes is a different thing entirely. */
+function normalizeForExcerptMatch(value:string){return value.toLowerCase().replace(/\s+/g,' ').trim()}
+
+export function validateCandidateProfileDraft(value:unknown,requirements?:readonly ScoredRequirement[],interviewNotes?:string|null):CandidateProfileDraft{
+  const notesHaystack=interviewNotes?normalizeForExcerptMatch(interviewNotes):''
   if(!value||typeof value!=='object')throw new Error('Profile result must be an object.')
   const raw=value as Record<string,unknown>;const strings=(input:unknown)=>Array.isArray(input)?input.filter((item):item is string=>typeof item==='string'&&item.trim().length>0).map((item)=>item.trim()):[]
-  const classifications=new Set(['matched','partial','missing','uncertain']);const sources=new Set(['candidate_record','candidate_cv','none'])
+  const classifications=new Set(['matched','partial','missing','uncertain']);const sources=new Set(['candidate_record','candidate_cv','interview_notes','none'])
   const known=new Map((requirements||[]).map((requirement)=>[requirement.id,requirement]))
   const evidence=Array.isArray(raw.requirement_evidence)?raw.requirement_evidence.map((entry)=>{
     const item=entry as Record<string,unknown>;const classification=String(item.classification||'');const source=String(item.source||'')
@@ -115,6 +127,13 @@ export function validateCandidateProfileDraft(value:unknown,requirements?:readon
     if(source==='none'&&(excerpt||sourcePath))throw new Error('Missing evidence cannot cite a source.')
     if(source==='candidate_record'&&(!sourcePath.startsWith('candidate.')||!excerpt))throw new Error('Candidate evidence must cite an exact candidate field and excerpt.')
     if(source==='candidate_cv'&&(!sourcePath.startsWith('cv.')||!excerpt))throw new Error('CV evidence must cite a CV location and excerpt.')
+    if(source==='interview_notes'){
+      if(!sourcePath.startsWith('notes.')||!excerpt)throw new Error('Interview note evidence must cite a notes location and excerpt.')
+      // Citing notes that were never supplied, or quoting words that are not in them, is fabrication
+      // backing a requirement the recruiter is about to send to a client. Rejected, not downgraded.
+      if(!notesHaystack)throw new Error('Interview note evidence was cited, but no interview notes were supplied.')
+      if(!notesHaystack.includes(normalizeForExcerptMatch(excerpt)))throw new Error('Interview note evidence quoted text that does not appear in the supplied notes.')
+    }
     const requirementId=String(item.requirement_id||'').trim()
     const level=known.get(requirementId)?.requirement_level
     /* A requirement_id that was never sent is fabrication, not sloppiness -- it would attach a real
