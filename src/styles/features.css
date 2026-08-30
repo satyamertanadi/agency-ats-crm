@@ -1493,10 +1493,19 @@ tbody tr:focus-within .row-menu-trigger,
 .workflow-candidate-card{border-left-width:2px;border-radius:var(--radius-sm);background:var(--color-surface);box-shadow:var(--shadow-xs);margin-bottom:6px}
 .workflow-candidate-card .candidate-card-open{padding:10px}
 .workflow-urgency-note{display:flex;align-items:center;gap:6px;font-size:var(--text-2xs);color:var(--color-faint);margin:0 0 var(--space-2)}
-/* The board scrolls horizontally inside .kanban but the PAGE scrolls vertically, so a column header
-   sticks to the viewport rather than to the board -- which is what keeps the phase named while
-   reading down a long column. Offset by the topbar, the only fixed chrome above it. */
-.workflow-column>header{position:sticky;top:var(--topbar-height);z-index:2;background:var(--color-surface-soft);margin:0 calc(-1 * var(--space-1));padding:2px var(--space-1) 8px}
+/* top:0, NOT the topbar height. The rule here used to read `top:var(--topbar-height)` on the stated
+   premise that "the PAGE scrolls vertically, so the header sticks to the viewport". That premise is
+   false: a sticky element is positioned against its nearest scrolling ancestor, and `.kanban` sets
+   `overflow:auto` (see the .kanban rule above), so the board -- not the viewport -- is this header's
+   scroll container. The topbar offset therefore never pinned anything under the topbar; it clamped
+   the header 58px DOWN inside its own column, where it landed underneath the stats line and the
+   phase name rendered below "Avg 0d in phase" instead of above it. Measured on production
+   2026-08-30: rail bottom 48, stats top 85, header top 95.
+
+   Offsetting a sticky header only makes sense against fixed chrome that overlaps its scroll
+   container. Nothing overlaps the board, so the correct offset is zero: the header rests at its
+   natural position, and pins to the top of the board if the board is ever tall enough to scroll. */
+.workflow-column>header{position:sticky;top:0;z-index:2;background:var(--color-surface-soft);margin:0 calc(-1 * var(--space-1));padding:2px var(--space-1) 8px}
 /* A restrained work lane rather than a card. The board previously nested three tinted surfaces --
    Panel, then a canvas-deep board, then a canvas-deep column -- so the candidate cards, the only
    things anyone is actually looking at, were the fourth level down and the least distinct. The lane
