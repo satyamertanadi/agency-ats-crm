@@ -1,8 +1,8 @@
 import {api} from './api'
 import {badgeFor} from './radar'
-import {el,isListPage,onUrlChange,txtOf} from './dom'
+import {el,isDark,isListPage,onUrlChange,txtOf} from './dom'
 import {canonicalProfileUrl} from './scrape'
-import type {CapturePayload,JobSummary,OrgSummary,ProspectMatch} from './messages'
+import type {CapturePayload,JobSummary,OrgSummary,ProspectMatch,SourcingSession} from './messages'
 
 // List surfaces: people-search results, a company's People tab, and post-engagement / "reactions"
 // overlays. All three render each person as a list item containing an /in/ anchor, so one generic
@@ -27,11 +27,13 @@ async function loadJobs(){
   jobSelect.replaceChildren(el('option',{value:'',textContent:'— no specific job —'}))
   const {jobs}=await api.listJobs(organizationId)
   for(const j of (jobs||[]) as JobSummary[])jobSelect.append(el('option',{value:j.id,textContent:j.title}))
+  // Pre-aimed at the session's target, shown in the control you would use to change it.
+  if(sourcing.jobId&&(jobs||[]).some((j:JobSummary)=>j.id===sourcing.jobId))jobSelect.value=sourcing.jobId
 }
 
 function ensureBar(){
   if(bar)return
-  bar=el('div',{id:'ats-bulk-bar',className:'ats-bulk-bar'})
+  bar=el('div',{id:'ats-bulk-bar',className:`ats-bulk-bar${isDark()?' ats-dark':''}`})
   countLabel=el('span',{className:'ats-bulk-count',textContent:'0 selected'})
   const orgSelect=el('select',{className:'ats-input ats-bulk-select'},organizations.map((o)=>el('option',{value:o.id,textContent:o.name})))
   orgSelect.value=organizationId
@@ -121,7 +123,7 @@ function processRows(candidates:HTMLElement[]):Slot[]{
     check.checked=selected.has(url)
     check.onchange=()=>{if(check.checked)selected.set(url,{url,name,headline});else selected.delete(url);updateCount()}
     const slot=el('span',{className:'ats-row-slot'})
-    anchor.parentElement?.insertBefore(el('span',{className:'ats-row-controls'},[check,slot]),anchor)
+    anchor.parentElement?.insertBefore(el('span',{className:`ats-row-controls${isDark()?' ats-dark':''}`},[check,slot]),anchor)
     fresh.push({url,slot})
   }
   return fresh
@@ -173,17 +175,41 @@ function stop(){
   removeBar()
 }
 
-async function init(){
+// Mirror of the background's sourcing session. Until one is active this script does nothing at all:
+// no observer, no injected controls, and above all no lookups. Previously it started on every list
+// surface -- and isListPage() includes /feed and /mynetwork -- so casually scrolling your own feed
+// injected a checkbox into every person row and fired batched queries at the ATS.
+let sourcing:SourcingSession={active:false,organizationId:'',startedAt:0,captured:0}
+
+// Chrome only injects content scripts on full page loads, so this script matches all of linkedin.com
+// and decides for itself whether the current route is a list surface.
+const sync=()=>{if(sourcing.active&&isListPage())start();else stop()}
+
+// Deferred until a session actually starts. This used to run on every LinkedIn page load.
+async function ensureWorkspaces():Promise<boolean>{
+  if(organizations.length)return true
+  let state:Awaited<ReturnType<typeof api.getState>>
   // An orphaned content script (extension reloaded since this tab loaded) cannot reach the background;
   // stay silent rather than throwing into LinkedIn's console. Refreshing the page restores it.
-  let state:Awaited<ReturnType<typeof api.getState>>
-  try{state=await api.getState()}catch{return}
-  if(!state.connected||state.organizations.length===0)return
+  try{state=await api.getState()}catch{return false}
+  if(!state.connected||state.organizations.length===0)return false
   organizations=state.organizations;organizationId=organizations[0].id
-  // Chrome only injects content scripts on full page loads, so this script now matches all of
-  // linkedin.com and decides for itself whether the current route is a list surface.
-  const sync=()=>{if(isListPage())start();else stop()}
-  onUrlChange(sync)
+  return true
+}
+
+async function applySourcing(session:SourcingSession){
+  sourcing=session
+  if(!session.active){stop();return}
+  // Signed out or no workspace: stay dormant rather than injecting controls that cannot save.
+  if(!await ensureWorkspaces()){sourcing={...session,active:false};return}
+  if(session.organizationId&&session.organizationId!==organizationId){organizationId=session.organizationId;known.clear()}
   sync()
 }
-void init()
+
+chrome.runtime.onMessage.addListener((message)=>{
+  if(message?.type==='sourcing-changed')void applySourcing(message.session)
+  return undefined
+})
+
+onUrlChange(sync)
+void (async()=>{try{await applySourcing(await api.getSourcing())}catch{/* orphaned content script */}})()

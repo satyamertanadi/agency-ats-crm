@@ -78,6 +78,36 @@ export function observeBody(cb:()=>void,debounceMs=200):void{
   observer.observe(document.documentElement,{childList:true,subtree:true})
 }
 
+// The profile's action row -- the strip holding Message / Connect / More. Anchored the way scrape.ts
+// anchors everything: via `main h1` and the buttons' own visible labels, never via class names.
+// LinkedIn's classes are obfuscated and rotate; the words on its buttons do not.
+const ACTION_LABEL=/^(message|connect|follow|more|pending|invite|hubungi|sambungkan)/i
+export function findProfileActionRow():HTMLElement|null{
+  const card=document.querySelector('main h1')?.closest('section')
+  if(card){
+    for(const node of Array.from(card.querySelectorAll<HTMLElement>('button,a'))){
+      const label=(txtOf(node)||node.getAttribute('aria-label')||'').trim()
+      if(!ACTION_LABEL.test(label))continue
+      const row=node.parentElement
+      // Guard against matching a button mounted directly on the section: that would make the whole
+      // top card the "row" and inject our button into the middle of the profile header.
+      if(row&&row!==card&&row.childElementCount<=8)return row
+    }
+  }
+  return document.querySelector<HTMLElement>('.pvs-profile-actions,.pv-top-card-v2-ctas')
+}
+
+// LinkedIn's dark mode is its own site setting and does not reliably track the OS, so read its DOM
+// flag first and only fall back to the media query. Both content scripts theme their injected UI from
+// this; the popup can't (it doesn't run inside LinkedIn) and uses the media query alone.
+export function isDark():boolean{
+  const root=document.documentElement
+  const flag=root.getAttribute('data-theme')||root.getAttribute('data-color-mode')||root.className||''
+  if(/dark/i.test(flag))return true
+  if(/light/i.test(flag))return false
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches??false
+}
+
 export const isProfilePage=(href:string=location.href)=>/^\/in\/[^/]+/.test(new URL(href,location.origin).pathname)
 export const isListPage=(href:string=location.href)=>{
   const path=new URL(href,location.origin).pathname

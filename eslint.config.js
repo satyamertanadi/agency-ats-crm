@@ -41,7 +41,7 @@ export default tseslint.config(
     rules: {'@typescript-eslint/no-explicit-any':'off'},
   },
   {
-    files: ['extension/*.{js,mjs,ts}'],
+    files: ['extension/*.{js,mjs,ts}', 'extension/scripts/**/*.{js,mjs,cjs}'],
     languageOptions: { globals: globals.node },
   },
 )

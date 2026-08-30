@@ -27,6 +27,14 @@ export interface HandoffSession{access_token:string;expires_at:number}
 // One radar entry per queried LinkedIn URL.
 export interface ProspectMatch{linkedin_url:string;candidate:{id:string;full_name:string;status:string;stages:{job:string;stage:string}[]}|null;contact:{id:string;full_name:string}|null}
 
+// A sourcing session is the extension's on-switch, owned by the background worker. Nothing is injected
+// into LinkedIn and no lookup is ever fired unless one is active -- content scripts hold no session
+// state of their own, they only react to the broadcast below. That is what makes "off" mean off.
+export interface SourcingSession{active:boolean;organizationId:string;jobId?:string;jobTitle?:string;startedAt:number;captured:number}
+
+// Background -> content script, via chrome.tabs.sendMessage. Both LinkedIn content scripts listen.
+export interface SourcingChanged{type:'sourcing-changed';session:SourcingSession}
+
 export type BgRequest =
   | {type:'get-state'}
   | {type:'connect'}
@@ -40,6 +48,9 @@ export type BgRequest =
   | {type:'ai-parse';organizationId:string;text:string}
   | {type:'capture';organizationId:string;kind:ProspectKind;payload:CapturePayload;jobId?:string}
   | {type:'bulk-capture';organizationId:string;kind:ProspectKind;items:CapturePayload[];jobId?:string}
+  | {type:'get-sourcing'}
+  | {type:'start-sourcing';organizationId:string;jobId?:string;jobTitle?:string}
+  | {type:'end-sourcing'}
 
 export interface StateResponse{connected:boolean;email?:string;organizations:OrgSummary[];error?:string}
 export interface CaptureOutcome{id:string;kind:ProspectKind;deduped:boolean;job_linked:boolean}

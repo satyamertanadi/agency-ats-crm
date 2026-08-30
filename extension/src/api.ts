@@ -1,6 +1,6 @@
 import type {
   AiParseResult,BulkCaptureResult,CapturePayload,CaptureResult,CompanySummary,JobSummary,
-  LookupResult,MemberSummary,ProspectKind,StateResponse,
+  LookupResult,MemberSummary,ProspectKind,SourcingSession,StateResponse,
 } from './messages'
 
 // Thin typed wrappers over chrome.runtime.sendMessage so content scripts never hand-roll message
@@ -18,4 +18,7 @@ export const api={
   aiParse:(organizationId:string,text:string)=>send<AiParseResult>({type:'ai-parse',organizationId,text}),
   capture:(organizationId:string,kind:ProspectKind,payload:CapturePayload,jobId?:string)=>send<CaptureResult>({type:'capture',organizationId,kind,payload,jobId}),
   bulkCapture:(organizationId:string,kind:ProspectKind,items:CapturePayload[],jobId?:string)=>send<BulkCaptureResult>({type:'bulk-capture',organizationId,kind,items,jobId}),
+  getSourcing:()=>send<SourcingSession>({type:'get-sourcing'}),
+  startSourcing:(organizationId:string,jobId?:string,jobTitle?:string)=>send<SourcingSession>({type:'start-sourcing',organizationId,jobId,jobTitle}),
+  endSourcing:()=>send<SourcingSession>({type:'end-sourcing'}),
 }

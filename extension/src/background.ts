@@ -1,6 +1,6 @@
 import {supabase} from './supabase'
 import {APP_ORIGIN,DEBUG} from './config'
-import type {BgRequest,OrgSummary,StateResponse} from './messages'
+import type {BgRequest,OrgSummary,SourcingSession,StateResponse} from './messages'
 
 // Session presence, tab URLs and org lists are all PII-adjacent, so tracing is opt-in at build time
 // (EXT_DEBUG=1) rather than always-on in a user's console.
@@ -49,6 +49,87 @@ async function getState():Promise<StateResponse>{
   trace('getState: organizations found:',organizations.length)
   return {connected:true,email:session.user.email,organizations}
 }
+
+// ---------------------------------------------------------------------------------------------
+// Sourcing session: the extension's on-switch.
+//
+// The worker owns this state and content scripts only ever react to a broadcast of it, so a script
+// that never hears "active" injects nothing and queries nothing. It lives in chrome.storage.session --
+// memory-backed and cleared when the browser exits, matching how the borrowed auth token is already
+// scoped, so you can never come back tomorrow to a session you forgot was running.
+// ---------------------------------------------------------------------------------------------
+const SESSION_KEY='sourcing'
+const LAST_TARGET_KEY='lastSourcingTarget'
+const IDLE:SourcingSession={active:false,organizationId:'',startedAt:0,captured:0}
+
+interface LastTarget{organizationId?:string;jobId?:string;jobTitle?:string}
+
+async function readSourcing():Promise<SourcingSession>{
+  const stored=(await chrome.storage.session.get(SESSION_KEY))[SESSION_KEY] as SourcingSession|undefined
+  return stored?.active?stored:IDLE
+}
+
+const iconSet=(suffix:string)=>({16:`icons/icon-16${suffix}.png`,32:`icons/icon-32${suffix}.png`,48:`icons/icon-48${suffix}.png`,128:`icons/icon-128${suffix}.png`})
+
+// The toolbar button is the only always-visible trace of the extension, so it carries the session
+// state: teal + a running count while sourcing, grey and bare when idle.
+async function paintAction(session:SourcingSession){
+  try{
+    await chrome.action.setIcon({path:iconSet(session.active?'':'-idle')})
+    await chrome.action.setBadgeBackgroundColor({color:'#287A72'})
+    await chrome.action.setBadgeText({text:session.active?(session.captured?String(session.captured):'ON'):''})
+  }catch{/* setIcon can fail if the icons are missing; session state is still correct */}
+}
+
+async function broadcast(session:SourcingSession){
+  const tabs=await chrome.tabs.query({url:'https://*.linkedin.com/*'})
+  await Promise.all(tabs.map(async(tab)=>{
+    if(tab.id===undefined)return
+    // Throws for tabs whose content script predates the last extension reload. Nothing can be done for
+    // those until they're refreshed, so one stale tab must not fail the broadcast to the live ones.
+    try{await chrome.tabs.sendMessage(tab.id,{type:'sourcing-changed',session})}catch{/* stale tab */}
+  }))
+}
+
+async function writeSourcing(session:SourcingSession):Promise<SourcingSession>{
+  await chrome.storage.session.set({[SESSION_KEY]:session})
+  await paintAction(session)
+  await broadcast(session)
+  return session
+}
+
+async function startSourcing(target:{organizationId:string;jobId?:string;jobTitle?:string}):Promise<SourcingSession>{
+  const current=await readSourcing()
+  await chrome.storage.local.set({[LAST_TARGET_KEY]:target})
+  // Re-aiming mid-session keeps the clock and the count -- switching which job you're filling is not
+  // the same as starting over.
+  return writeSourcing({
+    active:true,organizationId:target.organizationId,jobId:target.jobId,jobTitle:target.jobTitle,
+    startedAt:current.active?current.startedAt:Date.now(),captured:current.active?current.captured:0,
+  })
+}
+
+// The keyboard shortcut has no UI to pick a job in, so it reuses the last target. Falls back to the
+// first workspace; if there isn't one the user isn't connected and the popup is where that gets said.
+async function toggleSourcing():Promise<SourcingSession>{
+  if((await readSourcing()).active)return writeSourcing(IDLE)
+  const last=(await chrome.storage.local.get(LAST_TARGET_KEY))[LAST_TARGET_KEY] as LastTarget|undefined
+  const organizationId=last?.organizationId||(await currentOrgs())[0]?.id
+  if(!organizationId)return IDLE
+  return startSourcing({organizationId,jobId:last?.jobId,jobTitle:last?.jobTitle})
+}
+
+// Feeds the toolbar count. Only meaningful while a session is running.
+async function bumpCaptured(n:number){
+  if(n<=0)return
+  const session=await readSourcing()
+  if(!session.active)return
+  await writeSourcing({...session,captured:session.captured+n})
+}
+
+chrome.commands.onCommand.addListener((command)=>{if(command==='toggle-panel')void toggleSourcing()})
+// The worker is torn down when idle; repaint from stored state whenever it wakes.
+void readSourcing().then(paintAction)
 
 // Track the tab we opened for a session handoff so we can close it once the session arrives -- but only
 // that tab. A session message from the user simply browsing the ATS (handoff.ts runs on every app page)
@@ -108,12 +189,20 @@ async function handle(message:BgRequest):Promise<unknown>{
     }
     case 'capture':{
       const {data,error}=await supabase.rpc('capture_prospect',{p_organization_id:message.organizationId,p_kind:message.kind,p_payload:message.payload,p_job_id:message.jobId||undefined})
-      return error?{error:error.message}:{result:data}
+      if(error)return {error:error.message}
+      await bumpCaptured(1)
+      return {result:data}
     }
     case 'bulk-capture':{
       const {data,error}=await supabase.rpc('capture_prospects_bulk',{p_organization_id:message.organizationId,p_kind:message.kind,p_items:message.items,p_job_id:message.jobId||undefined})
-      return error?{error:error.message}:{results:data||[]}
+      if(error)return {error:error.message}
+      const results=(data||[]) as {ok:boolean}[]
+      await bumpCaptured(results.filter((r)=>r.ok).length)
+      return {results}
     }
+    case 'get-sourcing':return readSourcing()
+    case 'start-sourcing':return startSourcing({organizationId:message.organizationId,jobId:message.jobId,jobTitle:message.jobTitle})
+    case 'end-sourcing':return writeSourcing(IDLE)
   }
 }
 

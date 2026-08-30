@@ -1,18 +1,32 @@
 import {api} from './api'
 import {badgeFor} from './radar'
-import {el,isProfilePage,observeBody,onUrlChange} from './dom'
+import {el,findProfileActionRow,isDark,isProfilePage,observeBody,onUrlChange} from './dom'
 import {canonicalProfileUrl,hasContactInfoLink,profileText,readContactInfo,scrapeProfile} from './scrape'
-import type {CapturePayload,CompanySummary,JobSummary,MemberSummary,ProspectKind,ProspectMatch,StateResponse} from './messages'
+import type {CapturePayload,CompanySummary,JobSummary,MemberSummary,ProspectKind,ProspectMatch,SourcingSession,StateResponse} from './messages'
 
 // Profile-page cockpit: scrape (rich) → radar status → auto enrichment → capture the full candidate
 // record with metadata. See scrape.ts for the DOM-fragility caveats.
 function field(label:string,input:HTMLElement):HTMLLabelElement{return el('label',{className:'ats-field'},[el('span',{textContent:label}),input])}
 
 const PANEL_ID='ats-sourcing-panel'
-const LAUNCHER_ID='ats-launcher'
+const BUTTON_ID='ats-capture-btn'
 let panelOpen=false
 let currentProfile=canonicalProfileUrl()
-function removePanel(){document.getElementById(PANEL_ID)?.remove();panelOpen=false}
+
+// Mirror of the background's sourcing session. Nothing in this file mounts, scrapes or looks anything
+// up unless `sourcing.active` -- see applySourcing at the bottom.
+let sourcing:SourcingSession={active:false,organizationId:'',startedAt:0,captured:0}
+
+// Profiles where the drawer was explicitly closed. Auto-open must not fight the user: without this the
+// close button reopens itself on the next navigation and reads as broken.
+const autoSuppressed=new Set<string>()
+
+function removePanel(){document.getElementById(PANEL_ID)?.remove();panelOpen=false;syncButtonVisibility()}
+// Closing by hand is a decision about THIS profile, not about the session.
+function dismissPanel(){autoSuppressed.add(canonicalProfileUrl());removePanel()}
+
+// The floating fallback button would sit underneath the drawer; the in-row one is unaffected.
+function syncButtonVisibility(){document.getElementById(BUTTON_ID)?.classList.toggle('ats-hidden',panelOpen)}
 
 const STATUSES=['active','passive','placed','do_not_contact','archived']
 
@@ -42,12 +56,19 @@ function primeRadar(url:string){
 }
 
 async function openPanel(){
-  if(panelOpen){removePanel();return}
+  if(panelOpen){dismissPanel();return}
   removePanel();panelOpen=true
+  syncButtonVisibility()
   const profileUrl=canonicalProfileUrl()
 
-  const root=el('div',{id:PANEL_ID,className:'ats-panel'})
-  const header=el('div',{className:'ats-header'},[el('strong',{textContent:'Agency ATS'}),el('button',{className:'ats-x',textContent:'×',title:'Close',onclick:removePanel})])
+  const root=el('div',{id:PANEL_ID,className:`ats-panel${isDark()?' ats-dark':''}`})
+  const header=el('div',{className:'ats-header'},[
+    el('div',{className:'ats-title'},[
+      el('strong',{textContent:'Agency ATS'}),
+      el('span',{className:'ats-subtitle',textContent:sourcing.jobTitle?`Sourcing · ${sourcing.jobTitle}`:'Sourcing · talent pool'}),
+    ]),
+    el('button',{className:'ats-x',textContent:'×',title:'Close',onclick:dismissPanel}),
+  ])
   const body=el('div',{className:'ats-body'})
   root.append(header,body)
   document.body.append(root)
@@ -114,7 +135,14 @@ async function openPanel(){
     event.preventDefault();saveBtn.click()
   })
 
-  async function loadJobs(){jobSelect.replaceChildren(el('option',{value:'',textContent:'— none —'}));const {jobs}=await api.listJobs(orgSelect.value);for(const j of (jobs||[]) as JobSummary[])jobSelect.append(el('option',{value:j.id,textContent:j.title}))}
+  async function loadJobs(){
+    jobSelect.replaceChildren(el('option',{value:'',textContent:'— none —'}))
+    const {jobs}=await api.listJobs(orgSelect.value)
+    for(const j of (jobs||[]) as JobSummary[])jobSelect.append(el('option',{value:j.id,textContent:j.title}))
+    // Pre-aim at the session's job -- visibly, in the same control you would use to change it. The
+    // background never injects p_job_id behind your back; mis-filing a candidate is too expensive.
+    if(sourcing.jobId&&(jobs||[]).some((j:JobSummary)=>j.id===sourcing.jobId))jobSelect.value=sourcing.jobId
+  }
   async function loadCompanies(){companySelect.replaceChildren(el('option',{value:'',textContent:'— select company —'}));const {companies}=await api.listCompanies(orgSelect.value);for(const c of (companies||[]) as CompanySummary[])companySelect.append(el('option',{value:c.id,textContent:c.name}))}
   async function loadMembers(){ownerSelect.replaceChildren(el('option',{value:'',textContent:'— unassigned —'}));const {members}=await api.listMembers(orgSelect.value);for(const m of (members||[]) as MemberSummary[])ownerSelect.append(el('option',{value:m.id,textContent:m.name}))}
   async function loadTags(){const {tags}=await api.listTags(orgSelect.value);tagList.replaceChildren(...(tags||[]).map((t)=>el('option',{value:t})))}
@@ -231,7 +259,7 @@ async function openPanel(){
       status.textContent=res.result?.deduped?'Already in your ATS — record updated.':(res.result?.job_linked?'Added and placed in the job.':'Added to your ATS.')
       radarPrefetch=null
       void refreshRadar(true)
-      void paintLauncherBadge()
+      void paintCaptureState()
     }catch(err){status.className='ats-error';status.textContent=err instanceof Error?err.message:'Could not save.'}
     finally{saveBtn.disabled=false}
   }
@@ -281,6 +309,7 @@ async function openPanel(){
   if(state.organizations.length===0){body.replaceChildren(el('p',{className:'ats-error',textContent:'Your account has no active workspace.'}));return}
 
   orgSelect.replaceChildren(...state.organizations.map((o)=>el('option',{value:o.id,textContent:o.name})))
+  if(sourcing.organizationId&&state.organizations.some((o)=>o.id===sourcing.organizationId))orgSelect.value=sourcing.organizationId
   orgSelect.onchange=()=>{void refreshRadar(true);void loadJobs();void loadMembers();void loadTags();if(kind==='contact')void loadCompanies()}
   void refreshRadar();void loadJobs();void loadMembers();void loadTags()
 
@@ -289,25 +318,63 @@ async function openPanel(){
   if(panelOpen)try{await autoAiFill(orgSelect.value)}catch{/* the form is filled and saveable regardless */}
 }
 
-async function paintLauncherBadge(){
+// Turns the button into an answer to "do we already know them?" before anything is opened. The old
+// 13px corner dot said the same thing far less legibly.
+async function paintCaptureState(){
   const url=canonicalProfileUrl()
   const {match,error}=await primeRadar(url)
-  const launcher=document.getElementById(LAUNCHER_ID)
-  if(!launcher||canonicalProfileUrl()!==url||error)return
+  const button=document.getElementById(BUTTON_ID)
+  if(!button||canonicalProfileUrl()!==url||error)return
   const known=Boolean(match?.candidate||match?.contact)
-  launcher.classList.toggle('ats-launcher-in',known)
-  launcher.title=known?'Already in your Agency ATS':'Capture to Agency ATS'
+  button.classList.toggle('ats-inline-in',known)
+  button.textContent=known?'✓ In ATS':'Save to ATS'
+  button.title=known?'Already in your Agency ATS — open to update':'Capture to Agency ATS'
 }
 
-function ensureLauncher(){
-  const existing=document.getElementById(LAUNCHER_ID)
-  // Both LinkedIn content scripts now match the whole site so they survive client-side navigation;
-  // each one gates itself on the route instead of relying on the manifest to do it.
-  if(!isProfilePage()){existing?.remove();removePanel();return}
-  if(existing)return
-  document.body.append(el('button',{id:LAUNCHER_ID,className:'ats-launcher',textContent:'ATS',title:'Capture to Agency ATS',onclick:()=>void openPanel()}))
-  void paintLauncherBadge()
+// Sits inside LinkedIn's own action row (Message / Connect / More) when one can be found, so it reads
+// as part of the profile rather than as an overlay. The floating pill is the fallback for layouts
+// where the row cannot be located -- Recruiter, older templates, DOM churn.
+function ensureCaptureButton(){
+  const existing=document.getElementById(BUTTON_ID)
+  if(!sourcing.active||!isProfilePage()){existing?.remove();removePanel();return}
+  if(existing?.isConnected)return
+  existing?.remove()
+  const button=el('button',{id:BUTTON_ID,className:'ats-inline-btn',textContent:'Save to ATS',title:'Capture to Agency ATS',onclick:()=>void openPanel()})
+  button.classList.toggle('ats-dark',isDark())
+  const row=findProfileActionRow()
+  if(row)row.append(button)
+  else{button.classList.add('ats-inline-float');document.body.append(button)}
+  syncButtonVisibility()
+  void paintCaptureState()
 }
+
+// Opening by itself is only defensible because you told the extension you are sourcing. Fired on real
+// navigation only -- never from the body observer, which would reopen a dismissed drawer constantly.
+function maybeAutoOpen(){
+  if(!sourcing.active||panelOpen||!isProfilePage())return
+  if(autoSuppressed.has(canonicalProfileUrl()))return
+  void openPanel()
+}
+
+function applySourcing(session:SourcingSession){
+  const wasActive=sourcing.active
+  sourcing=session
+  if(!session.active){
+    document.getElementById(BUTTON_ID)?.remove()
+    removePanel()
+    autoSuppressed.clear()
+    radarPrefetch=null
+    return
+  }
+  ensureCaptureButton()
+  // Only auto-open when the session has just begun, not on every capture-count broadcast.
+  if(!wasActive)maybeAutoOpen()
+}
+
+chrome.runtime.onMessage.addListener((message)=>{
+  if(message?.type==='sourcing-changed')applySourcing(message.session)
+  return undefined
+})
 
 onUrlChange(()=>{
   const profile=canonicalProfileUrl()
@@ -318,7 +385,11 @@ onUrlChange(()=>{
     removePanel()
     radarPrefetch=null
   }
-  ensureLauncher()
+  ensureCaptureButton()
+  maybeAutoOpen()
 })
-observeBody(ensureLauncher)
-ensureLauncher()
+observeBody(ensureCaptureButton)
+
+// Nothing above runs until this resolves and reports an active session. An orphaned content script
+// (extension reloaded since this tab loaded) simply stays silent until the page is refreshed.
+void (async()=>{try{applySourcing(await api.getSourcing())}catch{/* orphaned content script */}})()

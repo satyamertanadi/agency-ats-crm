@@ -1,65 +1,147 @@
-/* Injected into linkedin.com. Everything is prefixed .ats-* and heavily reset so LinkedIn's global
-   styles can't bleed in. Fixed positioning + a high z-index keep the panel above LinkedIn's chrome. */
-#ats-launcher{
-  position:fixed;right:20px;bottom:20px;z-index:2147483646;
-  width:52px;height:52px;border-radius:50%;border:0;cursor:pointer;
-  background:#287A72;color:#fff;font:600 13px/1 system-ui,sans-serif;letter-spacing:.02em;
-  box-shadow:0 6px 20px rgba(0,0,0,.25);
+/* Injected into linkedin.com, and reused by the toolbar popup. Everything is prefixed .ats-* and
+   heavily reset so LinkedIn's global styles can't bleed in.
+
+   Colours go through custom properties declared on each of our roots (never on :root -- that would
+   leak variables into LinkedIn's own page). `.ats-dark` swaps the palette; the content scripts set it
+   from LinkedIn's own theme flag, since LinkedIn's dark mode is a site setting that doesn't reliably
+   follow the OS. */
+.ats-panel,
+.ats-bulk-bar,
+.ats-inline-btn,
+.ats-row-controls,
+.ats-popup,
+body:has(> .ats-popup){
+  --ats-surface:#fff;
+  --ats-text:#1a1a1a;
+  --ats-border:#e2e2e2;
+  --ats-border-soft:#eee;
+  --ats-muted:#666;
+  --ats-fill:#f2f2f2;
+  --ats-input-border:#d5d5d5;
+  --ats-accent:#287A72;
+  --ats-accent-strong:#1f5f59;
+  --ats-tint:#e7efee;
+  --ats-in-bg:#e7f4ef;
+  --ats-in-fg:#1f6b56;
+  --ats-err-bg:#fdf1f0;
+  --ats-err-fg:#b42318;
 }
-#ats-launcher:hover{background:#1f5f59}
-/* Filled dot when this profile is already in the ATS -- answers "do we know them?" without opening
-   the panel, using the lookup that is prefetched as soon as the launcher mounts. */
-#ats-launcher.ats-launcher-in::after{
-  content:'';position:absolute;top:2px;right:2px;width:13px;height:13px;border-radius:50%;
-  background:#3ecf8e;border:2px solid #fff;
+.ats-panel.ats-dark,
+.ats-bulk-bar.ats-dark,
+.ats-inline-btn.ats-dark,
+.ats-row-controls.ats-dark,
+.ats-popup.ats-dark,
+body:has(> .ats-popup.ats-dark){
+  --ats-surface:#1b1f23;
+  --ats-text:#e8e8e8;
+  --ats-border:#38434f;
+  --ats-border-soft:#2c343b;
+  --ats-muted:#9aa7b4;
+  --ats-fill:#252b31;
+  --ats-input-border:#3d4852;
+  --ats-accent:#4db6ab;
+  --ats-accent-strong:#6ac8bd;
+  --ats-tint:rgba(77,182,171,.14);
+  --ats-in-bg:rgba(77,182,171,.16);
+  --ats-in-fg:#7fd8cc;
+  --ats-err-bg:rgba(180,35,24,.18);
+  --ats-err-fg:#f0a09a;
 }
+
+/* --- Capture button -------------------------------------------------------------------------- */
+/* Lives inside LinkedIn's own profile action row (Message / Connect / More), so it reads as part of
+   the profile rather than as an overlay parked on top of the Messaging bar. Deliberately our own
+   classes rather than LinkedIn's artdeco-*, which change without notice. */
+.ats-inline-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  height:32px;padding:0 16px;margin:0 0 0 8px;box-sizing:border-box;
+  border:1px solid var(--ats-accent);border-radius:16px;
+  background:transparent;color:var(--ats-accent);
+  font:600 14px/1 system-ui,-apple-system,sans-serif;white-space:nowrap;cursor:pointer;
+  vertical-align:middle;
+}
+.ats-inline-btn:hover{background:var(--ats-tint)}
+/* Already in the ATS. The old signal was a 13px dot in the corner of a circle. */
+.ats-inline-btn.ats-inline-in{background:var(--ats-accent);border-color:var(--ats-accent);color:#fff}
+.ats-inline-btn.ats-inline-in:hover{background:var(--ats-accent-strong)}
+/* Fallback for layouts where the action row can't be found. Sits clear of LinkedIn's Messaging bar. */
+.ats-inline-btn.ats-inline-float{
+  position:fixed;right:20px;bottom:96px;z-index:2147483646;margin:0;
+  background:var(--ats-accent);color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.25);
+}
+/* Only the floating fallback hides behind the drawer -- the in-row button is never underneath it. */
+.ats-inline-btn.ats-inline-float.ats-hidden{display:none}
+
+/* --- Capture drawer -------------------------------------------------------------------------- */
 .ats-panel{
-  position:fixed;right:20px;bottom:84px;z-index:2147483647;width:340px;max-height:78vh;overflow:auto;
-  background:#fff;color:#1a1a1a;border:1px solid #e2e2e2;border-radius:12px;
-  box-shadow:0 12px 40px rgba(0,0,0,.28);font:14px/1.45 system-ui,-apple-system,sans-serif;
+  position:fixed;top:0;right:0;bottom:0;z-index:2147483647;
+  width:min(380px,92vw);display:flex;flex-direction:column;
+  background:var(--ats-surface);color:var(--ats-text);
+  border-left:1px solid var(--ats-border);box-shadow:-12px 0 40px rgba(0,0,0,.28);
+  font:14px/1.45 system-ui,-apple-system,sans-serif;
+  animation:ats-slide-in .16s ease-out;
 }
-.ats-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #eee}
-.ats-header strong{font-size:14px;color:#287A72}
-.ats-x{border:0;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:#888}
-.ats-body{padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+@keyframes ats-slide-in{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+.ats-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex:0 0 auto;padding:14px;border-bottom:1px solid var(--ats-border-soft)}
+.ats-title{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ats-header strong{font-size:14px;color:var(--ats-accent)}
+.ats-subtitle{font-size:11px;color:var(--ats-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ats-x{border:0;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:var(--ats-muted)}
+/* The form is long (name through notes, tags, owner, status, job) -- it scrolls, the header doesn't. */
+.ats-body{flex:1 1 auto;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+
 .ats-field{display:flex;flex-direction:column;gap:3px}
-.ats-field>span{font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.04em}
-.ats-input{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #d5d5d5;border-radius:7px;font:14px system-ui,sans-serif;background:#fff;color:#1a1a1a}
-.ats-input:focus{outline:2px solid #287A72;outline-offset:-1px}
-.ats-toggle{display:flex;gap:4px;padding:3px;background:#f2f2f2;border-radius:8px}
-.ats-seg{flex:1;border:0;background:transparent;padding:6px;border-radius:6px;font:600 13px system-ui,sans-serif;color:#666;cursor:pointer}
-.ats-seg-on{background:#fff;color:#1a1a1a;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.ats-field>span{font-size:11px;font-weight:600;color:var(--ats-muted);text-transform:uppercase;letter-spacing:.04em}
+.ats-input{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--ats-input-border);border-radius:7px;font:14px system-ui,sans-serif;background:var(--ats-surface);color:var(--ats-text)}
+.ats-input:focus{outline:2px solid var(--ats-accent);outline-offset:-1px}
+.ats-toggle{display:flex;gap:4px;padding:3px;background:var(--ats-fill);border-radius:8px}
+.ats-seg{flex:1;border:0;background:transparent;padding:6px;border-radius:6px;font:600 13px system-ui,sans-serif;color:var(--ats-muted);cursor:pointer}
+.ats-seg-on{background:var(--ats-surface);color:var(--ats-text);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .ats-btn{border:0;border-radius:8px;padding:9px;font:600 14px system-ui,sans-serif;cursor:pointer}
-.ats-btn-primary{background:#287A72;color:#fff}
-.ats-btn-primary:hover{background:#1f5f59}
+.ats-btn-primary{background:var(--ats-accent);color:#fff}
+.ats-btn-primary:hover{background:var(--ats-accent-strong)}
 .ats-btn-primary:disabled{opacity:.6;cursor:default}
-.ats-note{font-size:12px;color:#666;margin:0}
-.ats-error{font-size:12px;color:#b42318;margin:0}
-.ats-success{font-size:12px;color:#287A72;font-weight:600;margin:0}
+.ats-note{font-size:12px;color:var(--ats-muted);margin:0}
+.ats-error{font-size:12px;color:var(--ats-err-fg);margin:0}
+.ats-success{font-size:12px;color:var(--ats-accent);font-weight:600;margin:0}
 .ats-row{display:flex;gap:8px}
 .ats-row>.ats-btn{flex:1}
-.ats-btn-ghost{background:#f2f2f2;color:#287A72}
-.ats-btn-ghost:hover{background:#e7efee}
+.ats-btn-ghost{background:var(--ats-fill);color:var(--ats-accent)}
+.ats-btn-ghost:hover{background:var(--ats-tint)}
 .ats-btn-ghost:disabled{opacity:.6;cursor:default}
 .ats-radar{display:flex}
 .ats-radar-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap}
-.ats-radar-in{background:#e7f4ef;color:#1f6b56}
-.ats-radar-out{background:#f2f2f2;color:#888}
+.ats-radar-in{background:var(--ats-in-bg);color:var(--ats-in-fg)}
+.ats-radar-out{background:var(--ats-fill);color:var(--ats-muted)}
 /* A failed lookup must not look like a clean miss -- that misread is what made saved contacts appear
    to be new people. */
-.ats-radar-err{background:#fdf1f0;color:#b42318}
+.ats-radar-err{background:var(--ats-err-bg);color:var(--ats-err-fg)}
 textarea.ats-input{resize:vertical;min-height:38px;font-family:inherit}
 
-/* Bulk-capture bar on list surfaces + per-row controls injected next to each person. */
+/* --- Session console (toolbar popup) --------------------------------------------------------- */
+body:has(> .ats-popup){margin:0;background:var(--ats-surface)}
+.ats-popup{
+  width:300px;box-sizing:border-box;padding:14px;
+  display:flex;flex-direction:column;gap:10px;
+  background:var(--ats-surface);color:var(--ats-text);
+  font:14px/1.45 system-ui,-apple-system,sans-serif;
+}
+.ats-popup-head strong{font-size:14px;color:var(--ats-accent)}
+.ats-popup-live{margin:0;display:flex}
+.ats-popup-hint{margin:0;font-size:11px;color:var(--ats-muted);border-top:1px solid var(--ats-border-soft);padding-top:8px}
+
+/* --- Bulk capture on list surfaces ----------------------------------------------------------- */
 .ats-bulk-bar{
   position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:2147483646;
   display:flex;align-items:center;gap:10px;padding:10px 14px;max-width:94vw;flex-wrap:wrap;
-  background:#fff;color:#1a1a1a;border:1px solid #e2e2e2;border-radius:12px;
+  background:var(--ats-surface);color:var(--ats-text);border:1px solid var(--ats-border);border-radius:12px;
   box-shadow:0 12px 40px rgba(0,0,0,.28);font:14px system-ui,-apple-system,sans-serif;
 }
-.ats-bulk-count{font-weight:600;color:#287A72;white-space:nowrap}
-.ats-bulk-into{color:#999}
+/* Recentre in the space the drawer leaves, so the two can't overlap on a narrow window. */
+body:has(#ats-sourcing-panel) .ats-bulk-bar{transform:translateX(calc(-50% - min(190px,46vw)))}
+.ats-bulk-count{font-weight:600;color:var(--ats-accent);white-space:nowrap}
+.ats-bulk-into{color:var(--ats-muted)}
 .ats-bulk-select{width:auto;min-width:150px}
 .ats-row-controls{display:inline-flex;align-items:center;gap:6px;margin-right:6px;vertical-align:middle}
-.ats-row-check{width:16px;height:16px;accent-color:#287A72;cursor:pointer}
+.ats-row-check{width:16px;height:16px;accent-color:var(--ats-accent);cursor:pointer}
 .ats-row-slot{display:inline-flex}
